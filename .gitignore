@@ -1,0 +1,27 @@
+# Rust / Tauri
+src-tauri/target/
+src-tauri/.cargo/
+
+# Node.js
+bkmr-desktop/node_modules/
+bkmr-desktop/dist/
+bkmr-desktop/.vite/
+
+# macOS
+.DS_Store
+*~
+
+# Editor / IDE
+.claude/
+.superpowers/
+.agents/
+.codex/
+
+# Environment
+.env
+.env.local
+
+# Build artifacts
+*.log
+*.dmg
+*.app/Contents
