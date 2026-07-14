@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Editors
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-*
+
+# OS metadata
+Thumbs.db
+Desktop.ini
+
+# Don't ignore extension source files — all static, no build output

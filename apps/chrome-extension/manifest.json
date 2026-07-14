@@ -13,7 +13,8 @@
     "default_title": "添加到 bkmr"
   },
   "permissions": [
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
     "http://127.0.0.1:8733/*"

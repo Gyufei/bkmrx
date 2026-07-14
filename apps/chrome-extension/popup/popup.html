@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>添加到 bkmr</title>
+  <link rel="stylesheet" href="../lib/tagify.min.css" />
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
@@ -11,6 +12,11 @@
     <header>
       <h1>添加到 bkmr</h1>
     </header>
+
+    <div id="existing-banner" class="existing-banner" hidden>
+      <span class="existing-icon"></span>
+      <span id="existing-info"></span>
+    </div>
 
     <form id="bookmark-form">
       <div class="field">
@@ -25,19 +31,24 @@
 
       <div class="field">
         <label for="tags">标签</label>
-        <input type="text" id="tags" placeholder="以空格分隔, 如: fe rust 前端" />
-        <div id="tag-suggestions" class="tag-suggestions"></div>
+        <input type="text" id="tags" placeholder="输入标签，回车添加，逗号分隔" />
+      </div>
+
+      <div class="field">
+        <label for="description">描述（可选）</label>
+        <textarea id="description" placeholder="添加备注或描述" rows="2"></textarea>
       </div>
 
       <button type="submit" id="submit-btn">
         <span class="btn-text">添加书签</span>
-        <span class="btn-loading" hidden>添加中...</span>
+        <span class="btn-loading" hidden>处理中...</span>
       </button>
     </form>
 
     <div id="status" class="status" hidden></div>
   </div>
 
+  <script src="../lib/tagify.min.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
