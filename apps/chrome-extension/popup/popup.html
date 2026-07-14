@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>添加到 bkmr</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>添加到 bkmr</h1>
+    </header>
+
+    <form id="bookmark-form">
+      <div class="field">
+        <label for="url">URL</label>
+        <input type="url" id="url" placeholder="https://example.com" required />
+      </div>
+
+      <div class="field">
+        <label for="title">标题</label>
+        <input type="text" id="title" placeholder="页面标题" />
+      </div>
+
+      <div class="field">
+        <label for="tags">标签</label>
+        <input type="text" id="tags" placeholder="以空格分隔, 如: fe rust 前端" />
+        <div id="tag-suggestions" class="tag-suggestions"></div>
+      </div>
+
+      <button type="submit" id="submit-btn">
+        <span class="btn-text">添加书签</span>
+        <span class="btn-loading" hidden>添加中...</span>
+      </button>
+    </form>
+
+    <div id="status" class="status" hidden></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
