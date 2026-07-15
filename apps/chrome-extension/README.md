@@ -1,24 +1,24 @@
 # bkmrx-chrome-ext
 
-**bkmr-desktop 配套的 Chrome 扩展** — 在浏览网页时一键将其添加为书签并打标签，无需打开 bkmr-desktop 应用。
+**bkmrx 配套的 Chrome 扩展** — 在浏览网页时一键将其添加为书签并打标签，无需打开 bkmrx 应用。
 
 ---
 
 ## 概述
 
 bkmr 是一套命令行书签管理工具（[gyf304/bkmr](https://github.com/gyf304/bkmr)），
-bkmr-desktop 是它的 Tauri 桌面客户端，而这个扩展为它提供了浏览器端的快捷入口。
+bkmrx 是它的 Tauri 桌面客户端，而这个扩展为它提供了浏览器端的快捷入口。
 三个组件的关系：
 
 ```
-浏览器（本扩展） → HTTP API → bkmr-desktop（后台服务） → bkmr CLI → SQLite
+浏览器（本扩展） → HTTP API → bkmrx（后台服务） → bkmr CLI → SQLite
 ```
 
 扩展本身没有独立的存储，所有书签数据都托管在 bkmr 的 SQLite 数据库中。
 
 ## 前置条件
 
-- **bkmr-desktop** 必须正在运行（它会在后台监听 `127.0.0.1:8733`）
+- **bkmrx** 必须正在运行（它会在后台监听 `127.0.0.1:8733`）
 - Chrome 88+ / Edge 88+ / 其他 Chromium 内核浏览器（需支持 Manifest V3）
 
 ## 安装
@@ -33,7 +33,7 @@ bkmr-desktop 是它的 Tauri 桌面客户端，而这个扩展为它提供了浏
 
 ## 使用
 
-1. 确保 bkmr-desktop 已启动（状态栏应有 bkmr 图标）
+1. 确保 bkmrx 已启动（状态栏应有 bkmr 图标）
 2. 在你感兴趣的任意网页上点击扩展图标
 3. 表单会自动填入当前页面的 URL 和标题
 4. 按需修改标题、添加标签
@@ -52,12 +52,12 @@ bkmr-desktop 是它的 Tauri 桌面客户端，而这个扩展为它提供了浏
 | 手动编辑 | URL、标题、标签均可自由修改 |
 | 标签建议 | 从 bkmr 数据库拉取已有标签（按使用频率排序），点击即添加 |
 | 表单验证 | URL 为空时阻止提交并提示 |
-| 连接检测 | bkmr-desktop 未运行时显示友好提示 |
+| 连接检测 | bkmrx 未运行时显示友好提示 |
 | 成功反馈 | 添加成功后显示书签 ID 并清空表单 |
 
 ## API 接口
 
-扩展通过 HTTP 与 bkmr-desktop 通信，所有请求发往 `http://127.0.0.1:8733`：
+扩展通过 HTTP 与 bkmrx 通信，所有请求发往 `http://127.0.0.1:8733`：
 
 ### POST /api/bookmarks
 
@@ -105,7 +105,7 @@ bkmrx-chrome-ext/
 │
 ├── popup/
 │   ├── popup.html         # 弹窗 HTML 结构
-│   ├── popup.css          # 样式 — 沿用 bkmr-desktop 设计系统
+│   ├── popup.css          # 样式 — 沿用 bkmrx 设计系统
 │   └── popup.js           # 核心逻辑 — 自动填表、标签建议、API 调用
 │
 └── icons/
@@ -120,7 +120,7 @@ bkmrx-chrome-ext/
 |----|------|------|
 | 扩展框架 | Manifest V3 | Chrome 扩展最新标准 |
 | 弹窗 UI | 纯 HTML + CSS + JS | 无框架依赖，零构建步骤 |
-| 设计系统 | 同 bkmr-desktop | 配色、字体、间距保持一致 |
+| 设计系统 | 同 bkmrx | 配色、字体、间距保持一致 |
 | 通信 | Fetch API | 调用本地 HTTP 端点 |
 
 零构建工具依赖——项目即源码，加载即用。
@@ -130,8 +130,8 @@ bkmrx-chrome-ext/
 | 现象 | 原因 | 解决 |
 |------|------|------|
 | 点击图标无反应 | 扩展未正确加载 | 检查 `chrome://extensions/` 是否有错误提示 |
-| 添加书签时提示"无法连接" | bkmr-desktop 未运行 | 启动 bkmr-desktop 再试 |
-| 标签建议不显示 | 同上，或尚无书签 | 先通过 bkmr-desktop 添加几个书签 |
+| 添加书签时提示"无法连接" | bkmrx 未运行 | 启动 bkmrx 再试 |
+| 标签建议不显示 | 同上，或尚无书签 | 先通过 bkmrx 添加几个书签 |
 | 添加成功后表单没反应 | 网络错误 | 查看弹窗是否有错误提示；检查 8733 端口是否被占用 |
 
 ## 开发

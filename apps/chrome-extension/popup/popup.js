@@ -77,7 +77,7 @@ async function checkExistingBookmark(url) {
       submitBtn.classList.add('update-mode');
     }
   } catch {
-    // bkmr-desktop not running — ignore
+    // bkmrx not running — ignore
   }
 }
 
@@ -137,8 +137,8 @@ form.addEventListener('submit', async (e) => {
         existingBookmark.tags = tags;
         const tagStr = tags.length ? tags.join(', ') : '无标签';
         const desc = description || existingBookmark.description || '';
-      const descStr = desc ? ` — ${desc}` : '';
-      existingInfo.textContent = `已收藏 — ${existingBookmark.title} (ID: ${existingBookmark.id}) · ${tagStr}${descStr}`;
+        const descStr = desc ? ` — ${desc}` : '';
+        existingInfo.textContent = `已收藏 — ${existingBookmark.title} (ID: ${existingBookmark.id}) · ${tagStr}${descStr}`;
       } else {
         showStatus(data.error || '更新失败', 'error');
       }
@@ -158,7 +158,7 @@ form.addEventListener('submit', async (e) => {
         existingBookmark = { id: data.id, url, title, tags };
         const tagStr = tags.length ? tags.join(', ') : '无标签';
         const descStr = description ? ` — ${description}` : '';
-      existingInfo.textContent = `已收藏 — ${title} (ID: ${data.id}) · ${tagStr}${descStr}`;
+        existingInfo.textContent = `已收藏 — ${title} (ID: ${data.id}) · ${tagStr}${descStr}`;
         existingBanner.hidden = false;
         submitBtn.querySelector('.btn-text').textContent = '更新书签';
         submitBtn.classList.add('update-mode');
@@ -176,7 +176,7 @@ form.addEventListener('submit', async (e) => {
     }
   } catch (err) {
     showStatus(
-      '无法连接到 bkmr-desktop，请确认应用已启动',
+      '无法连接到 bkmrx，请确认应用已启动',
       'info'
     );
   } finally {
