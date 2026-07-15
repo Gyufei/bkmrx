@@ -1,7 +1,14 @@
+import { Copy } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { tagColor } from "../utils/tagColor";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "./ui/context-menu";
 import FolderTree, { type FolderNode } from "./FolderTree";
 import NoteEditor from "./NoteEditor";
 import type { NoteFile } from "../types";
@@ -185,35 +192,44 @@ export default function NotesPanel({
             ) : (
               <div className="space-y-0.5 px-2 pb-2">
                 {filteredNotes.map((note) => (
-                  <button
-                    key={note.path}
-                    onClick={() => handleSelectFile(note)}
-                    className={`w-full text-left px-2.5 py-2 rounded-md transition-colors ${
-                      selectedFilePath === note.path
-                        ? "bg-accent/15 dark:bg-accent-dark/15"
-                        : "hover:bg-accent-bg/50 dark:hover:bg-accent-dark-bg/50"
-                    }`}
-                  >
-                    <div className="text-sm font-medium text-text-primary dark:text-text-dark-primary truncate">
-                      {note.title}
-                    </div>
-                    {note.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {note.tags.slice(0, 3).map((tag) => (
-                          <span
-                            key={tag}
-                            className="inline-block px-1.5 py-0.5 text-[10px] rounded-sm leading-none"
-                            style={tagColor(tag)}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="text-[10px] text-text-secondary dark:text-text-dark-secondary mt-1">
-                      {formatTime(note.modified)}
-                    </div>
-                  </button>
+                  <ContextMenu key={note.path}>
+                    <ContextMenuTrigger asChild>
+                      <button
+                        onClick={() => handleSelectFile(note)}
+                        className={`w-full text-left px-2.5 py-2 rounded-md transition-colors ${
+                          selectedFilePath === note.path
+                            ? "bg-accent/15 dark:bg-accent-dark/15"
+                            : "hover:bg-accent-bg/50 dark:hover:bg-accent-dark-bg/50"
+                        }`}
+                      >
+                        <div className="text-sm font-medium text-text-primary dark:text-text-dark-primary truncate">
+                          {note.title}
+                        </div>
+                        {note.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {note.tags.slice(0, 3).map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-block px-1.5 py-0.5 text-[10px] rounded-sm leading-none"
+                                style={tagColor(tag)}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="text-[10px] text-text-secondary dark:text-text-dark-secondary mt-1">
+                          {formatTime(note.modified)}
+                        </div>
+                      </button>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem onSelect={() => { navigator.clipboard.writeText(note.path).catch(() => {}); }}>
+                        <Copy className="h-4 w-4" />
+                        <span>复制文件路径</span>
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
                 ))}
               </div>
             )}

@@ -1,4 +1,11 @@
+import { Copy } from "lucide-react";
 import { useState, useCallback } from "react";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "./ui/context-menu";
 
 export interface FolderNode {
   path: string;
@@ -31,52 +38,62 @@ function FolderTreeItem({
 
   return (
     <div>
-      <button
-        onClick={() => {
-          onSelect(node.path);
-          if (hasChildren) onToggle(node.path);
-        }}
-        className={`w-full flex items-center gap-1 px-2 py-1 text-sm rounded-md transition-colors text-left ${
-          isSelected
-            ? "bg-accent/15 text-accent dark:bg-accent-dark/15 dark:text-accent-dark"
-            : "text-text-secondary dark:text-text-dark-secondary hover:bg-accent-bg/50 dark:hover:bg-accent-dark-bg/50 hover:text-text-primary dark:hover:text-text-dark-primary"
-        }`}
-        style={{ paddingLeft: `${8 + depth * 16}px` }}
-      >
-        {hasChildren ? (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={`shrink-0 transition-transform ${node.isExpanded ? "rotate-90" : ""}`}
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <button
+            onClick={() => {
+              onSelect(node.path);
+              if (hasChildren) onToggle(node.path);
+            }}
+            className={`w-full flex items-center gap-1 px-2 py-1 text-sm rounded-md transition-colors text-left ${
+              isSelected
+                ? "bg-accent/15 text-accent dark:bg-accent-dark/15 dark:text-accent-dark"
+                : "text-text-secondary dark:text-text-dark-secondary hover:bg-accent-bg/50 dark:hover:bg-accent-dark-bg/50 hover:text-text-primary dark:hover:text-text-dark-primary"
+            }`}
+            style={{ paddingLeft: `${8 + depth * 16}px` }}
           >
-            <path d="m9 18 6-6-6-6" />
-          </svg>
-        ) : (
-          <span className="w-3 shrink-0" />
-        )}
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill={node.isExpanded ? "currentColor" : "none"}
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="shrink-0 opacity-60"
-        >
-          <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
-        </svg>
-        <span className="truncate">{node.name}</span>
-      </button>
+            {hasChildren ? (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={`shrink-0 transition-transform ${node.isExpanded ? "rotate-90" : ""}`}
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            ) : (
+              <span className="w-3 shrink-0" />
+            )}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill={node.isExpanded ? "currentColor" : "none"}
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0 opacity-60"
+            >
+              <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+            </svg>
+            <span className="truncate">{node.name}</span>
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={() => { navigator.clipboard.writeText(node.path).catch(() => {}); }}>
+            <Copy className="h-4 w-4" />
+            <span>复制路径</span>
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
       {hasChildren && node.isExpanded && (
         <div>
           {node.children.map((child) => (
