@@ -1,4 +1,4 @@
-# bkmr-chrome-ext
+# bkmrx-chrome-ext
 
 **bkmr-desktop 配套的 Chrome 扩展** — 在浏览网页时一键将其添加为书签并打标签，无需打开 bkmr-desktop 应用。
 
@@ -26,7 +26,7 @@ bkmr-desktop 是它的 Tauri 桌面客户端，而这个扩展为它提供了浏
 1. 在浏览器地址栏打开 `chrome://extensions/`
 2. 开启右上角的 **开发者模式**
 3. 点击 **加载已解压的扩展程序**
-4. 选择本项目所在的 `bkmr-chrome-ext` 目录
+4. 选择本项目所在的 `bkmrx-chrome-ext` 目录
 5. 工具栏出现书签图标，即可使用
 
 > 如需固定到工具栏：点击浏览器工具栏的拼图图标 → 找到 bkmr 书签 → 点 pin 图标。
@@ -97,7 +97,7 @@ bkmr-desktop 是它的 Tauri 桌面客户端，而这个扩展为它提供了浏
 ## 目录结构
 
 ```
-bkmr-chrome-ext/
+bkmrx-chrome-ext/
 ├── manifest.json          # Manfiest V3 配置 — 权限、图标、弹窗入口
 ├── background.js          # Service Worker — 预留，无持久逻辑
 ├── .gitignore
