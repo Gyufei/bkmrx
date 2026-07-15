@@ -1,4 +1,5 @@
 import { Copy } from "lucide-react";
+import { buildFolderTree } from "../utils/buildFolderTree";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
@@ -9,7 +10,14 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from "./ui/context-menu";
-import FolderTree, { type FolderNode } from "./FolderTree";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "./ui/dialog";
+import FolderTree from "./FolderTree";
 import NoteEditor from "./NoteEditor";
 import type { NoteFile } from "../types";
 
@@ -31,38 +39,6 @@ function formatTime(unix: number): string {
   if (diff < 86400000) return "今天";
   if (diff < 172800000) return "昨天";
   return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-function buildFolderTree(notes: NoteFile[]): FolderNode[] {
-  const rootMap = new Map<string, FolderNode>();
-  for (const note of notes) {
-    const parts = note.relative_path.split("/");
-    if (parts.length <= 1) continue;
-    let currentPath = "";
-    for (let i = 0; i < parts.length - 1; i++) {
-      const parentPath = currentPath;
-      currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
-      if (!rootMap.has(currentPath)) {
-        const node: FolderNode = {
-          path: currentPath,
-          name: parts[i],
-          isExpanded: false,
-          children: [],
-        };
-        rootMap.set(currentPath, node);
-        if (parentPath) {
-          const parent = rootMap.get(parentPath);
-          if (parent && !parent.children.find((c) => c.path === currentPath)) {
-            parent.children.push(node);
-          }
-        }
-      }
-    }
-  }
-  for (const node of rootMap.values()) {
-    node.children.sort((a, b) => a.name.localeCompare(b.name));
-  }
-  return Array.from(rootMap.values()).filter((n) => !n.path.includes("/"));
 }
 
 export default function NotesPanel({
@@ -253,47 +229,38 @@ export default function NotesPanel({
       </div>
 
       {/* New note modal */}
-      {showNewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowNewModal(false)}>
-          <div
-            className="w-80 rounded-xl bg-surface-card dark:bg-surface-dark-card shadow-lg p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-semibold text-text-primary dark:text-text-dark-primary mb-3">
-              新建笔记
-            </h3>
-            <Input
-              type="text"
-              value={newFileName}
-              onChange={(e) => { setNewFileName(e.target.value); setNewFileError(null); }}
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-              placeholder="输入文件名（无需 .md）"
-              autoFocus
-            />
-            {newFileError && (
-              <div className="mt-1.5 text-xs text-danger dark:text-danger-dark">
-                {newFileError}
-              </div>
-            )}
-            <div className="flex justify-end gap-2 mt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowNewModal(false)}
-              >
-                取消
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleCreate}
-              >
-                确定
-              </Button>
+      <Dialog open={showNewModal} onOpenChange={(v) => { setShowNewModal(v); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新建笔记</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Input
+                type="text"
+                value={newFileName}
+                onChange={(e) => { setNewFileName(e.target.value); setNewFileError(null); }}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                placeholder="输入文件名（无需 .md）"
+                autoFocus
+              />
+              {newFileError && (
+                <div className="mt-1.5 text-xs text-danger dark:text-danger-dark">
+                  {newFileError}
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowNewModal(false)}>
+              取消
+            </Button>
+            <Button variant="default" size="sm" onClick={handleCreate}>
+              确定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
