@@ -9,7 +9,8 @@ fn main() {
         .setup(|app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(
-                bkmrx_lib::http_server::start_server(handle, shutdown_rx)
+                bkmrx_lib::notes::set_app_handle(handle.clone());
+            bkmrx_lib::http_server::start_server(handle, shutdown_rx)
             );
             Ok(())
         })
@@ -26,6 +27,8 @@ fn main() {
             bkmrx_lib::commands::read_note_file,
             bkmrx_lib::commands::write_note_file,
             bkmrx_lib::commands::create_note_file,
+            bkmrx_lib::commands::delete_note,
+            bkmrx_lib::commands::rename_note,
             bkmrx_lib::commands::get_settings,
             bkmrx_lib::commands::update_settings,
             bkmrx_lib::commands::get_server_status,

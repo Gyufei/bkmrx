@@ -1,4 +1,4 @@
-import { Copy } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 import { buildFolderTree } from "./buildFolderTree";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "../ui/input";
@@ -9,6 +9,7 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
 } from "../ui/context-menu";
 import {
   Dialog,
@@ -27,6 +28,7 @@ interface Props {
   readFile: (path: string) => Promise<string>;
   saveFile: (path: string, content: string) => Promise<void>;
   createFile: (dir: string, name: string) => Promise<string>;
+  onDeleteNote: (path: string) => Promise<void>;
   notes: NoteFile[];
   loading: boolean;
   error: string | null;
@@ -42,7 +44,7 @@ function formatTime(unix: number): string {
 }
 
 export default function NotesPanel({
-  notesDir, scanDir, readFile, saveFile, createFile, notes, loading, error,
+  notesDir, scanDir, readFile, saveFile, createFile, onDeleteNote, notes, loading, error,
 }: Props) {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
@@ -203,6 +205,11 @@ export default function NotesPanel({
                       <ContextMenuItem onSelect={() => { navigator.clipboard.writeText(note.path).catch(() => {}); }}>
                         <Copy className="h-4 w-4" />
                         <span>复制文件路径</span>
+                      </ContextMenuItem>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem onSelect={() => { onDeleteNote(note.path).catch(() => {}); }}>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="text-danger dark:text-danger-dark">删除笔记</span>
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>

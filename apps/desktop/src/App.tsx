@@ -243,6 +243,7 @@ export default function App() {
             notes={notes.notes}
             loading={notes.loading}
             error={notes.error}
+          onDeleteNote={notes.deleteNote}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center text-text-secondary dark:text-text-dark-secondary">

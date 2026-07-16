@@ -74,3 +74,13 @@ pub async fn show_bookmark(id: u64) -> Result<Option<bkmr::BkmrBookmark>, String
 pub async fn update_bookmark(id: u64, title: String, tags: Vec<String>, description: Option<String>) -> Result<(), String> {
     bkmr::update_bookmark(id, &title, &tags, &description.unwrap_or_default()).await
 }
+
+#[tauri::command]
+pub async fn delete_note(path: String) -> Result<(), String> {
+    crate::notes::delete_note_file(&path)
+}
+
+#[tauri::command]
+pub async fn rename_note(old_path: String, new_path: String) -> Result<(), String> {
+    crate::notes::rename_note_file(&old_path, &new_path)
+}
