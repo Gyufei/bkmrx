@@ -10,8 +10,10 @@ fn main() {
             let handle = app.handle().clone();
 
             let config_path = dirs::home_dir().map(|h| h.join(".config/bkmr/config.toml"));
-            bkmrx_lib::container::init(config_path.as_deref())
-                .expect("Failed to initialize bkmr container");
+            if let Err(e) = bkmrx_lib::container::init(config_path.as_deref()) {
+                eprintln!("bkmr container init error: {e}");
+                // 容器初始化失败不影响应用启动，但搜索/书签功能不可用
+            }
 
             bkmrx_lib::notes::set_app_handle(handle.clone());
             tauri::async_runtime::spawn(

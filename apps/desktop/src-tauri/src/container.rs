@@ -5,6 +5,9 @@ use bkmr_lib::config::Settings;
 static CONTAINER: OnceLock<ServiceContainer> = OnceLock::new();
 
 pub fn init(config_path: Option<&std::path::Path>) -> Result<(), String> {
+    // sqlite-vec 扩展必须在建立任何 SQLite 连接之前注册
+    bkmr_lib::infrastructure::repositories::sqlite::register_sqlite_vec();
+
     let settings = match config_path.filter(|p| p.exists()) {
         Some(path) => bkmr_lib::config::load_settings(Some(path))
             .map_err(|e| format!("加载配置失败: {e}"))?,
