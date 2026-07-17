@@ -87,7 +87,10 @@ export default function NotesPanel({
     }
     setNewFileError(null);
     try {
-      const filePath = await createFile(notesDir, name);
+      const targetDir = selectedFolder
+        ? `${notesDir}/${selectedFolder}`
+        : notesDir;
+      const filePath = await createFile(targetDir, name);
       const updatedNotes = await scanDir(notesDir);
       setShowNewModal(false);
       setNewFileName("");
@@ -96,7 +99,7 @@ export default function NotesPanel({
     } catch (e) {
       setNewFileError(String(e));
     }
-  }, [newFileName, notesDir, createFile, scanDir, handleSelectFile]);
+  }, [newFileName, notesDir, selectedFolder, createFile, scanDir, handleSelectFile]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">

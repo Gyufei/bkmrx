@@ -1,13 +1,31 @@
 use crate::bkmr;
 
 #[tauri::command]
-pub async fn load_all_bookmarks() -> Result<Vec<bkmr::BkmrBookmark>, String> {
-    bkmr::get_all_bookmarks().await
+pub async fn load_all_bookmarks() -> Result<Vec<crate::bkmr::BkmrBookmark>, String> {
+    let container = crate::container::get();
+    let bookmarks = container.bookmark_service
+        .get_all_bookmarks(None, None)
+        .map_err(|e| e.to_string())?;
+    Ok(bookmarks.iter().map(|b| crate::bkmr::BkmrBookmark {
+        id: b.id.unwrap_or(0) as u64,
+        url: b.url.clone(),
+        title: b.title.clone(),
+        tags: b.tags.iter().map(|t| t.value().to_string()).collect(),
+        description: b.description.clone(),
+        modified: b.updated_at.to_rfc3339(),
+    }).collect())
 }
 
 #[tauri::command]
-pub async fn get_all_tags() -> Result<Vec<bkmr::BkmrTag>, String> {
-    bkmr::get_tags().await
+pub async fn get_all_tags() -> Result<Vec<crate::bkmr::BkmrTag>, String> {
+    let container = crate::container::get();
+    let tags = container.tag_service
+        .get_all_tags()
+        .map_err(|e| e.to_string())?;
+    Ok(tags.into_iter().map(|(tag, count)| crate::bkmr::BkmrTag {
+        name: tag.value().to_string(),
+        count: count as u64,
+    }).collect())
 }
 
 #[tauri::command]

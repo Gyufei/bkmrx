@@ -8,6 +8,11 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let handle = app.handle().clone();
+
+            let config_path = dirs::home_dir().map(|h| h.join(".config/bkmr/config.toml"));
+            bkmrx_lib::container::init(config_path.as_deref())
+                .expect("Failed to initialize bkmr container");
+
             bkmrx_lib::notes::set_app_handle(handle.clone());
             tauri::async_runtime::spawn(
                 bkmrx_lib::http_server::start_server(handle, shutdown_rx)
@@ -35,6 +40,7 @@ fn main() {
         ])
         .on_window_event(move |_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
+                bkmrx_lib::notes::stop_watcher();
                 if let Some(tx) = shutdown_tx.lock().unwrap().take() {
                     let _ = tx.send(());
                 }
