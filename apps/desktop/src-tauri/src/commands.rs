@@ -2,6 +2,8 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BkmrBookmark {
+    pub access_count: i32,
+    pub created_at: Option<String>,
     pub id: u64,
     pub url: String,
     pub title: String,
@@ -37,6 +39,8 @@ fn to_bkmr_bookmark(b: &bkmr_lib::domain::bookmark::Bookmark) -> BkmrBookmark {
         url: b.url.clone(),
         title: b.title.clone(),
         tags: b.tags.iter().map(|t| t.value().to_string()).collect(),
+        access_count: b.access_count,
+        created_at: b.created_at.map(|t| t.to_rfc3339()),
         description: b.description.clone(),
         modified: b.updated_at.to_rfc3339(),
     }
@@ -54,6 +58,8 @@ pub async fn load_all_bookmarks() -> Result<Vec<BkmrBookmark>, String> {
         url: b.url.clone(),
         title: b.title.clone(),
         tags: b.tags.iter().map(|t| t.value().to_string()).collect(),
+        access_count: b.access_count,
+        created_at: b.created_at.map(|t| t.to_rfc3339()),
         description: b.description.clone(),
         modified: b.updated_at.to_rfc3339(),
     }).collect())
@@ -111,6 +117,15 @@ pub async fn delete_bookmarks(ids: Vec<u64>) -> Result<u64, String> {
             .map_err(|e| e.to_string())?;
     }
     Ok(ids.len() as u64)
+}
+
+#[tauri::command]
+pub async fn record_bookmark_access(id: u64) -> Result<(), String> {
+    let container = crate::container::get();
+    container.bookmark_service
+        .record_bookmark_access(id as i32)
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]

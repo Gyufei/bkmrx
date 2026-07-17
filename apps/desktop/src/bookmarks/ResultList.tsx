@@ -19,6 +19,7 @@ import { Button } from "../ui/button";
 import EditBookmarkDialog from "./EditBookmarkDialog";
 import { tagColor } from "../shared/tagColor";
 import { open } from "@tauri-apps/plugin-shell";
+import { invoke } from "@tauri-apps/api/core";
 import type { Bookmark } from "../types";
 
 interface Props {
@@ -80,7 +81,7 @@ export default function ResultList({ bookmarks, loading, error, hasMore, onLoadM
             <BookmarkRow bookmark={bm} onRequestDelete={setDeleteTarget} />
           </ContextMenuTrigger>
           <ContextMenuContent>
-            <ContextMenuItem onSelect={() => open(bm.url)}>
+            <ContextMenuItem onSelect={() => { open(bm.url); invoke("record_bookmark_access", { id: bm.id }).catch(() => {}); }}>
               <ExternalLink className="h-4 w-4" />
               <span>打开链接</span>
             </ContextMenuItem>
@@ -164,6 +165,7 @@ export default function ResultList({ bookmarks, loading, error, hasMore, onLoadM
 function BookmarkRow({ bookmark, onRequestDelete }: { bookmark: Bookmark; onRequestDelete: (bm: Bookmark) => void }) {
   const handleClick = () => {
     open(bookmark.url);
+    invoke("record_bookmark_access", { id: bookmark.id }).catch(() => {});
   };
 
   return (
@@ -181,6 +183,11 @@ function BookmarkRow({ bookmark, onRequestDelete }: { bookmark: Bookmark; onRequ
         {bookmark.description && (
           <div className="text-xs text-text-secondary dark:text-text-dark-secondary mt-1 line-clamp-2">
             {bookmark.description}
+          </div>
+        )}
+        {bookmark.access_count > 0 && (
+          <div className="text-xs text-text-secondary dark:text-text-dark-secondary opacity-60 mt-1">
+            {bookmark.access_count} 次访问
           </div>
         )}
         {bookmark.tags.length > 0 && (

@@ -5,6 +5,8 @@ export interface Bookmark {
   tags: string[];
   description?: string;
   modified?: string;
+  access_count: number;
+  created_at?: string;
 }
 
 export interface Tag {
