@@ -1,3 +1,23 @@
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BkmrBookmark {
+    pub id: u64,
+    pub url: String,
+    pub title: String,
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub modified: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BkmrTag {
+    pub name: String,
+    pub count: u64,
+}
+
 
 fn to_tag_set(tags: &[String]) -> std::collections::HashSet<bkmr_lib::domain::tag::Tag> {
     use std::collections::HashSet;
@@ -11,8 +31,8 @@ fn to_tag_set(tags: &[String]) -> std::collections::HashSet<bkmr_lib::domain::ta
         .unwrap_or_default()
 }
 
-fn to_bkmr_bookmark(b: &bkmr_lib::domain::bookmark::Bookmark) -> crate::bkmr::BkmrBookmark {
-    crate::bkmr::BkmrBookmark {
+fn to_bkmr_bookmark(b: &bkmr_lib::domain::bookmark::Bookmark) -> BkmrBookmark {
+    BkmrBookmark {
         id: b.id.unwrap_or(0) as u64,
         url: b.url.clone(),
         title: b.title.clone(),
@@ -24,12 +44,12 @@ fn to_bkmr_bookmark(b: &bkmr_lib::domain::bookmark::Bookmark) -> crate::bkmr::Bk
 
 
 #[tauri::command]
-pub async fn load_all_bookmarks() -> Result<Vec<crate::bkmr::BkmrBookmark>, String> {
+pub async fn load_all_bookmarks() -> Result<Vec<BkmrBookmark>, String> {
     let container = crate::container::get();
     let bookmarks = container.bookmark_service
         .get_all_bookmarks(None, None)
         .map_err(|e| e.to_string())?;
-    Ok(bookmarks.iter().map(|b| crate::bkmr::BkmrBookmark {
+    Ok(bookmarks.iter().map(|b| BkmrBookmark {
         id: b.id.unwrap_or(0) as u64,
         url: b.url.clone(),
         title: b.title.clone(),
@@ -40,12 +60,12 @@ pub async fn load_all_bookmarks() -> Result<Vec<crate::bkmr::BkmrBookmark>, Stri
 }
 
 #[tauri::command]
-pub async fn get_all_tags() -> Result<Vec<crate::bkmr::BkmrTag>, String> {
+pub async fn get_all_tags() -> Result<Vec<BkmrTag>, String> {
     let container = crate::container::get();
     let tags = container.tag_service
         .get_all_tags()
         .map_err(|e| e.to_string())?;
-    Ok(tags.into_iter().map(|(tag, count)| crate::bkmr::BkmrTag {
+    Ok(tags.into_iter().map(|(tag, count)| BkmrTag {
         name: tag.value().to_string(),
         count: count as u64,
     }).collect())
@@ -129,7 +149,7 @@ pub async fn get_server_status() -> Result<crate::http_server::ServerStatus, Str
 }
 
 #[tauri::command]
-pub async fn check_bookmark(url: String) -> Result<Option<crate::bkmr::BkmrBookmark>, String> {
+pub async fn check_bookmark(url: String) -> Result<Option<BkmrBookmark>, String> {
     let container = crate::container::get();
     let bm = container.bookmark_service
         .get_bookmark_by_url(&url)
@@ -138,7 +158,7 @@ pub async fn check_bookmark(url: String) -> Result<Option<crate::bkmr::BkmrBookm
 }
 
 #[tauri::command]
-pub async fn show_bookmark(id: u64) -> Result<Option<crate::bkmr::BkmrBookmark>, String> {
+pub async fn show_bookmark(id: u64) -> Result<Option<BkmrBookmark>, String> {
     let container = crate::container::get();
     let bm = container.bookmark_service
         .get_bookmark(id as i32)
