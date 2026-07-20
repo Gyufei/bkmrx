@@ -6,9 +6,9 @@
 
 ## 概述
 
-bkmr 是一套命令行书签管理工具（[gyf304/bkmr](https://github.com/gyf304/bkmr)），
-bkmrx 是它的 Tauri 桌面客户端，而这个扩展为它提供了浏览器端的快捷入口。
-三个组件的关系：
+bkmr 是一套命令行书签管理工具（[sysid/bkmr](https://github.com/sysid/bkmr)），
+bkmrx 是它的 Tauri 桌面客户端 ([Gyufei/bkmrx](https://github.com/Gyufei/bkmrx))
+bkmrx-chrome-ext 为客户端提供了浏览器端的快捷入口。
 
 ```
 浏览器（本扩展） → HTTP API → bkmrx（后台服务） → bkmr CLI → SQLite

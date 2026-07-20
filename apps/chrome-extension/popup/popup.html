@@ -3,52 +3,85 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>添加到 bkmr</title>
+  <title>添加到 bkmrx</title>
   <link rel="stylesheet" href="../lib/tagify.min.css" />
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <div id="app">
-    <header>
-      <h1>添加到 bkmr</h1>
-    </header>
+  <div id="app" x-data="popupApp">
 
-    <div id="existing-banner" class="existing-banner" hidden>
-      <span class="existing-icon"></span>
-      <span id="existing-info"></span>
+    <!-- === Checking connection === -->
+    <div x-show="checkingConnection" class="view-loading">
+      <div class="spinner"></div>
+      <p class="loading-text">连接中...</p>
     </div>
 
-    <form id="bookmark-form">
-      <div class="field">
-        <label for="url">URL</label>
-        <input type="url" id="url" placeholder="https://example.com" required />
+    <!-- === Disconnected === -->
+    <template x-if="isDisconnected">
+      <div class="view-disconnected">
+        <svg class="disco-icon" width="64" height="64" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9" opacity=".4"/>
+          <path d="M7 7l10 10"/>
+          <path d="M7 17L17 7"/>
+        </svg>
+        <h2 class="disco-title">请连接 bkmrx</h2>
+        <p class="disco-desc">确保后端应用已启动</p>
       </div>
+    </template>
 
-      <div class="field">
-        <label for="title">标题</label>
-        <input type="text" id="title" placeholder="页面标题" />
+    <!-- === Connected === -->
+    <template x-if="isConnected">
+      <div class="view-connected" x-init="onConnected">
+        <header class="app-header">
+          <h1 class="app-title">添加到 bkmrx</h1>
+        </header>
+
+        <!-- Existing bookmark banner -->
+        <div x-show="showBanner" class="existing-banner" x-text="bannerText"></div>
+
+        <form @submit.prevent="submit" class="bookmark-form">
+          <div class="field">
+            <label for="url">URL</label>
+            <input type="url" id="url" x-model="form.url" required
+                   placeholder="https://example.com" />
+          </div>
+
+          <div class="field">
+            <label for="title">标题</label>
+            <input type="text" id="title" x-model="form.title"
+                   placeholder="页面标题" />
+          </div>
+
+          <div class="field">
+            <label for="tags">标签</label>
+            <input type="text" id="tags" x-ref="tagsInput"
+                   placeholder="输入标签，回车添加，逗号分隔" />
+          </div>
+
+          <div class="field">
+            <label for="description">描述（可选）</label>
+            <textarea id="description" x-model="form.description"
+                      rows="2" placeholder="添加备注或描述"></textarea>
+          </div>
+
+          <button type="submit" id="submit-btn"
+                  x-bind:disabled="submitting"
+                  x-bind:class="submitBtnClass">
+            <span class="btn-text" x-text="buttonText"></span>
+          </button>
+
+          <div x-show="errorMessage" class="status-message error" x-text="errorMessage" role="alert"></div>
+          <div x-show="successMessage" class="status-message success" x-text="successMessage" role="status"></div>
+        </form>
       </div>
+    </template>
 
-      <div class="field">
-        <label for="tags">标签</label>
-        <input type="text" id="tags" placeholder="输入标签，回车添加，逗号分隔" />
-      </div>
-
-      <div class="field">
-        <label for="description">描述（可选）</label>
-        <textarea id="description" placeholder="添加备注或描述" rows="2"></textarea>
-      </div>
-
-      <button type="submit" id="submit-btn">
-        <span class="btn-text">添加书签</span>
-        <span class="btn-loading" hidden>处理中...</span>
-      </button>
-    </form>
-
-    <div id="status" class="status" hidden></div>
   </div>
 
   <script src="../lib/tagify.min.js"></script>
+  <script src="../lib/alpine-csp.min.js" defer></script>
   <script src="popup.js"></script>
 </body>
 </html>
