@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { X } from "lucide-react";
-import { cn } from "../shared/utils";
-import { tagColor } from "../shared/tagColor";
+import { cn } from "../lib/utils";
+import { tagColor } from "../lib/tagColor";
 import type { Tag } from "../types";
 
 interface TagInputProps {

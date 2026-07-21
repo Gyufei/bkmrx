@@ -5,7 +5,7 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
-} from "../ui/context-menu";
+} from "@/components/ui/context-menu";
 
 export interface FolderNode {
   path: string;
@@ -39,7 +39,7 @@ function FolderTreeItem({
   return (
     <div>
       <ContextMenu>
-        <ContextMenuTrigger asChild>
+        <ContextMenuTrigger>
           <button
             onClick={() => {
               onSelect(node.path);
@@ -47,7 +47,7 @@ function FolderTreeItem({
             }}
             className={`w-full flex items-center gap-1 px-2 py-1 text-sm rounded-md transition-colors text-left ${
               isSelected
-                ? "bg-accent/15 text-accent dark:bg-accent-dark/15 dark:text-accent-dark"
+                ? "bg-accent dark:bg-accent-dark/25"
                 : "text-text-secondary dark:text-text-dark-secondary hover:bg-accent-bg/50 dark:hover:bg-accent-dark-bg/50 hover:text-text-primary dark:hover:text-text-dark-primary"
             }`}
             style={{ paddingLeft: `${8 + depth * 16}px` }}
@@ -88,7 +88,7 @@ function FolderTreeItem({
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onSelect={() => { navigator.clipboard.writeText(node.path).catch(() => {}); }}>
+          <ContextMenuItem onClick={() => { navigator.clipboard.writeText(node.path).catch(() => {}); }}>
             <Copy className="h-4 w-4" />
             <span>复制路径</span>
           </ContextMenuItem>

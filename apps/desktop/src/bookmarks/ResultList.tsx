@@ -7,17 +7,17 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "../ui/dialog";
+} from "@/components/ui/dialog";
 import {
   ContextMenu,
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-} from "../ui/context-menu";
-import { Button } from "../ui/button";
+} from "@/components/ui/context-menu";
+import { Button } from "@/components/ui/button";
 import EditBookmarkDialog from "./EditBookmarkDialog";
-import { tagColor } from "../shared/tagColor";
+import { tagColor } from "../lib/tagColor";
 import { open } from "@tauri-apps/plugin-shell";
 import { invoke } from "@tauri-apps/api/core";
 import type { Bookmark, Tag } from "../types";
@@ -82,15 +82,15 @@ export default function ResultList({ bookmarks, loading, error, hasMore, onLoadM
             <BookmarkRow bookmark={bm} onRequestDelete={setDeleteTarget} />
           </ContextMenuTrigger>
           <ContextMenuContent>
-            <ContextMenuItem onSelect={() => { open(bm.url); invoke("record_bookmark_access", { id: bm.id }).catch(() => {}); }}>
+            <ContextMenuItem onClick={() => { open(bm.url); invoke("record_bookmark_access", { id: bm.id }).catch(() => {}); }}>
               <ExternalLink className="h-4 w-4" />
               <span>打开链接</span>
             </ContextMenuItem>
-            <ContextMenuItem onSelect={() => { navigator.clipboard.writeText(bm.url).catch(() => {}); }}>
+            <ContextMenuItem onClick={() => { navigator.clipboard.writeText(bm.url).catch(() => {}); }}>
               <Link className="h-4 w-4" />
               <span>复制链接</span>
             </ContextMenuItem>
-            <ContextMenuItem onSelect={() => {
+            <ContextMenuItem onClick={() => {
               const text = bm.title ? `[${bm.title}](${bm.url})` : bm.url;
               navigator.clipboard.writeText(text).catch(() => {});
             }}>
@@ -98,11 +98,11 @@ export default function ResultList({ bookmarks, loading, error, hasMore, onLoadM
               <span>复制为 Markdown</span>
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => setEditTarget(bm)}>
+            <ContextMenuItem onClick={() => setEditTarget(bm)}>
               <Pencil className="h-4 w-4" />
               <span>编辑</span>
             </ContextMenuItem>
-            <ContextMenuItem onSelect={() => setDeleteTarget(bm)}>
+            <ContextMenuItem onClick={() => setDeleteTarget(bm)}>
               <Trash2 className="h-4 w-4" />
               <span className="text-danger dark:text-danger-dark">删除</span>
             </ContextMenuItem>
@@ -174,9 +174,9 @@ function BookmarkRow({ bookmark, onRequestDelete }: { bookmark: Bookmark; onRequ
     <div className="group relative">
       <div
         onClick={handleClick}
-        className="block px-4 py-3 rounded-card hover:bg-accent-bg dark:hover:bg-accent-dark-bg cursor-pointer transition-colors"
+        className="block px-4 py-3 rounded-md hover:bg-accent dark:hover:bg-accent-dark-bg cursor-pointer transition-colors"
       >
-        <div className="text-base font-medium text-text-primary dark:text-text-dark-primary group-hover:text-accent dark:group-hover:text-accent-dark transition-colors truncate pr-6">
+        <div className="text-base font-medium text-text-primary dark:text-text-dark-primary group-hover:text-accent-bg dark:group-hover:text-accent-dark transition-colors truncate pr-6">
           {bookmark.title || bookmark.url}
         </div>
         <div className="text-xs text-text-secondary dark:text-text-dark-secondary truncate mt-0.5">

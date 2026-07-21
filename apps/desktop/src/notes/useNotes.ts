@@ -20,7 +20,7 @@ export function useNotes() {
         } else {
           next = [...prev, changed];
         }
-        return next.sort((a, b) => b.modified - a.modified);
+        return next.sort((a, b) => a.title.localeCompare(b.title));
       });
     });
     const unlisten2 = listen<string>("note-removed", (event) => {

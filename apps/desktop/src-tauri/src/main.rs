@@ -31,7 +31,6 @@ fn main() {
             bkmrx_lib::commands::show_bookmark,
             bkmrx_lib::commands::update_bookmark,
             bkmrx_lib::commands::scan_notes,
-            bkmrx_lib::commands::search_bookmarks,
             bkmrx_lib::commands::hybrid_search_bookmarks,
 
             bkmrx_lib::commands::record_bookmark_access,
@@ -43,11 +42,12 @@ fn main() {
             bkmrx_lib::commands::get_settings,
             bkmrx_lib::commands::update_settings,
             bkmrx_lib::commands::get_server_status,
+            bkmrx_lib::commands::get_system_info,
         ])
         .on_window_event(move |_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 bkmrx_lib::notes::stop_watcher();
-                if let Some(tx) = shutdown_tx.lock().unwrap().take() {
+                if let Some(tx) = shutdown_tx.lock().unwrap_or_else(|e| e.into_inner()).take() {
                     let _ = tx.send(());
                 }
             }

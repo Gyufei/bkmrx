@@ -7,7 +7,7 @@ use notify::{EventKind, RecursiveMode, Watcher, RecommendedWatcher, Config};
 use tauri::Emitter;
 
 static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
-static WATCHER: OnceLock<Mutex<Option<RecommendedWatcher>>> = OnceLock::new();
+static WATCHER: OnceLock<Mutex<Option<(String, RecommendedWatcher)>>> = OnceLock::new();
 
 pub fn set_app_handle(handle: tauri::AppHandle) {
     let _ = APP_HANDLE.set(handle);
@@ -15,7 +15,7 @@ pub fn set_app_handle(handle: tauri::AppHandle) {
 
 pub fn stop_watcher() {
     if let Some(mtx) = WATCHER.get() {
-        *mtx.lock().unwrap() = None;
+        *mtx.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 }
 
@@ -54,7 +54,7 @@ pub fn scan_notes(dir: &str) -> Result<Vec<NoteFile>, String> {
     }
     let mut notes = Vec::new();
     scan_dir(root, root, &mut notes)?;
-    notes.sort_by(|a, b| b.modified.cmp(&a.modified));
+    notes.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
     if let Some(handle) = APP_HANDLE.get() {
         start_watcher(dir, handle.clone());
     }
@@ -79,10 +79,15 @@ fn scan_dir(root: &Path, current: &Path, notes: &mut Vec<NoteFile>) -> Result<()
 
 fn start_watcher(dir: &str, app_handle: tauri::AppHandle) {
     let mtx = WATCHER.get_or_init(|| Mutex::new(None));
-    let mut guard = mtx.lock().unwrap();
-    if guard.is_some() {
-        return;
+    let mut guard = mtx.lock().unwrap_or_else(|e| e.into_inner());
+
+    // If already watching the same directory, skip
+    if let Some((ref watched_dir, _)) = *guard {
+        if watched_dir == dir {
+            return;
+        }
     }
+
     let dir = dir.to_string();
     let root = Path::new(&dir).to_path_buf();
     let (tx, rx) = std::sync::mpsc::channel();
@@ -116,7 +121,8 @@ fn start_watcher(dir: &str, app_handle: tauri::AppHandle) {
         }
     });
 
-    *guard = Some(watcher);
+    // Drop old watcher (if any) by replacing with new
+    *guard = Some((dir, watcher));
 }
 
 pub fn delete_note_file(path: &str) -> Result<(), String> {

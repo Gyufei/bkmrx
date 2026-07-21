@@ -33,9 +33,9 @@ pub async fn start_server(app_handle: tauri::AppHandle, shutdown_rx: tokio::sync
     let app = Router::new()
         .route("/api/bookmarks", post(add_bookmark_handler))
         .route("/api/bookmarks/check", get(check_bookmark_handler))
-        .route("/api/bookmarks/{id}", get(get_bookmark_handler))
-        .route("/api/bookmarks/{id}", put(update_bookmark_handler))
-        .route("/api/bookmarks/{id}", delete(delete_bookmark_handler))
+        .route("/api/bookmarks/:id", get(get_bookmark_handler))
+        .route("/api/bookmarks/:id", put(update_bookmark_handler))
+        .route("/api/bookmarks/:id", delete(delete_bookmark_handler))
         .route("/api/tags", get(get_tags_handler))
         .route("/api/docs", get(docs_handler));
 
@@ -92,6 +92,17 @@ struct CheckResponse {
     bookmark: Option<serde_json::Value>,
 }
 
+fn to_json_bookmark(bm: &bkmr_lib::domain::bookmark::Bookmark) -> serde_json::Value {
+    serde_json::json!({
+        "id": bm.id,
+        "url": bm.url,
+        "title": bm.title,
+        "description": bm.description,
+        "tags": bm.tags.iter().map(|t| t.value()).collect::<Vec<&str>>(),
+        "modified": bm.updated_at.to_rfc3339(),
+    })
+}
+
 // ─── Handlers ───
 
 async fn add_bookmark_handler(
@@ -133,14 +144,7 @@ async fn check_bookmark_handler(
     match container.bookmark_service.get_bookmark_by_url(&query.url) {
         Ok(Some(bm)) => Ok(Json(CheckResponse {
             exists: true,
-            bookmark: Some(serde_json::json!({
-                "id": bm.id,
-                "url": bm.url,
-                "title": bm.title,
-                "description": bm.description,
-                "tags": bm.tags.iter().map(|t| t.value()).collect::<Vec<&str>>(),
-                "modified": bm.updated_at.to_rfc3339(),
-            })),
+            bookmark: Some(to_json_bookmark(&bm)),
         })),
         Ok(None) => Ok(Json(CheckResponse {
             exists: false,
@@ -171,8 +175,7 @@ async fn update_bookmark_handler(
         updated.description = desc;
     }
     if !req.tags.is_empty() {
-        let tag_str = req.tags.join(",");
-        let tag_set = bkmr_lib::domain::tag::Tag::parse_tag_str(&tag_str).ok().flatten().unwrap_or_default();
+        let tag_set = crate::commands::to_tag_set(&req.tags);
         updated.tags = tag_set;
     }
     updated.updated_at = chrono::Utc::now();
@@ -190,14 +193,7 @@ async fn get_bookmark_handler(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let container = crate::container::get();
     match container.bookmark_service.get_bookmark(id as i32) {
-        Ok(Some(bm)) => Ok(Json(serde_json::json!({
-            "id": bm.id,
-            "url": bm.url,
-            "title": bm.title,
-            "description": bm.description,
-            "tags": bm.tags.iter().map(|t| t.value()).collect::<Vec<&str>>(),
-            "modified": bm.updated_at.to_rfc3339(),
-        }))),
+        Ok(Some(bm)) => Ok(Json(to_json_bookmark(&bm))),
         Ok(None) => Err((StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Bookmark not found" })))),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))),
     }

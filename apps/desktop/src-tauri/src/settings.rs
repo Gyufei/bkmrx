@@ -24,10 +24,19 @@ fn settings_path() -> PathBuf {
 pub fn load() -> Settings {
     let path = settings_path();
     if path.exists() {
-        std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+        match std::fs::read_to_string(&path) {
+            Ok(s) => match serde_json::from_str(&s) {
+                Ok(settings) => settings,
+                Err(e) => {
+                    eprintln!("Failed to parse {}: {e}", path.display());
+                    Settings::default()
+                }
+            },
+            Err(e) => {
+                eprintln!("Failed to read {}: {e}", path.display());
+                Settings::default()
+            }
+        }
     } else {
         Settings::default()
     }

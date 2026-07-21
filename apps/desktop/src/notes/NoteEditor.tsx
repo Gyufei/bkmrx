@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Crepe } from "@milkdown/crepe";
 import { LanguageDescription } from "@codemirror/language";
 import { javascript } from "@codemirror/lang-javascript";
@@ -32,11 +32,42 @@ export default function NoteEditor({ filePath, readFile, onSave }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
   const onSaveRef = useRef(onSave);
-  const [saveStatus, setSaveStatus] = useState<"" | "保存中..." | "已保存">("");
+  const filePathRef = useRef(filePath);
+  const latestContentRef = useRef<string>("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showSavedFlash, setShowSavedFlash] = useState(false);
   const [loading, setLoading] = useState(true);
 
   onSaveRef.current = onSave;
+  filePathRef.current = filePath;
+
+  const save = useCallback(async (path: string, content: string) => {
+   try {
+     await onSaveRef.current(path, content);
+     setSaveError(null);
+   } catch (e) {
+     setSaveError(String(e));
+   }
+  }, []);
+
+  // Cmd+S / Ctrl+S — flush pending content immediately
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        const content = latestContentRef.current;
+        if (!content) return;
+        save(filePathRef.current, content).then(() => {
+          setShowSavedFlash(true);
+          setTimeout(() => setShowSavedFlash(false), 1200);
+        });
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [save]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -134,16 +165,11 @@ export default function NoteEditor({ filePath, readFile, onSave }: Props) {
 
       crepe.on((listener) => {
         listener.markdownUpdated((_ctx, md) => {
+          latestContentRef.current = md;
           if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-          setSaveStatus("保存中...");
           saveTimerRef.current = setTimeout(() => {
-            onSaveRef.current(filePath, md)
-              .then(() => {
-                setSaveStatus("已保存");
-                setTimeout(() => setSaveStatus(""), 2000);
-              })
-              .catch(() => { });
-          }, 1500);
+            save(filePath, md);
+          }, 400);
         });
       });
 
@@ -177,8 +203,18 @@ export default function NoteEditor({ filePath, readFile, onSave }: Props) {
         </div>
       )}
       <div ref={containerRef} className="flex-1 overflow-y-auto thin-scrollbar" />
-      <div className="shrink-0 h-6 flex items-center justify-end px-6 text-[11px] text-text-secondary dark:text-text-dark-secondary border-t border-border/50 dark:border-border-dark/50">
-        {saveStatus && <span>{saveStatus}</span>}
+      <div className="shrink-0 h-6 flex items-center justify-end gap-2 px-6 text-[11px] text-text-secondary dark:text-text-dark-secondary border-t border-border/50 dark:border-border-dark/50">
+        {saveError ? (
+          <span className="text-danger dark:text-danger-dark flex items-center gap-1" title={saveError}>
+            <span className="w-1.5 h-1.5 rounded-full bg-danger dark:bg-danger-dark" />
+            保存失败
+          </span>
+        ) : showSavedFlash ? (
+          <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-600 dark:bg-green-400" />
+            已保存
+          </span>
+        ) : null}
       </div>
     </div>
   );

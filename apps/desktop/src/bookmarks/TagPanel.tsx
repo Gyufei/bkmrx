@@ -1,13 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { Filter, Copy } from "lucide-react";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
-} from "../ui/context-menu";
-import { tagColor } from "../shared/tagColor";
+} from "@/components/ui/context-menu";
+import { tagColor } from "../lib/tagColor";
 import type { Tag } from "../types";
 interface Props {
   fetchTags: () => Promise<Tag[]>;
@@ -52,15 +52,14 @@ export default function TagPanel({ fetchTags, selectedTags, onTagsChange }: Prop
             {tags.map((tag) => {
               const selected = selectedTags.includes(tag.name);
               return (
-                <ContextMenu>
-                  <ContextMenuTrigger asChild>
+                <ContextMenu key={tag.name}>
+                  <ContextMenuTrigger>
                     <button
-                      key={tag.name}
                       onClick={() => toggleTag(tag.name)}
-                      className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-chip cursor-pointer transition-all ${
+                      className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md cursor-pointer transition-all ${
                         selected
                           ? ""
-                          : "bg-border dark:bg-border-dark text-text-secondary dark:text-text-dark-secondary hover:opacity-80"
+                          : "bg-accent/80 dark:bg-border-dark text-text-secondary dark:text-text-dark-secondary hover:opacity-80"
                       }`}
                       style={selected ? tagColor(tag.name) : undefined}
                     >
@@ -69,11 +68,11 @@ export default function TagPanel({ fetchTags, selectedTags, onTagsChange }: Prop
                     </button>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
-                    <ContextMenuItem onSelect={() => onTagsChange([tag.name])}>
+                    <ContextMenuItem onClick={() => onTagsChange([tag.name])}>
                       <Filter className="h-4 w-4" />
                       <span>以此标签筛选</span>
                     </ContextMenuItem>
-                    <ContextMenuItem onSelect={() => { navigator.clipboard.writeText(tag.name).catch(() => {}); }}>
+                    <ContextMenuItem onClick={() => { navigator.clipboard.writeText(tag.name).catch(() => {}); }}>
                       <Copy className="h-4 w-4" />
                       <span>复制标签名</span>
                     </ContextMenuItem>

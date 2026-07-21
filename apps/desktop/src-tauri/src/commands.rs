@@ -22,7 +22,7 @@ pub struct BkmrTag {
 }
 
 
-fn to_tag_set(tags: &[String]) -> std::collections::HashSet<bkmr_lib::domain::tag::Tag> {
+pub(crate) fn to_tag_set(tags: &[String]) -> std::collections::HashSet<bkmr_lib::domain::tag::Tag> {
     use std::collections::HashSet;
     if tags.is_empty() {
         return HashSet::new();
@@ -54,16 +54,7 @@ pub async fn load_all_bookmarks() -> Result<Vec<BkmrBookmark>, String> {
     let bookmarks = container.bookmark_service
         .get_all_bookmarks(None, None)
         .map_err(|e| e.to_string())?;
-    Ok(bookmarks.iter().map(|b| BkmrBookmark {
-        id: b.id.unwrap_or(0) as u64,
-        url: b.url.clone(),
-        title: b.title.clone(),
-        tags: b.tags.iter().map(|t| t.value().to_string()).collect(),
-        access_count: b.access_count,
-        created_at: b.created_at.map(|t| t.to_rfc3339()),
-        description: b.description.clone(),
-        modified: b.updated_at.to_rfc3339(),
-    }).collect())
+    Ok(bookmarks.iter().map(|b| to_bkmr_bookmark(b)).collect())
 }
 
 #[tauri::command]
@@ -128,31 +119,42 @@ pub async fn record_bookmark_access(id: u64) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     Ok(())
 }
-
-#[tauri::command]
-pub async fn search_bookmarks(query: String) -> Result<Vec<BkmrBookmark>, String> {
-    let container = crate::container::get();
-    let bookmarks = container.bookmark_service
-        .search_bookmarks_by_text(&query)
-        .map_err(|e| e.to_string())?;
-    Ok(bookmarks.iter().map(|b| to_bkmr_bookmark(&b)).collect())
-}
-
 #[tauri::command]
 pub async fn hybrid_search_bookmarks(
     query: String,
+    tags: Vec<String>,
 ) -> Result<Vec<BkmrBookmark>, String> {
     let container = crate::container::get();
 
+    // When there is no text query, skip FTS5 (which rejects empty strings)
+    // and just load all bookmarks, filtering by tags manually.
+    if query.trim().is_empty() {
+        let all = container
+            .bookmark_service
+            .get_all_bookmarks(None, None)
+            .map_err(|e| e.to_string())?;
+        let bookmarks: Vec<BkmrBookmark> = all.iter().map(|b| to_bkmr_bookmark(b)).collect();
+        if tags.is_empty() {
+            return Ok(bookmarks);
+        }
+        let tag_set: std::collections::HashSet<&str> = tags.iter().map(String::as_str).collect();
+        return Ok(bookmarks
+            .into_iter()
+            .filter(|b| tag_set.iter().all(|t| b.tags.iter().any(|bt| bt == t)))
+            .collect());
+    }
+
+    // Normal hybrid search with a valid FTS5 query
+    let tag_set = to_tag_set(&tags);
     let search = HybridSearch {
-        query,
-        tags_all: None,
+        query: format!("{}*", query.trim()),
+        tags_all: if tag_set.is_empty() { None } else { Some(tag_set) },
         tags_all_not: None,
         tags_any: None,
         tags_any_not: None,
         tags_exact: None,
         tags_prefix: None,
-        limit: Some(500),
+        limit: None,
         mode: SearchMode::Hybrid,
     };
 
@@ -244,4 +246,33 @@ pub async fn delete_note(path: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn rename_note(old_path: String, new_path: String) -> Result<(), String> {
     crate::notes::rename_note_file(&old_path, &new_path)
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SystemInfo {
+    pub bkmr_config_path: String,
+    pub sqlite_db_path: String,
+    pub onnx_available: bool,
+    pub bkmr_version: String,
+    pub bkmr_repo: String,
+    pub app_version: String,
+}
+
+#[tauri::command]
+pub async fn get_system_info() -> Result<SystemInfo, String> {
+    let config_path = bkmr_lib::config::get_config_file_path()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let db_path = crate::container::get_db_path().to_string();
+    let onnx_available = crate::container::is_embedding_available();
+
+    Ok(SystemInfo {
+        bkmr_config_path: config_path,
+        sqlite_db_path: db_path,
+        onnx_available,
+        bkmr_version: "7.6.7".to_string(),
+        bkmr_repo: "https://github.com/sysid/bkmr".to_string(),
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+    })
 }
