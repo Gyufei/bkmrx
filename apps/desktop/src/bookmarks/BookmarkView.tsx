@@ -45,6 +45,7 @@ export default function BookmarkView() {
       await loadAll();
       setTagVersion((v) => v + 1);
     };
+
     const unlisten = listen('bookmarks-changed', refresh);
     return () => {
       unlisten.then((fn) => fn());

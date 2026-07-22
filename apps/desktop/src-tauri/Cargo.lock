@@ -519,7 +519,7 @@ dependencies = [
 [[package]]
 name = "bkmr"
 version = "7.6.7"
-source = "git+https://github.com/sysid/bkmr?branch=main#a6ca05ef4e20baa3c59d96653e8bdf734a27fca1"
+source = "git+https://github.com/sysid/bkmr?rev=a6ca05ef4e20baa3c59d96653e8bdf734a27fca1#a6ca05ef4e20baa3c59d96653e8bdf734a27fca1"
 dependencies = [
  "arboard",
  "async-trait",

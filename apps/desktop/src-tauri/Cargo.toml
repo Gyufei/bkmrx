@@ -20,5 +20,5 @@ tokio = { version = "1", features = ["full"] }
 axum = "0.7"
 tower-http = { version = "0.5", features = ["cors"] }
 notify = "8.2.0"
-bkmr_lib = { package = "bkmr", git = "https://github.com/sysid/bkmr", branch = "main" }
+bkmr_lib = { package = "bkmr", git = "https://github.com/sysid/bkmr", rev = "a6ca05ef4e20baa3c59d96653e8bdf734a27fca1" }
 dirs = "6"

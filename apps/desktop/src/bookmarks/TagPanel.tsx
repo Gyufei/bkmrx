@@ -2,11 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { tagColor } from '../lib/tagColor';
 import type { Tag } from '../types';
+
 interface Props {
   fetchTags: () => Promise<Tag[]>;
   selectedTags: string[];
   onTagsChange: (tags: string[]) => void;
 }
+
 export default function TagPanel({ fetchTags, selectedTags, onTagsChange }: Props) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(false);
