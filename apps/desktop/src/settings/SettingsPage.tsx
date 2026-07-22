@@ -169,7 +169,7 @@ function SettingsPage() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              保存后切换到"笔记"绖签即可浏览目录中的 Markdown 文件
+              保存后切换到"笔记"页签即可浏览目录中的 Markdown 文件
             </p>
           </div>
         </section>

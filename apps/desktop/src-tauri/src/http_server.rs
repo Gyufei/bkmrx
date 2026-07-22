@@ -8,9 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
-use tauri::Emitter;
 
-static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
 static SERVER_URL: OnceLock<String> = OnceLock::new();
 static SERVER_RUNNING: AtomicBool = AtomicBool::new(false);
 
@@ -28,7 +26,7 @@ pub fn status() -> ServerStatus {
 }
 
 pub async fn start_server(app_handle: tauri::AppHandle, shutdown_rx: tokio::sync::oneshot::Receiver<()>) {
-    APP_HANDLE.set(app_handle).ok();
+    crate::service::init_event_handle(app_handle);
 
     let app = Router::new()
         .route("/api/bookmarks", post(add_bookmark_handler))
@@ -92,34 +90,17 @@ struct CheckResponse {
     bookmark: Option<serde_json::Value>,
 }
 
-fn to_json_bookmark(bm: &bkmr_lib::domain::bookmark::Bookmark) -> serde_json::Value {
-    serde_json::json!({
-        "id": bm.id,
-        "url": bm.url,
-        "title": bm.title,
-        "description": bm.description,
-        "tags": bm.tags.iter().map(|t| t.value()).collect::<Vec<&str>>(),
-        "modified": bm.updated_at.to_rfc3339(),
-    })
-}
-
 // ─── Handlers ───
 
 async fn add_bookmark_handler(
     Json(req): Json<AddBookmarkRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let title = req.title.unwrap_or_else(|| req.url.clone());
-    let description = req.description.unwrap_or_default();
-    let container = crate::container::get();
-    let tag_str = req.tags.join(",");
-    let tag_set = bkmr_lib::domain::tag::Tag::parse_tag_str(&tag_str).ok().flatten().unwrap_or_default();
-    let result = container.bookmark_service.add_bookmark(&req.url, Some(&title), Some(&description), Some(&tag_set), false, true, None).map_err(|e| e.to_string());
-    match result {
-        Ok(bookmark) => {
-            let bm_id = bookmark.id.unwrap_or(0) as u64;
-            notify_bookmarks_changed();
+    match crate::service::add_bookmark(&req.url, &title, &req.tags, req.description.as_deref()) {
+        Ok(bm) => {
+            crate::service::notify_bookmarks_changed();
             Ok(Json(serde_json::json!({
-                "id": bm_id,
+                "id": bm.id,
                 "status": "created"
             })))
         }
@@ -129,7 +110,7 @@ async fn add_bookmark_handler(
             Err((
                 status,
                 Json(serde_json::json!({
-                    "error": e.to_string(),
+                    "error": e,
                     "duplicate": is_dup,
                 })),
             ))
@@ -140,20 +121,22 @@ async fn add_bookmark_handler(
 async fn check_bookmark_handler(
     Query(query): Query<CheckQuery>,
 ) -> Result<Json<CheckResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let container = crate::container::get();
-    match container.bookmark_service.get_bookmark_by_url(&query.url) {
-        Ok(Some(bm)) => Ok(Json(CheckResponse {
-            exists: true,
-            bookmark: Some(to_json_bookmark(&bm)),
-        })),
-        Ok(None) => Ok(Json(CheckResponse {
-            exists: false,
-            bookmark: None,
-        })),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": e.to_string() })),
-        )),
+    match crate::service::get_bookmark_by_url(&query.url) {
+        Ok(Some(bm)) => {
+            Ok(Json(CheckResponse {
+                exists: true,
+                bookmark: Some(serde_json::json!({
+                    "id": bm.id,
+                    "url": bm.url,
+                    "title": bm.title,
+                    "description": bm.description,
+                    "tags": bm.tags,
+                    "modified": bm.modified,
+                })),
+            }))
+        }
+        Ok(None) => Ok(Json(CheckResponse { exists: false, bookmark: None })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e })))),
     }
 }
 
@@ -161,83 +144,70 @@ async fn update_bookmark_handler(
     Path(id): Path<u64>,
     Json(req): Json<UpdateBookmarkRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let container = crate::container::get();
-    let existing = match container.bookmark_service.get_bookmark(id as i32) {
+    // Fetch existing to support partial updates
+    let existing = match crate::service::get_bookmark(id) {
         Ok(Some(b)) => b,
         Ok(None) => return Err((StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Bookmark not found" })))),
-        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))),
+        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e })))),
     };
-    let mut updated = existing.clone();
-    if let Some(title) = req.title {
-        updated.title = title;
-    }
-    if let Some(desc) = req.description {
-        updated.description = desc;
-    }
-    if !req.tags.is_empty() {
-        let tag_set = crate::commands::to_tag_set(&req.tags);
-        updated.tags = tag_set;
-    }
-    updated.updated_at = chrono::Utc::now();
-    match container.bookmark_service.update_bookmark(updated, false) {
+    let title = req.title.unwrap_or(existing.title);
+    let desc = req.description.unwrap_or(existing.description);
+    let tags = if req.tags.is_empty() { existing.tags } else { req.tags };
+
+    match crate::service::update_bookmark(id, &title, &tags, &desc) {
         Ok(_) => {
-            notify_bookmarks_changed();
+            crate::service::notify_bookmarks_changed();
             Ok(Json(serde_json::json!({ "id": id, "status": "updated" })))
         }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e })))),
     }
 }
 
 async fn get_bookmark_handler(
     Path(id): Path<u64>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let container = crate::container::get();
-    match container.bookmark_service.get_bookmark(id as i32) {
-        Ok(Some(bm)) => Ok(Json(to_json_bookmark(&bm))),
+    match crate::service::get_bookmark(id) {
+        Ok(Some(bm)) => Ok(Json({
+            serde_json::json!({
+                "id": bm.id,
+                "url": bm.url,
+                "title": bm.title,
+                "description": bm.description,
+                "tags": bm.tags,
+                "modified": bm.modified,
+            })
+        })),
         Ok(None) => Err((StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Bookmark not found" })))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e })))),
     }
 }
 
 async fn delete_bookmark_handler(
     Path(id): Path<u64>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let container = crate::container::get();
-    match container.bookmark_service.delete_bookmark(id as i32) {
+    match crate::service::delete_bookmark(id) {
         Ok(_) => {
-            notify_bookmarks_changed();
+            crate::service::notify_bookmarks_changed();
             Ok(Json(serde_json::json!({ "status": "deleted" })))
         }
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": e.to_string() })),
-        )),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e })))),
     }
 }
 
 
 async fn get_tags_handler() -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let container = crate::container::get();
-    match container.tag_service.get_all_tags() {
+    match crate::service::get_all_tags() {
         Ok(tags) => {
-            let json_tags: Vec<serde_json::Value> = tags.into_iter().map(|(tag, count)| serde_json::json!({
-                "name": tag.value(),
-                "count": count,
+            let json_tags: Vec<serde_json::Value> = tags.iter().map(|tag| serde_json::json!({
+                "name": tag.name,
+                "count": tag.count,
             })).collect();
             Ok(Json(serde_json::json!(json_tags)))
         }
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e)),
     }
 }
 
 async fn docs_handler() -> Html<&'static str> {
     Html(include_str!("api_docs.html"))
-}
-
-// ─── Desktop app notification ───
-
-fn notify_bookmarks_changed() {
-    if let Some(handle) = APP_HANDLE.get() {
-        let _ = handle.emit("bookmarks-changed", ());
-    }
 }

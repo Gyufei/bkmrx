@@ -68,7 +68,7 @@ export default function TagPanel({ fetchTags, selectedTags, onTagsChange }: Prop
                   }`}
                   style={selected ? tagColor(tag.name) : undefined}
                 >
-                  <span>{tag.name}</span>
+                  <span className='text-align-start break-all'>{tag.name}</span>
                   <span className={selected ? 'opacity-60' : 'opacity-40'}>{tag.count}</span>
                 </button>
               );

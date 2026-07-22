@@ -57,10 +57,8 @@ export default function NavBar({
     onCurrentPathChange(id);
   }, []);
 
-  const toggleSettings = useCallback(() => {
-    if (currentPath === PATHS.SETTINGS) {
-      onCurrentPathChange(PATHS.BOOKMARKS);
-    }
+  const openSettings = useCallback(() => {
+      onCurrentPathChange(PATHS.SETTINGS)
   }, []);
 
   return (
@@ -108,7 +106,7 @@ export default function NavBar({
       <Button
         variant="ghost"
         size="icon-sm"
-        onClick={toggleSettings}
+        onClick={openSettings}
         className={`${currentPath === PATHS.SETTINGS ? 'text-primary bg-primary/10' : ''}`}
         title="设置"
       >
