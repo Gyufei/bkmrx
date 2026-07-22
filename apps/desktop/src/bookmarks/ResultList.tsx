@@ -60,7 +60,7 @@ export default function ResultList({ bookmarks, loading, error, hasMore, onLoadM
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-danger dark:text-danger-dark">
+      <div className="flex items-center justify-center h-48 text-sm text-destructive">
         {error}
       </div>
     );
@@ -68,7 +68,7 @@ export default function ResultList({ bookmarks, loading, error, hasMore, onLoadM
 
   if (!loading && bookmarks.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-text-secondary dark:text-text-dark-secondary">
+      <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
         输入关键词搜索书签
       </div>
     );
@@ -104,7 +104,7 @@ export default function ResultList({ bookmarks, loading, error, hasMore, onLoadM
             </ContextMenuItem>
             <ContextMenuItem onClick={() => setDeleteTarget(bm)}>
               <Trash2 className="h-4 w-4" />
-              <span className="text-danger dark:text-danger-dark">删除</span>
+              <span className="text-destructive">删除</span>
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
@@ -148,15 +148,15 @@ export default function ResultList({ bookmarks, loading, error, hasMore, onLoadM
 
       {/* Loading indicator */}
       {loading && bookmarks.length > 0 && (
-        <div className="flex items-center justify-center py-4 text-sm text-text-secondary dark:text-text-dark-secondary">
-          <div className="w-4 h-4 mr-2 border-2 border-accent dark:border-accent-dark border-t-transparent rounded-full animate-spin" />
+        <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+          <div className="w-4 h-4 mr-2 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           加载中...
         </div>
       )}
 
       {/* All loaded */}
       {!hasMore && bookmarks.length > 0 && (
-        <div className="text-center py-4 text-sm text-text-secondary dark:text-text-dark-secondary">
+        <div className="text-center py-4 text-sm text-muted-foreground">
           已显示全部 {bookmarks.length} 条结果
         </div>
       )}
@@ -174,21 +174,21 @@ function BookmarkRow({ bookmark, onRequestDelete }: { bookmark: Bookmark; onRequ
     <div className="group relative">
       <div
         onClick={handleClick}
-        className="block px-4 py-3 rounded-md hover:bg-accent dark:hover:bg-accent-dark-bg cursor-pointer transition-colors"
+        className="block px-4 py-3 rounded-md hover:bg-accent dark:hover:bg-accent cursor-pointer transition-colors"
       >
-        <div className="text-base font-medium text-text-primary dark:text-text-dark-primary group-hover:text-accent-bg dark:group-hover:text-accent-dark transition-colors truncate pr-6">
+        <div className="text-base font-medium text-foreground group-hover:text-primary transition-colors truncate pr-6">
           {bookmark.title || bookmark.url}
         </div>
-        <div className="text-xs text-text-secondary dark:text-text-dark-secondary truncate mt-0.5">
+        <div className="text-xs text-muted-foreground truncate mt-0.5">
           {bookmark.url}
         </div>
         {bookmark.description && (
-          <div className="text-xs text-text-secondary dark:text-text-dark-secondary mt-1 line-clamp-2">
+          <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
             {bookmark.description}
           </div>
         )}
         {bookmark.access_count > 0 && (
-          <div className="text-xs text-text-secondary dark:text-text-dark-secondary opacity-60 mt-1">
+          <div className="text-xs text-muted-foreground opacity-60 mt-1">
             {bookmark.access_count} 次访问
           </div>
         )}
@@ -197,7 +197,7 @@ function BookmarkRow({ bookmark, onRequestDelete }: { bookmark: Bookmark; onRequ
             {bookmark.tags.map((tag) => (
               <span
                 key={tag}
-                className="inline-block px-2 py-0.5 text-xs rounded-chip"
+                className="inline-block px-2 py-0.5 text-xs rounded-md"
                 style={tagColor(tag)}
               >
                 {tag}
@@ -208,7 +208,7 @@ function BookmarkRow({ bookmark, onRequestDelete }: { bookmark: Bookmark; onRequ
       </div>
       <button
         onClick={(e) => { e.stopPropagation(); onRequestDelete(bookmark); }}
-        className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1.5 rounded-md text-text-secondary dark:text-text-dark-secondary hover:text-danger dark:hover:text-danger-dark hover:bg-danger/10 dark:hover:bg-danger-dark/10"
+        className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1.5 rounded-md text-muted-foreground hover:text-destructive dark:hover:text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/10"
         title="删除书签"
       >
         <Trash2 className="h-4 w-4" />

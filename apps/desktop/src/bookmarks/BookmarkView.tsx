@@ -14,7 +14,7 @@ const LOAD_MORE = 50;
 
 export default function BookmarkView() {
   const {
-    allBookmarks, loading, error,
+    allBookmarks, loading, searching, error,
     loadAll, fetchTags, addBookmark, deleteBookmarks, updateBookmark, searchBookmarks,
   } = useBkmr();
 
@@ -101,16 +101,16 @@ export default function BookmarkView() {
 
   return (
     <>
-      <div className="shrink-0 px-4 py-3 border-b border-border dark:border-border-dark">
+      <div className="shrink-0 px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <SearchBar onSearch={handleSearch} loading={loading} />
+          <SearchBar onSearch={handleSearch} loading={loading || searching} />
           <Button variant="outline" className="h-10 w-10 shrink-0 !px-0 flex items-center justify-center" onClick={() => setShowAddDialog(true)} title="添加书签">
             <Plus className="h-5 w-5" />
           </Button>
         </div>
       </div>
       <div className="flex-1 flex overflow-hidden">
-        <aside className="w-56 shrink-0 border-r border-border dark:border-border-dark bg-surface-sidebar dark:bg-surface-dark-sidebar p-3 flex flex-col">
+        <aside className="w-56 shrink-0 border-r border-border bg-sidebar p-3 flex flex-col">
           <TagPanel key={tagVersion}
             fetchTags={fetchTags}
             selectedTags={selectedTags}

@@ -43,12 +43,12 @@ export default function SearchBar({ onSearch, loading }: Props) {
       <button
         type="button"
         onClick={handleSearch}
-        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md hover:bg-accent-bg dark:hover:bg-accent-dark-bg transition-colors"
+        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md hover:bg-accent transition-colors"
       >
         {loading ? (
-          <div className="w-4 h-4 border-2 border-accent dark:border-accent-dark border-t-transparent rounded-full animate-spin" />
+          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         ) : (
-          <Search className="w-[18px] h-[18px] text-text-secondary dark:text-text-dark-secondary" />
+          <Search className="w-[18px] h-[18px] text-muted-foreground" />
         )}
       </button>
     </div>

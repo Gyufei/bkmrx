@@ -197,16 +197,16 @@ export default function NoteEditor({ filePath, readFile, onSave }: Props) {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-[#1a1a2e] relative">
       {loading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white dark:bg-[#1a1a2e] text-sm text-text-secondary dark:text-text-dark-secondary">
-          <div className="w-4 h-4 mr-2 border-2 border-accent dark:border-accent-dark border-t-transparent rounded-full animate-spin" />
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white dark:bg-[#1a1a2e] text-sm text-muted-foreground">
+          <div className="w-4 h-4 mr-2 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           加载编辑器...
         </div>
       )}
       <div ref={containerRef} className="flex-1 overflow-y-auto thin-scrollbar" />
-      <div className="shrink-0 h-6 flex items-center justify-end gap-2 px-6 text-[11px] text-text-secondary dark:text-text-dark-secondary border-t border-border/50 dark:border-border-dark/50">
+      <div className="shrink-0 h-6 flex items-center justify-end gap-2 px-6 text-[11px] text-muted-foreground border-t border-border/50">
         {saveError ? (
-          <span className="text-danger dark:text-danger-dark flex items-center gap-1" title={saveError}>
-            <span className="w-1.5 h-1.5 rounded-full bg-danger dark:bg-danger-dark" />
+          <span className="text-destructive flex items-center gap-1" title={saveError}>
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
             保存失败
           </span>
         ) : showSavedFlash ? (

@@ -135,17 +135,17 @@ export default function TagInput({
       <div
         className={cn(
           "flex flex-wrap items-center gap-1.5 min-h-[36px] px-2 py-1",
-          "border rounded-input bg-surface dark:bg-surface-dark",
+          "border rounded-lg bg-background",
           "transition-colors",
           disabled
-            ? "border-border dark:border-border-dark opacity-50 cursor-not-allowed"
-            : "border-border dark:border-border-dark focus-within:border-accent dark:focus-within:border-accent-dark focus-within:ring-2 focus-within:ring-accent/30 dark:focus-within:ring-accent-dark/30",
+            ? "border-border opacity-50 cursor-not-allowed"
+            : "border-border focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30",
         )}
       >
         {value.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-chip max-w-[200px]"
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md max-w-[200px]"
             style={tagColor(tag)}
           >
             <span className="truncate">{tag}</span>
@@ -170,7 +170,7 @@ export default function TagInput({
           disabled={disabled}
           placeholder={value.length === 0 ? placeholder : ""}
           autoFocus={autoFocus}
-          className="flex-1 min-w-[80px] bg-transparent outline-none text-sm py-0.5 text-text-primary dark:text-text-dark-primary placeholder:text-text-secondary/50 dark:placeholder:text-text-dark-secondary/50"
+          className="flex-1 min-w-[80px] bg-transparent outline-none text-sm py-0.5 text-foreground placeholder:text-muted-foreground/50 dark:placeholder:text-muted-foreground/50"
         />
       </div>
 
@@ -180,8 +180,8 @@ export default function TagInput({
           ref={dropdownRef}
           className={cn(
             "absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto",
-            "border border-border dark:border-border-dark rounded-lg",
-            "bg-surface dark:bg-surface-dark shadow-lg",
+            "border border-border rounded-lg",
+            "bg-background shadow-lg",
             "p-2 flex flex-wrap gap-1.5",
             "animate-scale-in origin-top",
           )}
@@ -193,11 +193,11 @@ export default function TagInput({
               onClick={() => addTag(tag)}
               onMouseEnter={() => setActiveIdx(i)}
               className={cn(
-                "inline-flex items-center px-2 py-1 text-xs rounded-chip",
+                "inline-flex items-center px-2 py-1 text-xs rounded-md",
                 "transition-colors cursor-pointer",
                 i === activeIdx
-                  ? "ring-2 ring-accent/40 dark:ring-accent-dark/40"
-                  : "hover:bg-accent-bg dark:hover:bg-accent-dark-bg",
+                  ? "ring-2 ring-primary/40"
+                  : "hover:bg-accent",
               )}
               style={tagColor(tag)}
             >

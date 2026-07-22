@@ -103,7 +103,7 @@ export default function NotesPanel() {
 
   if (!notesDir) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-secondary dark:text-text-dark-secondary">
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
         <div className="text-center">
           <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 opacity-40">
             <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
@@ -118,22 +118,22 @@ export default function NotesPanel() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="shrink-0 px-4 py-3 border-b border-border dark:border-border-dark">
-        <div className="text-xs text-text-secondary dark:text-text-dark-secondary">
+      <div className="shrink-0 px-4 py-3 border-b border-border">
+        <div className="text-xs text-muted-foreground">
           共 {notes.length} 篇笔记
         </div>
       </div>
 
       {error && (
-        <div className="shrink-0 px-4 py-2 text-sm text-danger dark:text-danger-dark bg-danger/10">
+        <div className="shrink-0 px-4 py-2 text-sm text-destructive bg-destructive/10">
           {error}
         </div>
       )}
 
       <div className="flex-1 flex overflow-hidden">
-        <div className="w-48 shrink-0 border-r border-border dark:border-border-dark flex flex-col">
-          <div className="shrink-0 px-3 pt-3 pb-2">
-            <span className="text-xs font-semibold text-text-secondary dark:text-text-dark-secondary uppercase tracking-wider">
+        <div className="w-48 shrink-0 border-r border-border flex flex-col px-2">
+          <div className="shrink-0 pt-3 pb-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               文件夹
             </span>
           </div>
@@ -147,7 +147,7 @@ export default function NotesPanel() {
           />
         </div>
 
-        <div className="w-56 shrink-0 border-r border-border dark:border-border-dark flex flex-col">
+        <div className="w-56 shrink-0 border-r border-border flex flex-col">
           <div className="shrink-0 px-3 pt-3 pb-2">
             <div className="flex items-center gap-1">
               <Input
@@ -175,12 +175,12 @@ export default function NotesPanel() {
           </div>
           <div className="flex-1 overflow-y-auto thin-scrollbar">
             {loading ? (
-              <div className="flex items-center justify-center py-8 text-sm text-text-secondary dark:text-text-dark-secondary">
-                <div className="w-4 h-4 mr-2 border-2 border-accent dark:border-accent-dark border-t-transparent rounded-full animate-spin" />
+              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                <div className="w-4 h-4 mr-2 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 扫描中...
               </div>
             ) : filteredNotes.length === 0 ? (
-              <div className="py-8 text-center text-sm text-text-secondary dark:text-text-dark-secondary">
+              <div className="py-8 text-center text-sm text-muted-foreground">
                 无匹配笔记
               </div>
             ) : (
@@ -192,11 +192,11 @@ export default function NotesPanel() {
                         onClick={() => handleSelectFile(note)}
                         className={`w-full text-left px-2.5 py-2 rounded-md transition-colors ${
                         selectedFilePath === note.path
-                          ? "bg-accent dark:bg-accent-dark/25"
-                            : "hover:bg-accent-bg/50 dark:hover:bg-accent-dark-bg/50"
+                          ? "bg-primary/10"
+                            : "hover:bg-accent/15"
                         }`}
                       >
-                        <div className="text-sm font-medium text-text-primary dark:text-text-dark-primary truncate">
+                        <div className="text-sm font-medium text-foreground truncate">
                           {note.title}
                         </div>
                         {note.tags.length > 0 && (
@@ -212,7 +212,7 @@ export default function NotesPanel() {
                             ))}
                           </div>
                         )}
-                        <div className="text-[10px] text-text-secondary dark:text-text-dark-secondary mt-1">
+                        <div className="text-[10px] text-muted-foreground dark:text-muted-foreground mt-1">
                           {formatTime(note.modified)}
                         </div>
                       </button>
@@ -225,7 +225,7 @@ export default function NotesPanel() {
                       <ContextMenuSeparator />
                       <ContextMenuItem onClick={() => { deleteNote(note.path).catch(() => {}); }}>
                         <Trash2 className="h-4 w-4" />
-                        <span className="text-danger dark:text-danger-dark">删除笔记</span>
+                        <span className="text-destructive">删除笔记</span>
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
@@ -243,7 +243,7 @@ export default function NotesPanel() {
               onSave={saveFile}
             />
           ) : (
-            <div className="flex-1 flex items-center justify-center text-sm text-text-secondary dark:text-text-dark-secondary">
+            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
               选择左侧笔记查看内容
             </div>
           )}
@@ -266,7 +266,7 @@ export default function NotesPanel() {
                 autoFocus
               />
               {newFileError && (
-                <div className="mt-1.5 text-xs text-danger dark:text-danger-dark">
+                <div className="mt-1.5 text-xs text-destructive">
                   {newFileError}
                 </div>
               )}

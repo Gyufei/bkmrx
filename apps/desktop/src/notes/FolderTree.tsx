@@ -47,8 +47,8 @@ function FolderTreeItem({
             }}
             className={`w-full flex items-center gap-1 px-2 py-1 text-sm rounded-md transition-colors text-left ${
               isSelected
-                ? "bg-accent dark:bg-accent-dark/25"
-                : "text-text-secondary dark:text-text-dark-secondary hover:bg-accent-bg/50 dark:hover:bg-accent-dark-bg/50 hover:text-text-primary dark:hover:text-text-dark-primary"
+                ? "bg-primary/15"
+                : "text-muted-foreground hover:bg-accent/20 hover:text-foreground dark:hover:text-foreground"
             }`}
             style={{ paddingLeft: `${8 + depth * 16}px` }}
           >
@@ -143,7 +143,7 @@ export default function FolderTree({ tree, selectedPath, onSelect }: Props) {
   return (
     <div className="flex-1 overflow-y-auto thin-scrollbar py-1">
       {treeWithExpanded.length === 0 ? (
-        <div className="px-3 py-4 text-xs text-text-secondary dark:text-text-dark-secondary">
+        <div className="px-3 py-4 text-xs text-muted-foreground">
           无文件夹
         </div>
       ) : (

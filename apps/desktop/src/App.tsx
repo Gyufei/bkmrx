@@ -47,10 +47,10 @@ export default function App() {
   }, []);
 
   return (
-    <div className="h-screen flex flex-col bg-surface dark:bg-surface-dark text-text-primary dark:text-text-dark-primary">
-      <div data-tauri-drag-region className={"shrink-0 flex items-center justify-between py-2.5 border-b border-border dark:border-border-dark " + (isMac ? "pl-[80px]" : "px-4") + " pr-4"}>
+    <div className="h-screen flex flex-col bg-background text-foreground">
+      <div data-tauri-drag-region className={"shrink-0 flex items-center justify-between py-2.5 border-b border-border " + (isMac ? "pl-[80px]" : "px-4") + " pr-4"}>
         <div className="flex items-center gap-3">
-          <div className="inline-flex items-center gap-1 rounded-lg bg-surface-sidebar dark:bg-surface-dark-sidebar p-1">
+          <div className="inline-flex items-center gap-1 rounded-lg bg-sidebar p-1">
             <Tabs value={activeTab} onValueChange={switchTab} orientation="horizontal">
               <TabsList>
                 {
@@ -59,8 +59,8 @@ export default function App() {
                       key={tab.id}
                       value={tab.id}
                       className={`px-3 py-1.5 h-auto transition-all ${activeTab === tab.id && !showSettings
-                        ? "bg-white dark:bg-[#3f3f46] text-accent dark:text-accent-dark shadow-sm"
-                        : "text-text-secondary dark:text-text-dark-secondary hover:text-text-primary dark:hover:text-text-dark-primary"
+                        ? "bg-white dark:bg-[#3f3f46] text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground dark:hover:text-foreground"
                         }`}
                     >
                       {tab.icon}
@@ -73,7 +73,7 @@ export default function App() {
           </div>
 
           {activeTab === "bookmarks" && !showSettings && (
-            <div className="flex items-center flex-1 gap-1.5 text-xs text-text-secondary dark:text-text-dark-secondary">
+            <div className="flex items-center flex-1 gap-1.5 text-xs text-muted-foreground">
               <span className={`w-2 h-2 rounded-full ${serverRunning ? "bg-green-500" : "bg-red-500"}`} />
               <span className="hidden sm:inline">http://127.0.0.1:8733</span>
               <span className="sm:hidden">API</span>
@@ -83,7 +83,7 @@ export default function App() {
 
         <Button variant="ghost" size="icon-sm"
           onClick={toggleSettings}
-          className={`${showSettings ? "text-accent dark:text-accent-dark bg-accent/10 dark:bg-accent-dark/10" : ""}`}
+          className={`${showSettings ? "text-primary bg-primary/10" : ""}`}
           title="设置"
         >
           <Settings />

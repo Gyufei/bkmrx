@@ -65,8 +65,8 @@ function SettingsPage() {
       <div className="max-w-xl mx-auto px-6 py-8 space-y-8">
         {/* System info section */}
         <section>
-          <h3 className="text-sm font-medium text-text-primary dark:text-text-dark-primary mb-3">系统信息</h3>
-          <div className="space-y-3 p-4 rounded-card bg-surface-sidebar dark:bg-surface-dark-sidebar">
+          <h3 className="text-sm font-medium text-foreground mb-3">系统信息</h3>
+          <div className="space-y-3 p-4 rounded-lg bg-sidebar">
             {sysInfo ? (
               <div className="space-y-2">
                 {[
@@ -76,41 +76,41 @@ function SettingsPage() {
                   { key: "bkmr_version", label: "bkmr 版本", value: sysInfo.bkmr_version },
                 ].map((item) => (
                   <div key={item.key} className="flex items-start justify-between gap-2">
-                    <span className="text-xs font-medium text-text-secondary dark:text-text-dark-secondary shrink-0 mt-0.5">
+                    <span className="text-xs font-medium text-muted-foreground shrink-0 mt-0.5">
                       {item.label}
                     </span>
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-xs text-text-primary dark:text-text-dark-primary break-all">
+                      <span className="text-xs text-foreground break-all">
                         {item.value}
                       </span>
                       <button
                         onClick={() => handleCopy(item.key, item.value)}
-                        className="shrink-0 p-0.5 rounded hover:bg-accent-bg dark:hover:bg-accent-dark-bg transition-colors"
+                        className="shrink-0 p-0.5 rounded hover:bg-accent transition-colors"
                         title="复制"
                       >
-                        <Copy className="w-3.5 h-3.5 text-text-secondary dark:text-text-dark-secondary" />
+                        <Copy className="w-3.5 h-3.5 text-muted-foreground" />
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-text-secondary dark:text-text-dark-secondary">加载中...</p>
+              <p className="text-xs text-muted-foreground">加载中...</p>
             )}
           </div>
         </section>
 
         <div>
-          <h2 className="text-base font-semibold text-text-primary dark:text-text-dark-primary mb-1">设置</h2>
-          <p className="text-sm text-text-secondary dark:text-text-dark-secondary">应用全局偏好</p>
+          <h2 className="text-base font-semibold text-foreground mb-1">设置</h2>
+          <p className="text-sm text-muted-foreground">应用全局偏好</p>
         </div>
 
         {/* Backup section */}
         <section>
-          <h3 className="text-sm font-medium text-text-primary dark:text-text-dark-primary mb-3">书签备份</h3>
-          <div className="space-y-3 p-4 rounded-card bg-surface-sidebar dark:bg-surface-dark-sidebar">
+          <h3 className="text-sm font-medium text-foreground mb-3">书签备份</h3>
+          <div className="space-y-3 p-4 rounded-lg bg-sidebar">
             <div>
-              <Label className="block text-xs font-medium text-text-secondary dark:text-text-dark-secondary mb-1.5">
+              <Label className="block text-xs font-medium text-muted-foreground mb-1.5">
                 备份目录路径
               </Label>
               <div className="flex gap-2">
@@ -127,7 +127,7 @@ function SettingsPage() {
                   {backupSaving ? "保存..." : "保存"}
                 </Button>
               </div>
-              <p className="text-xs text-text-secondary dark:text-text-dark-secondary mt-1.5">
+              <p className="text-xs text-muted-foreground mt-1.5">
                 应用启动时自动导出书签到该目录
               </p>
             </div>
@@ -141,7 +141,7 @@ function SettingsPage() {
                 {backupLoading ? "备份中..." : "立即备份"}
               </Button>
               {backupStatus && (
-                <p className="text-xs text-text-secondary dark:text-text-dark-secondary mt-1.5 break-all">
+                <p className="text-xs text-muted-foreground mt-1.5 break-all">
                   {backupStatus}
                 </p>
               )}
@@ -151,9 +151,9 @@ function SettingsPage() {
 
         {/* Notes section */}
         <section>
-          <h3 className="text-sm font-medium text-text-primary dark:text-text-dark-primary mb-3">笔记目录</h3>
-          <div className="space-y-3 p-4 rounded-card bg-surface-sidebar dark:bg-surface-dark-sidebar">
-            <Label className="block text-xs font-medium text-text-secondary dark:text-text-dark-secondary mb-1.5">
+          <h3 className="text-sm font-medium text-foreground mb-3">笔记目录</h3>
+          <div className="space-y-3 p-4 rounded-lg bg-sidebar">
+            <Label className="block text-xs font-medium text-muted-foreground mb-1.5">
               Obsidian vault 路径
             </Label>
             <div className="flex gap-2">
@@ -170,7 +170,7 @@ function SettingsPage() {
                 {notesSaving ? "保存..." : "保存"}
               </Button>
             </div>
-            <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
+            <p className="text-xs text-muted-foreground">
               保存后切换到"笔记"绖签即可浏览目录中的 Markdown 文件
             </p>
           </div>

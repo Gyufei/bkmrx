@@ -2,10 +2,11 @@ import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Bookmark, Tag } from "../types";
 
-export function useBkmr() {
-  const [allBookmarks, setAllBookmarks] = useState<Bookmark[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+ export function useBkmr() {
+   const [allBookmarks, setAllBookmarks] = useState<Bookmark[]>([]);
+   const [loading, setLoading] = useState(false);
+   const [searching, setSearching] = useState(false);
+   const [error, setError] = useState<string | null>(null);
 
   const loadAll = useCallback(async (): Promise<Bookmark[]> => {
     setLoading(true);
@@ -39,9 +40,14 @@ export function useBkmr() {
     return await invoke<number>("add_bookmark", { url, title, tags, description });
   }, []);
 
-  const searchBookmarks = useCallback(async (query: string, tags: string[]): Promise<Bookmark[]> => {
-    return await invoke<Bookmark[]>("hybrid_search_bookmarks", { query, tags });
-  }, []);
+   const searchBookmarks = useCallback(async (query: string, tags: string[]): Promise<Bookmark[]> => {
+     setSearching(true);
+     try {
+       return await invoke<Bookmark[]>("hybrid_search_bookmarks", { query, tags });
+     } finally {
+       setSearching(false);
+     }
+   }, []);
 
   const deleteBookmarks = useCallback(async (ids: number[]): Promise<number> => {
     return await invoke<number>("delete_bookmarks", { ids });
@@ -59,5 +65,5 @@ export function useBkmr() {
     await invoke("update_bookmark", { id, title, tags, description: description ?? null });
   }, []);
 
-  return { allBookmarks, loading, error, loadAll, fetchTags, backup, addBookmark, checkBookmark, updateBookmark, deleteBookmarks, searchBookmarks };
+   return { allBookmarks, loading, searching, error, loadAll, fetchTags, backup, addBookmark, checkBookmark, updateBookmark, deleteBookmarks, searchBookmarks };
 }
