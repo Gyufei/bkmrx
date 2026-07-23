@@ -22,6 +22,16 @@ tower-http = { version = "0.5", features = ["cors"] }
 notify = "8.2.0"
 bkmr_lib = { package = "bkmr", git = "https://github.com/sysid/bkmr", rev = "a6ca05ef4e20baa3c59d96653e8bdf734a27fca1" }
 dirs = "6"
+rusqlite = { version = "0.35", features = ["bundled", "backup"] }
+sha2 = "0.10"
+base64 = "0.22"
+thiserror = "2"
+tauri-plugin-dialog = "2"
+
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
 
 [profile.dev]
 incremental = true # Compile your binary in smaller steps.

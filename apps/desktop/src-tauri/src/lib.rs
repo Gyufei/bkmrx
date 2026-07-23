@@ -1,3 +1,5 @@
+pub mod bookmarks;
+pub mod database;
 pub mod settings;
 pub mod container;
 pub mod notes;
