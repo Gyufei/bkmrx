@@ -280,7 +280,7 @@ fn normalize_tags(tags: Vec<String>) -> Vec<String> {
         .collect()
 }
 
-pub(super) fn replace_tags(
+pub(crate) fn replace_tags(
     transaction: &Transaction<'_>,
     bookmark_id: i64,
     tags: &[String],
@@ -310,7 +310,7 @@ pub(super) fn replace_tags(
     Ok(())
 }
 
-pub(super) fn upsert_fts(
+pub(crate) fn upsert_fts(
     transaction: &Transaction<'_>,
     id: i64,
     url: &str,
@@ -331,7 +331,7 @@ pub(super) fn upsert_fts(
     Ok(())
 }
 
-pub(super) fn remove_unused_tags(transaction: &Transaction<'_>) -> AppResult<()> {
+pub(crate) fn remove_unused_tags(transaction: &Transaction<'_>) -> AppResult<()> {
     transaction
         .execute(
             "DELETE FROM tags

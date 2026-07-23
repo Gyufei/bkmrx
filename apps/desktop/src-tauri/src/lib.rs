@@ -1,8 +1,12 @@
 pub mod bookmarks;
-pub mod database;
-pub mod settings;
-pub mod container;
-pub mod notes;
-pub mod service;
 pub mod commands;
+#[cfg(feature = "legacy-migration")]
+pub mod container;
+pub mod database;
 pub mod http_server;
+#[cfg(feature = "legacy-migration")]
+pub mod legacy_migration;
+pub mod notes;
+#[cfg(feature = "legacy-migration")]
+pub mod service;
+pub mod settings;
