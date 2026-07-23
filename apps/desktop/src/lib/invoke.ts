@@ -1,61 +1,64 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Bookmark, Tag, NoteFile } from '../types';
+import type {
+  Bookmark,
+  BookmarkPage,
+  BookmarkPageRequest,
+  CreateBookmark,
+  ImportPreview,
+  NoteFile,
+  Tag,
+  UpdateBookmark,
+} from '../types';
 
 /* ───── Bookmarks ───── */
 
-export async function invokeLoadAllBookmarks(): Promise<Bookmark[]> {
-  return await invoke<Bookmark[]>('load_all_bookmarks');
+export function invokeQueryBookmarks(request: BookmarkPageRequest): Promise<BookmarkPage> {
+  return invoke<BookmarkPage>('query_bookmarks', { request });
 }
 
-export async function invokeGetAllTags(): Promise<Tag[]> {
-  return await invoke<Tag[]>('get_all_tags');
+export function invokeGetTags(): Promise<Tag[]> {
+  return invoke<Tag[]>('get_tags');
 }
 
-export async function invokeBackupBookmarks(dir: string): Promise<string> {
-  return await invoke<string>('backup_bookmarks', { dir });
+export function invokeCreateBookmark(input: CreateBookmark): Promise<Bookmark> {
+  return invoke<Bookmark>('create_bookmark', { input });
 }
 
-export async function invokeAddBookmark(
-  url: string,
-  title: string,
-  tags: string[],
-  description?: string,
-): Promise<number> {
-  return await invoke<number>('add_bookmark', { url, title, tags, description });
+export function invokeUpdateBookmark(id: number, input: UpdateBookmark): Promise<Bookmark> {
+  return invoke<Bookmark>('update_bookmark', { id, input });
 }
 
-export async function invokeHybridSearchBookmarks(
-  query: string,
-  tags: string[],
-): Promise<Bookmark[]> {
-  return await invoke<Bookmark[]>('hybrid_search_bookmarks', { query, tags });
+export function invokeDeleteBookmarks(ids: number[]): Promise<number> {
+  return invoke<number>('delete_bookmarks', { ids });
 }
 
-export async function invokeDeleteBookmarks(ids: number[]): Promise<number> {
-  return await invoke<number>('delete_bookmarks', { ids });
+export function invokeGetBookmarkByUrl(url: string): Promise<Bookmark | null> {
+  return invoke<Bookmark | null>('get_bookmark_by_url', { url });
 }
 
-export async function invokeCheckBookmark(url: string): Promise<Bookmark | null> {
-  return await invoke<Bookmark | null>('check_bookmark', { url });
+export function invokeRecordBookmarkAccess(id: number): Promise<Bookmark> {
+  return invoke<Bookmark>('record_bookmark_access', { id });
 }
 
-export async function invokeUpdateBookmark(
-  id: number,
-  title: string,
-  tags: string[],
-  description?: string | null,
-): Promise<void> {
-  await invoke('update_bookmark', { id, title, tags, description: description ?? null });
+export function invokeExportBookmarks(path: string): Promise<string> {
+  return invoke<string>('export_bookmarks', { path });
 }
 
-export async function invokeRecordBookmarkAccess(id: number): Promise<void> {
-  await invoke('record_bookmark_access', { id });
+export function invokePreviewBookmarkImport(path: string): Promise<ImportPreview> {
+  return invoke<ImportPreview>('preview_bookmark_import', { path });
+}
+
+export function invokeApplyBookmarkImport(
+  path: string,
+  fileHash: string,
+): Promise<ImportPreview> {
+  return invoke<ImportPreview>('apply_bookmark_import', { path, fileHash });
 }
 
 /* ───── Server ───── */
 
-export async function invokeGetServerStatus(): Promise<{ running: boolean }> {
-  return await invoke<{ running: boolean }>('get_server_status');
+export function invokeGetServerStatus(): Promise<{ running: boolean; url: string }> {
+  return invoke<{ running: boolean; url: string }>('get_server_status');
 }
 
 /* ───── Settings ───── */
@@ -65,51 +68,50 @@ export interface AppSettings {
   notes_dir: string | null;
 }
 
-export async function invokeGetSettings(): Promise<AppSettings> {
-  return await invoke<AppSettings>('get_settings');
+export function invokeGetSettings(): Promise<AppSettings> {
+  return invoke<AppSettings>('get_settings');
 }
 
-export async function invokeUpdateSettings(settings: AppSettings): Promise<void> {
-  await invoke('update_settings', { settings });
+export function invokeUpdateSettings(settings: AppSettings): Promise<void> {
+  return invoke('update_settings', { settings });
 }
 
 /* ───── System ───── */
 
 export interface SystemInfo {
-  bkmr_config_path: string;
+  app_data_dir: string;
   sqlite_db_path: string;
-  onnx_available: boolean;
-  bkmr_version: string;
-  bkmr_repo: string;
+  schema_version: number;
+  search_backend: string;
   app_version: string;
 }
 
-export async function invokeGetSystemInfo(): Promise<SystemInfo> {
-  return await invoke<SystemInfo>('get_system_info');
+export function invokeGetSystemInfo(): Promise<SystemInfo> {
+  return invoke<SystemInfo>('get_system_info');
 }
 
 /* ───── Notes ───── */
 
-export async function invokeScanNotes(dir: string): Promise<NoteFile[]> {
-  return await invoke<NoteFile[]>('scan_notes', { dir });
+export function invokeScanNotes(dir: string): Promise<NoteFile[]> {
+  return invoke<NoteFile[]>('scan_notes', { dir });
 }
 
-export async function invokeReadNoteFile(path: string): Promise<string> {
-  return await invoke<string>('read_note_file', { path });
+export function invokeReadNoteFile(path: string): Promise<string> {
+  return invoke<string>('read_note_file', { path });
 }
 
-export async function invokeWriteNoteFile(path: string, content: string): Promise<void> {
-  await invoke('write_note_file', { path, content });
+export function invokeWriteNoteFile(path: string, content: string): Promise<void> {
+  return invoke('write_note_file', { path, content });
 }
 
-export async function invokeCreateNoteFile(dir: string, name: string): Promise<string> {
-  return await invoke<string>('create_note_file', { dir, name });
+export function invokeCreateNoteFile(dir: string, name: string): Promise<string> {
+  return invoke<string>('create_note_file', { dir, name });
 }
 
-export async function invokeDeleteNote(path: string): Promise<void> {
-  await invoke('delete_note', { path });
+export function invokeDeleteNote(path: string): Promise<void> {
+  return invoke('delete_note', { path });
 }
 
-export async function invokeRenameNote(oldPath: string, newPath: string): Promise<void> {
-  await invoke('rename_note', { oldPath, newPath });
+export function invokeRenameNote(oldPath: string, newPath: string): Promise<void> {
+  return invoke('rename_note', { oldPath, newPath });
 }

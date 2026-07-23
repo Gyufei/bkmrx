@@ -11,7 +11,8 @@ export default function DeleteBkDialog({ deleteTarget, setDeleteTarget }: { dele
     mutationFn: deleteBookmarksApi,
     onSuccess: () => {
       setDeleteTarget(null);
-      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.ALL_BOOKMARKS, BkQueryApiKey.TAGS] });
+      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
     },
   });
 

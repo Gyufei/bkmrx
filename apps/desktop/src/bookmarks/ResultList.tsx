@@ -16,18 +16,24 @@ import DeleteBkDialog from './DeleteBkDialog';
 
 interface Props {
   bookmarks: Bookmark[];
-  loading: boolean;
-  error: string | null;
+  initialLoading: boolean;
+  initialError: string | null;
   hasMore: boolean;
+  isFetchingNextPage: boolean;
+  nextPageError: string | null;
   onLoadMore: () => void;
+  onRetryNextPage: () => void;
 }
 
 export default function ResultList({
   bookmarks,
-  loading,
-  error,
+  initialLoading,
+  initialError,
   hasMore,
+  isFetchingNextPage,
+  nextPageError,
   onLoadMore,
+  onRetryNextPage,
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -36,11 +42,11 @@ export default function ResultList({
 
   const handleIntersect = useCallback(
     (entries: IntersectionObserverEntry[]) => {
-      if (entries[0]?.isIntersecting && hasMore && !loading) {
+      if (entries[0]?.isIntersecting && hasMore && !isFetchingNextPage) {
         onLoadMore();
       }
     },
-    [hasMore, loading, onLoadMore],
+    [hasMore, isFetchingNextPage, onLoadMore],
   );
 
   useEffect(() => {
@@ -54,16 +60,26 @@ export default function ResultList({
     return () => observer.disconnect();
   }, [handleIntersect]);
 
-  if (error) {
+  if (initialError) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-destructive">{error}</div>
+      <div className="flex items-center justify-center h-48 text-sm text-destructive">
+        {initialError}
+      </div>
     );
   }
 
-  if (!loading && bookmarks.length === 0) {
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
-        输入关键词搜索书签
+        加载中...
+      </div>
+    );
+  }
+
+  if (bookmarks.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
+        暂无匹配的书签
       </div>
     );
   }
@@ -133,15 +149,24 @@ export default function ResultList({
       <div ref={sentinelRef} className="h-4" />
 
       {/* Loading indicator */}
-      {loading && bookmarks.length > 0 && (
+      {isFetchingNextPage && (
         <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
           <div className="w-4 h-4 mr-2 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           加载中...
         </div>
       )}
 
+      {nextPageError && (
+        <div className="flex items-center justify-center gap-2 py-4 text-sm text-destructive">
+          <span>{nextPageError}</span>
+          <button className="underline" onClick={onRetryNextPage}>
+            重试
+          </button>
+        </div>
+      )}
+
       {/* All loaded */}
-      {!hasMore && bookmarks.length > 0 && (
+      {!hasMore && !nextPageError && bookmarks.length > 0 && (
         <div className="text-center py-4 text-sm text-muted-foreground">
           已显示全部 {bookmarks.length} 条结果
         </div>

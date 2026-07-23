@@ -1,76 +1,69 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { listen } from '@tauri-apps/api/event';
+import { Plus } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import AddBookmarkDialog from './AddBookmarkDialog';
+import {
+  BkQueryApiKey,
+  bookmarkQueryKey,
+  getNextBookmarkPageParam,
+  queryBookmarksApi,
+} from './bookmarks.api';
+import ResultList from './ResultList';
 import SearchBar from './SearchBar';
 import TagPanel from './TagPanel';
-import ResultList from './ResultList';
-import AddBookmarkDialog from './AddBookmarkDialog';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
-import { BkQueryApiKey, searchAllBookmarksApi, searchBookmarksApi } from './bookmarks.api';
-import { useQuery } from '@tanstack/react-query';
-import { listen } from '@tauri-apps/api/event';
 
-const INITIAL_LOAD = 50;
-const LOAD_MORE = 50;
+const PAGE_SIZE = 50;
 
 export default function BookmarkView() {
-  const { data: allBookmarks, isLoading: loadAllBkLoading, error: loadAllBkError, refetch: refetchAllBookmarks } = useQuery({
-    queryKey: [BkQueryApiKey.ALL_BOOKMARKS],
-    queryFn: searchAllBookmarksApi
-  });
-
-
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-
-  const { data: searchResults, isPending: searching } = useQuery({
-    queryKey: [BkQueryApiKey.SEARCH, query, selectedTags],
-    queryFn: () => searchBookmarksApi({ query, tags: selectedTags }),
-    enabled: query.trim() !== '' || selectedTags.length > 0,
-});
-
-  const [displayCount, setDisplayCount] = useState(INITIAL_LOAD);
-
   const [showAddDialog, setShowAddDialog] = useState(false);
 
-  const handleSearch = useCallback((q: string) => {
-    const queryStr = q.trim();
-    setQuery(queryStr);
-    setDisplayCount(INITIAL_LOAD);
+  const bookmarksQuery = useInfiniteQuery({
+    queryKey: bookmarkQueryKey(query, selectedTags, PAGE_SIZE),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      queryBookmarksApi({
+        query,
+        tags: selectedTags,
+        cursor: pageParam,
+        page_size: PAGE_SIZE,
+      }),
+    getNextPageParam: getNextBookmarkPageParam,
+  });
+
+  const bookmarks = useMemo(
+    () => bookmarksQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [bookmarksQuery.data],
+  );
+
+  const handleSearch = useCallback((value: string) => {
+    setQuery(value.trim());
   }, []);
 
   const handleTagsChange = useCallback((tags: string[]) => {
     setSelectedTags(tags);
-    setDisplayCount(INITIAL_LOAD);
   }, []);
 
-  // Display: backend-filtered results when available, otherwise all bookmarks
-  const filteredBookmarks = useMemo(() => {
-    return searchResults ?? allBookmarks ?? [];
-  }, [allBookmarks, searchResults]);
-
-  const visibleBookmarks = useMemo(
-    () => filteredBookmarks.slice(0, displayCount),
-    [filteredBookmarks, displayCount],
-  );
-
-  const hasMore = displayCount < filteredBookmarks.length;
-
-  const handleLoadMore = useCallback(() => {
-    setDisplayCount((prev) => Math.min(prev + LOAD_MORE, filteredBookmarks.length));
-  }, [filteredBookmarks.length]);
-
   useEffect(() => {
-    const unlisten = listen('bookmarks-changed', () => refetchAllBookmarks());
+    const unlisten = listen('bookmarks-changed', () => {
+      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
+    });
     return () => {
-      unlisten.then((fn) => fn());
+      unlisten.then((stop) => stop());
     };
-  }, [refetchAllBookmarks]);
+  }, [queryClient]);
 
   return (
     <>
       <div className="shrink-0 px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <SearchBar onSearch={handleSearch} loading={loadAllBkLoading || searching} />
+          <SearchBar onSearch={handleSearch} loading={bookmarksQuery.isLoading} />
           <Button
             variant="outline"
             className="h-10 w-10 shrink-0 !px-0 flex items-center justify-center"
@@ -83,28 +76,33 @@ export default function BookmarkView() {
       </div>
       <div className="flex-1 flex overflow-hidden">
         <aside className="w-56 shrink-0 border-r border-border bg-sidebar p-3 flex flex-col">
-          <TagPanel
-            selectedTags={selectedTags}
-            onTagsChange={handleTagsChange}
-          />
+          <TagPanel selectedTags={selectedTags} onTagsChange={handleTagsChange} />
         </aside>
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto p-3 thin-scrollbar">
             <ResultList
-              bookmarks={visibleBookmarks}
-              loading={loadAllBkLoading || searching}
-              error={loadAllBkError ? loadAllBkError.message : null}
-              hasMore={hasMore}
-              onLoadMore={handleLoadMore}
+              bookmarks={bookmarks}
+              initialLoading={bookmarksQuery.isLoading}
+              initialError={
+                bookmarksQuery.isError && !bookmarksQuery.data
+                  ? bookmarksQuery.error.message
+                  : null
+              }
+              hasMore={bookmarksQuery.hasNextPage}
+              isFetchingNextPage={bookmarksQuery.isFetchingNextPage}
+              nextPageError={
+                bookmarksQuery.isFetchNextPageError
+                  ? bookmarksQuery.error.message
+                  : null
+              }
+              onLoadMore={() => bookmarksQuery.fetchNextPage()}
+              onRetryNextPage={() => bookmarksQuery.fetchNextPage()}
             />
           </div>
         </main>
       </div>
 
-      <AddBookmarkDialog
-        open={showAddDialog}
-        onOpenChange={setShowAddDialog}
-      />
+      <AddBookmarkDialog open={showAddDialog} onOpenChange={setShowAddDialog} />
     </>
   );
 }

@@ -13,14 +13,21 @@ use crate::database::Database;
 use super::repository::{remove_unused_tags, replace_tags, upsert_fts};
 use super::{AppError, AppResult, BookmarkExportV1, BookmarkTransferRecord, ImportPreview};
 
-pub(crate) fn export_bookmarks(database: &Database, directory: &Path) -> AppResult<PathBuf> {
-    fs::create_dir_all(directory).map_err(file_error)?;
+pub(crate) fn export_bookmarks(database: &Database, destination: &Path) -> AppResult<PathBuf> {
     let export = snapshot(database)?;
     let bytes = serde_json::to_vec_pretty(&export).map_err(|error| {
         AppError::internal_error(format!("failed to serialize export: {error}"))
     })?;
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S");
-    let destination = directory.join(format!("bookmarks-{timestamp}.json"));
+    let destination = if destination.extension().is_some_and(|value| value == "json") {
+        destination.to_owned()
+    } else {
+        destination.join(format!("bookmarks-{timestamp}.json"))
+    };
+    let directory = destination
+        .parent()
+        .ok_or_else(|| AppError::validation_error("export path has no parent directory"))?;
+    fs::create_dir_all(directory).map_err(file_error)?;
     let temporary = directory.join(format!(
         ".bookmarks-{timestamp}-{}-{}.tmp",
         std::process::id(),

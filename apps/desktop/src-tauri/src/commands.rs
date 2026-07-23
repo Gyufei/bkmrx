@@ -1,4 +1,3 @@
-use serde::Serialize;
 use tauri::State;
 
 use crate::bookmarks::{
@@ -63,10 +62,10 @@ pub fn record_bookmark_access(
 #[tauri::command]
 pub fn export_bookmarks(
     service: State<'_, SharedBookmarkService>,
-    directory: String,
+    path: String,
 ) -> AppResult<String> {
     service
-        .export_bookmarks(directory)
+        .export_bookmarks(path)
         .map(|path| path.to_string_lossy().into_owned())
 }
 
@@ -108,13 +107,18 @@ pub async fn create_note_file(dir: String, name: String) -> Result<String, Strin
 }
 
 #[tauri::command]
-pub async fn get_settings() -> Result<crate::settings::Settings, String> {
-    Ok(crate::settings::load())
+pub fn get_settings(
+    paths: State<'_, crate::settings::RuntimePaths>,
+) -> AppResult<crate::settings::Settings> {
+    crate::settings::load(paths.settings_path())
 }
 
 #[tauri::command]
-pub async fn update_settings(settings: crate::settings::Settings) -> Result<(), String> {
-    crate::settings::save(&settings)
+pub fn update_settings(
+    paths: State<'_, crate::settings::RuntimePaths>,
+    settings: crate::settings::Settings,
+) -> AppResult<()> {
+    crate::settings::save(paths.settings_path(), &settings)
 }
 
 #[tauri::command]
@@ -132,30 +136,9 @@ pub async fn rename_note(old_path: String, new_path: String) -> Result<(), Strin
     crate::notes::rename_note_file(&old_path, &new_path)
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct SystemInfo {
-    pub bkmr_config_path: String,
-    pub sqlite_db_path: String,
-    pub onnx_available: bool,
-    pub bkmr_version: String,
-    pub bkmr_repo: String,
-    pub app_version: String,
-}
-
 #[tauri::command]
-pub async fn get_system_info() -> Result<SystemInfo, String> {
-    let config_path = bkmr_lib::config::get_config_file_path()
-        .map(|path| path.to_string_lossy().to_string())
-        .unwrap_or_else(|| "unknown".to_owned());
-    let db_path = crate::container::get_db_path().to_owned();
-    let onnx_available = crate::container::is_embedding_available();
-
-    Ok(SystemInfo {
-        bkmr_config_path: config_path,
-        sqlite_db_path: db_path,
-        onnx_available,
-        bkmr_version: "7.6.7".to_owned(),
-        bkmr_repo: "https://github.com/sysid/bkmr".to_owned(),
-        app_version: env!("CARGO_PKG_VERSION").to_owned(),
-    })
+pub fn get_system_info(
+    paths: State<'_, crate::settings::RuntimePaths>,
+) -> AppResult<crate::settings::SystemInfo> {
+    Ok(paths.system_info())
 }

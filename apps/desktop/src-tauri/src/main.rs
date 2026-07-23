@@ -12,11 +12,14 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let handle = app.handle().clone();
             let app_data_dir = app.path().app_data_dir()?;
             let database = Arc::new(Database::open(app_data_dir.join("bookmarks.db"))?);
             database.assert_fts5_trigram()?;
+            let runtime_paths =
+                bkmrx_lib::settings::RuntimePaths::new(app_data_dir, database.schema_version()?);
 
             let notify_handle = handle.clone();
             let service = Arc::new(
@@ -30,6 +33,7 @@ fn main() {
             );
 
             app.manage(Arc::clone(&service));
+            app.manage(runtime_paths);
             bkmrx_lib::notes::set_app_handle(handle);
             tauri::async_runtime::spawn(bkmrx_lib::http_server::start_server(service, shutdown_rx));
             Ok(())

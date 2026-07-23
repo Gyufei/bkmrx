@@ -27,7 +27,8 @@ export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
     mutationFn: addBookmarkApi,
     onSuccess: () => {
       onOpenChange(false);
-      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.ALL_BOOKMARKS, BkQueryApiKey.TAGS] });
+      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
     },
   });
 
@@ -43,7 +44,7 @@ export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
       url: url.trim(),
       title: title.trim(),
       tags,
-      description: description.trim() || undefined
+      description: description.trim(),
     });
   }, [url, title, tags, description, handleAdd]);
 
@@ -57,7 +58,7 @@ export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>添加书签</DialogTitle>
-          <DialogDescription>输入书签信息，添加后自动同步到 bkmr 数据库。</DialogDescription>
+          <DialogDescription>输入书签信息并保存到本机 SQLite 数据库。</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">

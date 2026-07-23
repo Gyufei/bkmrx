@@ -60,6 +60,7 @@ export default function TagPanel({ selectedTags, onTagsChange }: Props) {
                   const selected = selectedTags.includes(tag.name);
                   return (
                     <button
+                      key={tag.name}
                       onClick={() => toggleTag(tag.name)}
                       className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md cursor-pointer transition-all ${selected ? '' : 'bg-muted text-muted-foreground hover:opacity-80'
                         }`}

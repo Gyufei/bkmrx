@@ -40,7 +40,8 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
     mutationFn: updateBookmarkApi,
     onSuccess: () => {
       setEditTarget(null);
-      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.ALL_BOOKMARKS, BkQueryApiKey.TAGS] });
+      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
     },
   });
 
@@ -49,9 +50,11 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
 
     handleUpdate({
       id: editTarget.id,
-      title: title.trim(),
-      tags: tags,
-      description: description.trim() || undefined,
+      input: {
+        title: title.trim(),
+        tags,
+        description: description.trim(),
+      },
     });
   }
 

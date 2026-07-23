@@ -1,50 +1,57 @@
 import {
-  invokeLoadAllBookmarks,
-  invokeGetAllTags,
-  invokeBackupBookmarks,
-  invokeAddBookmark,
-  invokeHybridSearchBookmarks,
+  invokeCreateBookmark,
   invokeDeleteBookmarks,
-  invokeCheckBookmark,
+  invokeGetBookmarkByUrl,
+  invokeGetTags,
+  invokeQueryBookmarks,
   invokeUpdateBookmark,
 } from '../lib/invoke';
+import type {
+  BookmarkPage,
+  BookmarkPageRequest,
+  CreateBookmark,
+  UpdateBookmark,
+} from '../types';
 
 export const BkQueryApiKey = {
-  ALL_BOOKMARKS: 'allBookmarks',
+  BOOKMARKS: 'bookmarks',
   TAGS: 'tags',
-  SEARCH: 'search',
-  SYSTEM_INFO: 'systemInfo',
-  SETTINGS: 'settings',
+} as const;
+
+export function bookmarkQueryKey(query: string, tags: string[], pageSize = 50) {
+  return [BkQueryApiKey.BOOKMARKS, query, [...tags].sort(), pageSize] as const;
 }
 
-export async function searchAllBookmarksApi() {
-  return await invokeLoadAllBookmarks();
+export function getNextBookmarkPageParam(lastPage: BookmarkPage) {
+  return lastPage.next_cursor ?? undefined;
 }
 
-export async function getAllTagsApi() {
-  return await invokeGetAllTags();
+export function queryBookmarksApi(request: BookmarkPageRequest) {
+  return invokeQueryBookmarks(request);
 }
 
-export async function searchBookmarksApi({ query, tags }: { query: string, tags: string[] }) {
-  return await invokeHybridSearchBookmarks(query, tags);
+export function getAllTagsApi() {
+  return invokeGetTags();
 }
 
-export async function addBookmarkApi({ url, title, tags, description }: { url: string, title: string, tags: string[], description?: string }) {
-  return await invokeAddBookmark(url, title, tags, description);
+export function addBookmarkApi(input: CreateBookmark) {
+  return invokeCreateBookmark(input);
 }
 
-export async function deleteBookmarksApi(ids: number[]) {
-  return await invokeDeleteBookmarks(ids);
+export function deleteBookmarksApi(ids: number[]) {
+  return invokeDeleteBookmarks(ids);
 }
 
-export async function checkBookmarkApi(url: string) {
-  return await invokeCheckBookmark(url);
+export function checkBookmarkApi(url: string) {
+  return invokeGetBookmarkByUrl(url);
 }
 
-export async function updateBookmarkApi({ id, title, tags, description }: { id: number, title: string, tags: string[], description?: string }) {
-  return await invokeUpdateBookmark(id, title, tags, description);
-}
-
-export async function backupBookmarksApi(dir: string) {
-  return await invokeBackupBookmarks(dir);
+export function updateBookmarkApi({
+  id,
+  input,
+}: {
+  id: number;
+  input: UpdateBookmark;
+}) {
+  return invokeUpdateBookmark(id, input);
 }
