@@ -77,6 +77,17 @@ fn repository_duplicate_url_returns_stable_conflict_code() {
 }
 
 #[test]
+fn repository_rejects_comma_in_tag_names() {
+    let (_, repository) = repository();
+
+    let error = repository
+        .create(bookmark("https://example.com", &["a,b"]))
+        .unwrap_err();
+
+    assert_eq!(error.code(), "validation_error");
+}
+
+#[test]
 fn repository_update_replaces_complete_tag_set() {
     let (_, repository) = repository();
     let created = repository

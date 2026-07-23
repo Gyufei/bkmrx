@@ -39,7 +39,7 @@ cargo clippy --all-targets -- -D warnings
 cd ..
 
 pnpm tauri dev
-pnpm tauri build -- --bundles app
+pnpm tauri build --bundles app
 ```
 
 ## 架构

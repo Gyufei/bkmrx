@@ -42,11 +42,16 @@ export default function ResultList({
 
   const handleIntersect = useCallback(
     (entries: IntersectionObserverEntry[]) => {
-      if (entries[0]?.isIntersecting && hasMore && !isFetchingNextPage) {
+      if (
+        entries[0]?.isIntersecting &&
+        hasMore &&
+        !isFetchingNextPage &&
+        !nextPageError
+      ) {
         onLoadMore();
       }
     },
-    [hasMore, isFetchingNextPage, onLoadMore],
+    [hasMore, isFetchingNextPage, nextPageError, onLoadMore],
   );
 
   useEffect(() => {

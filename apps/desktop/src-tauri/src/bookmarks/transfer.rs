@@ -268,7 +268,7 @@ fn parse_and_validate(bytes: &[u8]) -> AppResult<ValidatedExport> {
     let mut records = Vec::with_capacity(export.bookmarks.len());
     for (index, record) in export.bookmarks.into_iter().enumerate() {
         let url = record.url.trim().to_owned();
-        if url.is_empty() || url::Url::parse(&url).is_err() {
+        if url.is_empty() {
             return Err(record_error(index, "url is invalid"));
         }
         if !urls.insert(url.clone()) {
@@ -302,7 +302,10 @@ fn parse_and_validate(bytes: &[u8]) -> AppResult<ValidatedExport> {
             .filter(|tag| !tag.is_empty())
             .collect::<BTreeSet<_>>()
             .into_iter()
-            .collect();
+            .collect::<Vec<_>>();
+        if tags.iter().any(|tag| tag.contains(',')) {
+            return Err(record_error(index, "tag names must not contain commas"));
+        }
         records.push(ValidatedRecord {
             url,
             title,

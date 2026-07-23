@@ -21,7 +21,6 @@ axum = "0.7"
 tower-http = { version = "0.5", features = ["cors"] }
 notify = "8.2.0"
 dirs = "6"
-url = "2"
 rusqlite = { version = "0.35", features = ["bundled", "backup"] }
 sha2 = "0.10"
 base64 = "0.22"

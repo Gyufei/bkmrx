@@ -137,3 +137,24 @@ shasum -a 256 /Users/gyf/.config/bkmr/bkmr.db
 4. 构建 Apple Silicon `.app`；
 5. 备份旧 App，安装新 App；
 6. 完成 App、HTTP 与 Chrome 扩展 smoke test。
+
+## 8. Apple Silicon 本机构建
+
+Tauri CLI 的 bundle 参数必须直接传给 `tauri build`，不要放在额外的
+`--` 之后：
+
+```bash
+pnpm tauri build --bundles app
+file src-tauri/target/release/bundle/macos/bkmrx.app/Contents/MacOS/bkmrx
+```
+
+未配置 Apple Developer 身份时，对完整 bundle 进行本机 ad-hoc 签名并校验：
+
+```bash
+codesign --force --deep --sign - \
+  src-tauri/target/release/bundle/macos/bkmrx.app
+codesign --verify --deep --strict --verbose=2 \
+  src-tauri/target/release/bundle/macos/bkmrx.app
+```
+
+这是个人本机安装签名，不用于分发或 notarization。

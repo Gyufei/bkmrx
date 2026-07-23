@@ -80,7 +80,7 @@ fn export_v1_omits_database_ids() {
 #[test]
 fn exported_json_round_trips_into_empty_database() {
     let (_, source) = service();
-    create(&source, "https://example.com");
+    create(&source, "legacy value that is not a parsed URL");
     let directory = TempDir::new().unwrap();
     let path = source.export_bookmarks(directory.path()).unwrap();
     let (_, target) = service();
@@ -92,11 +92,24 @@ fn exported_json_round_trips_into_empty_database() {
         .unwrap();
 
     let imported = target
-        .get_by_url("https://example.com".to_owned())
+        .get_by_url("legacy value that is not a parsed URL".to_owned())
         .unwrap()
         .unwrap();
     assert_eq!(imported.title, "Example");
     assert_eq!(imported.tags, vec!["rust", "中文"]);
+}
+
+#[test]
+fn preview_rejects_tags_that_cannot_use_the_http_filter_contract() {
+    let (_, service) = service();
+    let directory = TempDir::new().unwrap();
+    let mut invalid = record("https://example.com");
+    invalid["tags"] = json!(["a,b"]);
+    let path = write_json(&directory, "comma-tag.json", export(vec![invalid]));
+
+    let error = service.preview_bookmark_import(path).unwrap_err();
+
+    assert_eq!(error.code(), "import_validation_failed");
 }
 
 #[test]

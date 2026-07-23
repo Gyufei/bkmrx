@@ -39,7 +39,7 @@ impl BookmarkRepository for SqliteBookmarkRepository {
     fn create(&self, input: CreateBookmark) -> AppResult<Bookmark> {
         let url = normalize_url(&input.url)?;
         let title = normalize_title(&input.title, &url);
-        let tags = normalize_tags(input.tags);
+        let tags = normalize_tags(input.tags)?;
         let now = Utc::now().timestamp_millis();
         let mut connection = self.database.connection()?;
         let transaction = connection.transaction().map_err(database_error)?;
@@ -72,7 +72,11 @@ impl BookmarkRepository for SqliteBookmarkRepository {
         };
         let title = normalize_title(input.title.as_deref().unwrap_or(&existing.title), &url);
         let description = input.description.unwrap_or(existing.description);
-        let tags = input.tags.map(normalize_tags).unwrap_or(existing.tags);
+        let tags = input
+            .tags
+            .map(normalize_tags)
+            .transpose()?
+            .unwrap_or(existing.tags);
         let now = Utc::now().timestamp_millis();
         let mut connection = self.database.connection()?;
         let transaction = connection.transaction().map_err(database_error)?;
@@ -271,13 +275,20 @@ fn normalize_title(title: &str, url: &str) -> String {
     }
 }
 
-fn normalize_tags(tags: Vec<String>) -> Vec<String> {
-    tags.into_iter()
+fn normalize_tags(tags: Vec<String>) -> AppResult<Vec<String>> {
+    let tags = tags
+        .into_iter()
         .map(|tag| tag.trim().to_owned())
         .filter(|tag| !tag.is_empty())
         .collect::<BTreeSet<_>>()
         .into_iter()
-        .collect()
+        .collect::<Vec<_>>();
+    if tags.iter().any(|tag| tag.contains(',')) {
+        return Err(AppError::validation_error(
+            "Tag names must not contain commas",
+        ));
+    }
+    Ok(tags)
 }
 
 pub(crate) fn replace_tags(
