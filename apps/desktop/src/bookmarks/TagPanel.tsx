@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { tagColor } from '../lib/tagColor';
 import { useQuery } from '@tanstack/react-query';
-import { getAllTagsApi, BkQueryApiKey } from './backend.api';
+import { getAllTagsApi, BkQueryApiKey } from './bookmarks.api';
 
 interface Props {
   selectedTags: string[];

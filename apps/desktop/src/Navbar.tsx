@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { invokeGetServerStatus } from './lib/invoke';
 import { Button } from './components/ui/button';
 import { Bookmark, Notebook, Settings } from 'lucide-react';
@@ -15,8 +15,6 @@ const TABS = [
   { id: PATHS.BOOKMARKS, label: '书签', icon: <Bookmark /> },
   { id: PATHS.NOTES, label: '笔记', icon: <Notebook /> },
 ] as const;
-
-type TabId = PATHS.BOOKMARKS | PATHS.NOTES;
 
 export default function NavBar({
   currentPath,
@@ -53,14 +51,6 @@ export default function NavBar({
     checkServerStatus();
   }, []);
 
-  const switchTab = useCallback((id: TabId) => {
-    onCurrentPathChange(id);
-  }, []);
-
-  const openSettings = useCallback(() => {
-      onCurrentPathChange(PATHS.SETTINGS)
-  }, []);
-
   return (
     <div
       data-tauri-drag-region
@@ -72,7 +62,7 @@ export default function NavBar({
     >
       <div className="flex items-center gap-3">
         <div className="inline-flex items-center gap-1 rounded-lg bg-sidebar p-1">
-          <Tabs value={currentPath} onValueChange={switchTab} orientation="horizontal">
+          <Tabs value={currentPath} onValueChange={onCurrentPathChange} orientation="horizontal">
             <TabsList>
               {TABS.map((tab) => (
                 <TabsTrigger
@@ -106,7 +96,7 @@ export default function NavBar({
       <Button
         variant="ghost"
         size="icon-sm"
-        onClick={openSettings}
+        onClick={() => onCurrentPathChange(PATHS.SETTINGS)}
         className={`${currentPath === PATHS.SETTINGS ? 'text-primary bg-primary/10' : ''}`}
         title="设置"
       >

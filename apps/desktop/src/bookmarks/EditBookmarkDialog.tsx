@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import TagInput from '@/components/TagInput';
 import type { Bookmark } from '../types';
-import { BkQueryApiKey, updateBookmarkApi } from './backend.api';
+import { BkQueryApiKey, updateBookmarkApi } from './bookmarks.api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Props {

@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import TagInput from '@/components/TagInput';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { addBookmarkApi, BkQueryApiKey } from './backend.api';
+import { addBookmarkApi, BkQueryApiKey } from './bookmarks.api';
 
 interface Props {
   open: boolean;
@@ -38,7 +38,13 @@ export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
 
   const handleSubmit = useCallback(async () => {
     if (!url.trim()) return;
-    handleAdd({ url: url.trim(), title: title.trim(), tags, description: description.trim() || undefined });
+
+    handleAdd({
+      url: url.trim(),
+      title: title.trim(),
+      tags,
+      description: description.trim() || undefined
+    });
   }, [url, title, tags, description, handleAdd]);
 
   return (

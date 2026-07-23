@@ -1,23 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Crepe } from '@milkdown/crepe';
-import { LanguageDescription } from '@codemirror/language';
-import { javascript } from '@codemirror/lang-javascript';
-import { cpp } from '@codemirror/lang-cpp';
-import { rust } from '@codemirror/lang-rust';
-import { vue } from '@codemirror/lang-vue';
-import { markdown as cmMarkdown } from '@codemirror/lang-markdown';
-import { css } from '@codemirror/lang-css';
-import { json } from '@codemirror/lang-json';
-import { html } from '@codemirror/lang-html';
-import { python } from '@codemirror/lang-python';
-import { sql } from '@codemirror/lang-sql';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/nord.css';
+import { MilkdownCreapConfig } from './config';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { NotesQueryApiKey, readNoteContentApi, writeNoteContentApi } from './notes.api';
 
 interface Props {
   filePath: string;
-  readFile: (path: string) => Promise<string>;
-  onSave: (path: string, content: string) => Promise<void>;
 }
 
 function stripFrontmatter(content: string): string {
@@ -28,28 +18,30 @@ function stripFrontmatter(content: string): string {
   return content;
 }
 
-export default function NoteEditor({ filePath, readFile, onSave }: Props) {
+export default function NoteEditor({ filePath }: Props) {
+  const queryClient = useQueryClient();
+
   const containerRef = useRef<HTMLDivElement>(null);
   const crepeRef = useRef<Crepe | null>(null);
-  const onSaveRef = useRef(onSave);
   const filePathRef = useRef(filePath);
   const latestContentRef = useRef<string>('');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [showSavedFlash, setShowSavedFlash] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  onSaveRef.current = onSave;
   filePathRef.current = filePath;
 
-  const save = useCallback(async (path: string, content: string) => {
-    try {
-      await onSaveRef.current(path, content);
-      setSaveError(null);
-    } catch (e) {
-      setSaveError(String(e));
-    }
-  }, []);
+  const { mutate: save, error: saveError, isSuccess: isSaveSuccess, isPending: isSaving } = useMutation({
+    mutationFn: writeNoteContentApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [NotesQueryApiKey.NOTES] });
+    },
+  })
+
+  const { data: readContent, mutate: read, error: readError, isPending: isReading } = useMutation({
+    mutationFn: readNoteContentApi,
+    onSuccess: () => {
+    },
+  })
+
 
   // Cmd+S / Ctrl+S — flush pending content immediately
   useEffect(() => {
@@ -59,12 +51,14 @@ export default function NoteEditor({ filePath, readFile, onSave }: Props) {
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         const content = latestContentRef.current;
         if (!content) return;
-        save(filePathRef.current, content).then(() => {
-          setShowSavedFlash(true);
-          setTimeout(() => setShowSavedFlash(false), 1200);
-        });
+
+        save({
+          path: filePathRef.current,
+          content,
+        })
       }
     };
+
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [save]);
@@ -72,117 +66,20 @@ export default function NoteEditor({ filePath, readFile, onSave }: Props) {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-
     let cancelled = false;
-    setLoading(true);
 
-    // Load file content first, then create Crepe editor
-    readFile(filePath).then((raw) => {
+    async function initLoad() {
+      cancelled = false;
+      await read(filePathRef.current);
+      // Load file content first, then create Crepe editor
       if (cancelled) return;
 
-      const markdown = stripFrontmatter(raw);
+      const markdown = stripFrontmatter(readContent || '');
 
       const crepe = new Crepe({
         root: container,
         defaultValue: markdown,
-        features: {
-          [Crepe.Feature.Latex]: false,
-          [Crepe.Feature.ImageBlock]: false,
-        },
-        featureConfigs: {
-          [Crepe.Feature.CodeMirror]: {
-            languages: [
-              LanguageDescription.of({
-                name: 'JavaScript',
-                alias: ['js', 'javascript', 'ecmascript'],
-                extensions: ['js', 'mjs', 'cjs', 'jsx'],
-                load() {
-                  return Promise.resolve(javascript());
-                },
-              }),
-              LanguageDescription.of({
-                name: 'TypeScript',
-                alias: ['ts', 'typescript'],
-                extensions: ['ts', 'tsx', 'mts'],
-                load() {
-                  return Promise.resolve(javascript({ typescript: true }));
-                },
-              }),
-              LanguageDescription.of({
-                name: 'C',
-                alias: ['c', 'c++', 'cpp', 'cc'],
-                extensions: ['c', 'h', 'cpp', 'cc', 'hpp'],
-                load() {
-                  return Promise.resolve(cpp());
-                },
-              }),
-              LanguageDescription.of({
-                name: 'Rust',
-                alias: ['rs', 'rust'],
-                extensions: ['rs'],
-                load() {
-                  return Promise.resolve(rust());
-                },
-              }),
-              LanguageDescription.of({
-                name: 'Vue',
-                alias: ['vue'],
-                extensions: ['vue'],
-                load() {
-                  return Promise.resolve(vue());
-                },
-              }),
-              LanguageDescription.of({
-                name: 'Markdown',
-                alias: ['md', 'markdown'],
-                extensions: ['md', 'markdown'],
-                load() {
-                  return Promise.resolve(cmMarkdown());
-                },
-              }),
-              LanguageDescription.of({
-                name: 'CSS',
-                alias: ['css', 'pcss'],
-                extensions: ['css', 'scss'],
-                load() {
-                  return Promise.resolve(css());
-                },
-              }),
-              LanguageDescription.of({
-                name: 'JSON',
-                alias: ['json', 'jsonc'],
-                extensions: ['json', 'jsonc'],
-                load() {
-                  return Promise.resolve(json());
-                },
-              }),
-              LanguageDescription.of({
-                name: 'HTML',
-                alias: ['html', 'htm', 'xhtml'],
-                extensions: ['html', 'htm', 'xhtml'],
-                load() {
-                  return Promise.resolve(html());
-                },
-              }),
-              LanguageDescription.of({
-                name: 'Python',
-                alias: ['py', 'python'],
-                extensions: ['py'],
-                load() {
-                  return Promise.resolve(python());
-                },
-              }),
-              LanguageDescription.of({
-                name: 'SQL',
-                alias: ['sql'],
-                extensions: ['sql'],
-                load() {
-                  return Promise.resolve(sql());
-                },
-              }),
-            ],
-          },
-        },
+        ...MilkdownCreapConfig,
       });
 
       crepe.on((listener) => {
@@ -190,7 +87,10 @@ export default function NoteEditor({ filePath, readFile, onSave }: Props) {
           latestContentRef.current = md;
           if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
           saveTimerRef.current = setTimeout(() => {
-            save(filePath, md);
+            save({
+              path: filePathRef.current,
+              content: md,
+            });
           }, 400);
         });
       });
@@ -199,11 +99,12 @@ export default function NoteEditor({ filePath, readFile, onSave }: Props) {
         crepe.create().then(() => {
           if (!cancelled) {
             crepeRef.current = crepe;
-            setLoading(false);
           }
         });
       }
-    });
+    }
+
+    initLoad();
 
     return () => {
       cancelled = true;
@@ -214,24 +115,35 @@ export default function NoteEditor({ filePath, readFile, onSave }: Props) {
         crepeRef.current = null;
       }
     };
-  }, [filePath, readFile]);
+  }, [filePath]);
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-[#1a1a2e] relative">
-      {loading && (
+      {isReading ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white dark:bg-[#1a1a2e] text-sm text-muted-foreground">
           <div className="w-4 h-4 mr-2 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           加载编辑器...
         </div>
-      )}
+        ) : readError ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white dark:bg-[#1a1a2e] text-sm text-destructive">
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
+            加载失败
+          </div>
+        ) : null
+      }
       <div ref={containerRef} className="flex-1 overflow-y-auto thin-scrollbar" />
       <div className="shrink-0 h-6 flex items-center justify-end gap-2 px-6 text-[11px] text-muted-foreground border-t border-border/50">
         {saveError ? (
-          <span className="text-destructive flex items-center gap-1" title={saveError}>
+          <span className="text-destructive flex items-center gap-1" title={saveError.message}>
             <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
-            保存失败
+            保存失败: {saveError.message}
           </span>
-        ) : showSavedFlash ? (
+        ) : isSaving ? (
+          <span className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-600 dark:bg-yellow-400" />
+            保存中...
+          </span>
+        ) : isSaveSuccess ? (
           <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-600 dark:bg-green-400" />
             已保存

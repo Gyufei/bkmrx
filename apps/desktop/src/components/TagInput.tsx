@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { tagColor } from '../lib/tagColor';
 import { useQuery } from '@tanstack/react-query';
-import { getAllTagsApi, BkQueryApiKey } from '@/bookmarks/backend.api';
+import { getAllTagsApi, BkQueryApiKey } from '@/bookmarks/bookmarks.api';
 
 interface TagInputProps {
   value: string[];

@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Copy } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { backupBookmarksApi } from '@/bookmarks/backend.api';
-import { getSettingsApi, getSystemInfoApi, SettingsQueryApiKey, updateSettingsApi } from '@/settings/backend.api';
+import { backupBookmarksApi } from '@/bookmarks/bookmarks.api';
+import { getSettingsApi, getSystemInfoApi, SettingsQueryApiKey, updateSettingsApi } from '@/settings/settings.api';
 
 function SettingsPage() {
   const queryClient = useQueryClient();

@@ -1,7 +1,7 @@
 import { invokeScanNotes, invokeReadNoteFile, invokeWriteNoteFile, invokeCreateNoteFile, invokeDeleteNote, invokeRenameNote } from '../lib/invoke';
 import type { NoteFile } from '../types';
 
-export const QueryApiKey = {
+export const NotesQueryApiKey = {
   NOTES: 'notes',
 };
 

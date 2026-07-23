@@ -1,7 +1,7 @@
 import type { Bookmark } from "../types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { deleteBookmarksApi, BkQueryApiKey } from "./backend.api";
+import { deleteBookmarksApi, BkQueryApiKey } from "./bookmarks.api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function DeleteBkDialog({ deleteTarget, setDeleteTarget }: { deleteTarget: Bookmark | null, setDeleteTarget: (bookmark: Bookmark | null) => void }) {

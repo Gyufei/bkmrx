@@ -5,7 +5,7 @@ import ResultList from './ResultList';
 import AddBookmarkDialog from './AddBookmarkDialog';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { BkQueryApiKey, searchAllBookmarksApi, searchBookmarksApi } from './backend.api';
+import { BkQueryApiKey, searchAllBookmarksApi, searchBookmarksApi } from './bookmarks.api';
 import { useQuery } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
 

@@ -5,8 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { invokeReadNoteFile, invokeWriteNoteFile } from '../lib/invoke';
-import { getSettings, BkQueryApiKey as BkQueryApiKey } from '@/bookmarks/backend.api';
+import { getSettingsApi, SettingsQueryApiKey } from '@/settings/settings.api';
 import { tagColor } from '../lib/tagColor';
 import {
   ContextMenu,
@@ -24,7 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import FolderTree from './FolderTree';
 import NoteEditor from './NoteEditor';
-import { scanNotesDirectoryApi, createNoteApi, deleteNoteFileApi, QueryApiKey } from './backend-api';
+import { scanNotesDirectoryApi, createNoteApi, deleteNoteFileApi, NotesQueryApiKey } from './notes.api';
 import type { NoteFile } from '../types';
 
 function formatTime(unix: number): string {
@@ -48,14 +47,15 @@ export default function NotesPanel() {
 
   // Settings — fetch notes_dir
   const { data: settings } = useQuery({
-    queryKey: [BkQueryApiKey.SETTINGS],
-    queryFn: getSettings,
+    queryKey: [SettingsQueryApiKey.SETTINGS],
+    queryFn: getSettingsApi,
   });
+
   const notesDir = settings?.notes_dir ?? null;
 
   // Scan notes directory
   const { data: notes = [], isLoading: loading, error } = useQuery({
-    queryKey: [QueryApiKey.NOTES, notesDir],
+    queryKey: [NotesQueryApiKey.NOTES, notesDir],
     queryFn: () => scanNotesDirectoryApi(notesDir!),
     enabled: !!notesDir,
   });
@@ -65,7 +65,7 @@ export default function NotesPanel() {
     if (!notesDir) return;
 
     const unlisten1 = listen<NoteFile>('note-changed', (event) => {
-      queryClient.setQueryData([QueryApiKey.NOTES, notesDir], (old: NoteFile[] | undefined) => {
+      queryClient.setQueryData([NotesQueryApiKey.NOTES, notesDir], (old: NoteFile[] | undefined) => {
         if (!old) return old;
         const changed = event.payload;
         const idx = old.findIndex((n) => n.path === changed.path);
@@ -81,7 +81,7 @@ export default function NotesPanel() {
     });
 
     const unlisten2 = listen<string>('note-removed', (event) => {
-      queryClient.setQueryData([QueryApiKey.NOTES, notesDir], (old: NoteFile[] | undefined) => {
+      queryClient.setQueryData([NotesQueryApiKey.NOTES, notesDir], (old: NoteFile[] | undefined) => {
         if (!old) return old;
         return old.filter((n) => n.path !== event.payload);
       });
@@ -100,7 +100,7 @@ export default function NotesPanel() {
       setShowNewModal(false);
       setNewFileName('');
       setSelectedFilePath(filePath);
-      queryClient.invalidateQueries({ queryKey: [QueryApiKey.NOTES, notesDir] });
+      queryClient.invalidateQueries({ queryKey: [NotesQueryApiKey.NOTES, notesDir] });
     },
     onError: (e: Error) => {
       setNewFileError(e.message);
@@ -110,7 +110,7 @@ export default function NotesPanel() {
   const deleteMutation = useMutation({
     mutationFn: (path: string) => deleteNoteFileApi(path),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QueryApiKey.NOTES, notesDir] });
+      queryClient.invalidateQueries({ queryKey: [NotesQueryApiKey.NOTES, notesDir] });
     },
   });
 
@@ -303,7 +303,7 @@ export default function NotesPanel() {
 
         <div className="flex-1 flex flex-col overflow-hidden">
           {selectedFilePath ? (
-            <NoteEditor filePath={selectedFilePath} readFile={invokeReadNoteFile} onSave={invokeWriteNoteFile} />
+            <NoteEditor filePath={selectedFilePath} />
           ) : (
             <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
               选择左侧笔记查看内容
