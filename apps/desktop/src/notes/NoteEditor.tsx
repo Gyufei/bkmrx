@@ -5,6 +5,7 @@ import '@milkdown/crepe/theme/nord.css';
 import { MilkdownCreapConfig } from './config';
 import { useMutation } from '@tanstack/react-query';
 import { readNoteContentApi, writeNoteContentApi } from './notes.api';
+import { NoteSaveQueue } from './note-save-queue';
 
 interface Props {
   filePath: string;
@@ -31,9 +32,25 @@ export default function NoteEditor({ filePath }: Props) {
   const [isReading, setIsReading] = useState(true);
   const [readError, setReadError] = useState<Error | null>(null);
 
-  const { mutate: save, error: saveError, isSuccess: isSaveSuccess, isPending: isSaving } = useMutation({
+  const {
+    mutateAsync: save,
+    error: saveError,
+    isSuccess: isSaveSuccess,
+    isPending: isSaving,
+  } = useMutation({
     mutationFn: writeNoteContentApi
   });
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const saveQueueRef = useRef<NoteSaveQueue>();
+  if (!saveQueueRef.current) {
+    saveQueueRef.current = new NoteSaveQueue((path, content) =>
+      saveRef.current({ path, content }),
+    );
+  }
+
+  const enqueueSave = (path: string, content: string) =>
+    saveQueueRef.current!.enqueue(path, content);
 
   // 1. 核心保存逻辑：显式绑定保存时的 targetPath 与 targetContent
   const flushSave = (targetPath: string, content: string) => {
@@ -43,10 +60,7 @@ export default function NoteEditor({ filePath }: Props) {
     }
     if (!content) return;
 
-    save({
-      path: targetPath,
-      content,
-    });
+    void enqueueSave(targetPath, content).catch(() => undefined);
   };
 
   // 2. Cmd+S / Ctrl+S 快捷键保存
@@ -60,7 +74,7 @@ export default function NoteEditor({ filePath }: Props) {
 
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [save]);
+  }, []);
 
   // 3. 编辑器初始化与切换监听
   useEffect(() => {
@@ -107,10 +121,7 @@ export default function NoteEditor({ filePath }: Props) {
 
             if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
             saveTimerRef.current = setTimeout(() => {
-              save({
-                path: targetPath,
-                content: md,
-              });
+              void enqueueSave(targetPath, md).catch(() => undefined);
             }, 400);
           });
         });
@@ -151,7 +162,7 @@ export default function NoteEditor({ filePath }: Props) {
         
         if (pendingContent) {
           // 异步写入旧文件
-          writeNoteContentApi({ path: pathToSave, content: pendingContent }).catch((e) =>
+          enqueueSave(pathToSave, pendingContent).catch((e) =>
             console.error('切换文件时自动保存旧文件失败:', e)
           );
         }
