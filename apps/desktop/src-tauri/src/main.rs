@@ -34,7 +34,18 @@ fn main() {
 
             app.manage(Arc::clone(&service));
             app.manage(runtime_paths);
-            bkmrx_lib::notes::set_app_handle(handle);
+            let note_handle = handle.clone();
+            let note_service = Arc::new(bkmrx_lib::notes::NoteService::new(Arc::new(
+                move |event| match event {
+                    bkmrx_lib::notes::NoteEvent::Changed(note) => {
+                        let _ = note_handle.emit("note-changed", note);
+                    }
+                    bkmrx_lib::notes::NoteEvent::Removed(path) => {
+                        let _ = note_handle.emit("note-removed", path);
+                    }
+                },
+            )));
+            app.manage(Arc::clone(&note_service));
             tauri::async_runtime::spawn(bkmrx_lib::http_server::start_server(service, shutdown_rx));
             Ok(())
         })
@@ -62,7 +73,9 @@ fn main() {
         ])
         .on_window_event(move |_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                bkmrx_lib::notes::stop_watcher();
+                if let Some(service) = _window.try_state::<bkmrx_lib::notes::SharedNoteService>() {
+                    service.stop();
+                }
                 if let Some(tx) = shutdown_tx
                     .lock()
                     .unwrap_or_else(|error| error.into_inner())

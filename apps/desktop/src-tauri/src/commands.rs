@@ -4,6 +4,7 @@ use crate::bookmarks::{
     AppResult, Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, ImportPreview,
     SharedBookmarkService, TagSummary, UpdateBookmark,
 };
+use crate::notes::SharedNoteService;
 
 #[tauri::command]
 pub fn query_bookmarks(
@@ -87,23 +88,37 @@ pub fn apply_bookmark_import(
 }
 
 #[tauri::command]
-pub async fn scan_notes(dir: String) -> Result<Vec<crate::notes::NoteFile>, String> {
-    crate::notes::scan_notes(&dir)
+pub async fn scan_notes(
+    service: State<'_, SharedNoteService>,
+    dir: String,
+) -> crate::error::AppResult<Vec<crate::notes::NoteFile>> {
+    service.scan(&dir)
 }
 
 #[tauri::command]
-pub async fn read_note_file(path: String) -> Result<String, String> {
-    crate::notes::read_note_file(&path)
+pub async fn read_note_file(
+    service: State<'_, SharedNoteService>,
+    path: String,
+) -> crate::error::AppResult<String> {
+    service.read(&path)
 }
 
 #[tauri::command]
-pub async fn write_note_file(path: String, content: String) -> Result<(), String> {
-    crate::notes::write_note_file(&path, &content)
+pub async fn write_note_file(
+    service: State<'_, SharedNoteService>,
+    path: String,
+    content: String,
+) -> crate::error::AppResult<()> {
+    service.write(&path, &content)
 }
 
 #[tauri::command]
-pub async fn create_note_file(dir: String, name: String) -> Result<String, String> {
-    crate::notes::create_note_file(&dir, &name)
+pub async fn create_note_file(
+    service: State<'_, SharedNoteService>,
+    dir: String,
+    name: String,
+) -> crate::error::AppResult<String> {
+    service.create(&dir, &name)
 }
 
 #[tauri::command]
@@ -127,13 +142,20 @@ pub async fn get_server_status() -> Result<crate::http_server::ServerStatus, Str
 }
 
 #[tauri::command]
-pub async fn delete_note(path: String) -> Result<(), String> {
-    crate::notes::delete_note_file(&path)
+pub async fn delete_note(
+    service: State<'_, SharedNoteService>,
+    path: String,
+) -> crate::error::AppResult<()> {
+    service.delete(&path)
 }
 
 #[tauri::command]
-pub async fn rename_note(old_path: String, new_path: String) -> Result<(), String> {
-    crate::notes::rename_note_file(&old_path, &new_path)
+pub async fn rename_note(
+    service: State<'_, SharedNoteService>,
+    old_path: String,
+    new_path: String,
+) -> crate::error::AppResult<()> {
+    service.rename(&old_path, &new_path)
 }
 
 #[tauri::command]
