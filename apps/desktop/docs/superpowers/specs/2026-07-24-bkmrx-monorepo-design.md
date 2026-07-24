@@ -37,9 +37,11 @@ bkmr-sync/
 └── .gitignore
 ```
 
-根仓库沿用 `bkmrx` 的 Git 历史和 GitHub remote。Chrome 扩展历史以不压缩的
-独立历史分支合入，并落在 `apps/chrome-extension/`。公共文档作为新的根级文档提交
-加入。旧扩展仓库在迁移验证完成前保持不变。
+根仓库沿用 `bkmrx` 的 GitHub remote。桌面端和 Chrome 扩展的历史分别重写路径前缀
+到 `apps/desktop/` 和 `apps/chrome-extension/` 后，以不压缩的独立历史分支合并。
+历史重写会生成新的提交哈希，但保留全部提交内容、作者、时间和消息；原哈希由迁移备份
+中的源仓库永久保留。公共文档作为新的根级文档提交加入。旧仓库在迁移验证完成前保持
+不变。
 
 ## Workspace
 
@@ -61,9 +63,10 @@ bkmr-sync/
 迁移必须满足以下约束：
 
 1. 先在隔离的临时仓库中构造并验证结果，不直接改写现有仓库。
-2. 桌面仓库的每个历史提交迁移至 `apps/desktop/`。
-3. Chrome 扩展仓库的每个历史提交迁移至 `apps/chrome-extension/`。
-4. 两段历史通过一次允许无共同祖先的 merge commit 连接，不 squash。
+2. 桌面仓库的每个历史提交重写至 `apps/desktop/`，保留内容、作者、时间和消息。
+3. Chrome 扩展仓库的每个历史提交重写至 `apps/chrome-extension/`，保留内容、作者、
+   时间和消息。
+4. 两段重写后的历史通过一次允许无共同祖先的 merge commit 连接，不 squash。
 5. 公共 `docs/` 在代码历史合并后加入。
 6. 完整验证通过前，不删除或覆盖任何原仓库、文档或备份。
 7. 最终切换时保留可恢复副本，并记录两个源仓库迁移前的 HEAD。
@@ -87,8 +90,8 @@ bkmr-sync/
 迁移结果必须通过：
 
 1. 根仓库状态干净，且只跟踪目标范围。
-2. `git log -- apps/desktop` 能看到桌面端迁移前历史。
-3. `git log -- apps/chrome-extension` 能看到扩展迁移前历史。
+2. `git log -- apps/desktop` 能连续看到全部桌面端源提交对应的重写历史。
+3. `git log -- apps/chrome-extension` 能连续看到全部扩展源提交对应的重写历史。
 4. `pnpm install --frozen-lockfile` 成功。
 5. 桌面前端测试通过。
 6. 桌面前端构建通过。
