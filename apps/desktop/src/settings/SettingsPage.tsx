@@ -7,6 +7,7 @@ import { BkQueryApiKey } from '@/bookmarks/bookmarks.api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { AppSettings } from '@/lib/invoke';
 import {
   applyBookmarkImportApi,
   exportBookmarksApi,
@@ -91,12 +92,12 @@ function SettingsPage() {
 
   function saveBackupDirectory() {
     if (!settings) return;
-    updateMutation.mutate({ ...settings, backup_dir: backupDir.trim() || null });
+    updateMutation.mutate(currentSettings(backupDir, notesDir));
   }
 
   function saveNotesDirectory() {
     if (!settings) return;
-    updateMutation.mutate({ ...settings, notes_dir: notesDir.trim() || null });
+    updateMutation.mutate(currentSettings(backupDir, notesDir));
   }
 
   return (
@@ -243,6 +244,13 @@ function SettingsPage() {
       </div>
     </div>
   );
+}
+
+function currentSettings(backupDir: string, notesDir: string): AppSettings {
+  return {
+    backup_dir: backupDir.trim() || null,
+    notes_dir: notesDir.trim() || null,
+  };
 }
 
 function exportDefaultPath(backupDir: string) {
