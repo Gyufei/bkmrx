@@ -349,9 +349,13 @@ of the four root metadata files; all legacy paths are ignored.
 Run:
 
 ```bash
-test "$(git -C /private/tmp/bkmrx-monorepo-rewrite-20260724 rev-list --count HEAD^1)" = \
+MERGE_COMMIT="$(git -C /private/tmp/bkmrx-monorepo-rewrite-20260724 \
+  log --merges --format=%H -1)"
+test "$(git -C /private/tmp/bkmrx-monorepo-rewrite-20260724 \
+  rev-list --count "$MERGE_COMMIT^1")" = \
   "$(git -C /Users/gyf/MyLib/bkmr-sync/bkmrx rev-list --count HEAD)"
-test "$(git -C /private/tmp/bkmrx-monorepo-rewrite-20260724 rev-list --count HEAD^2)" = \
+test "$(git -C /private/tmp/bkmrx-monorepo-rewrite-20260724 \
+  rev-list --count "$MERGE_COMMIT^2")" = \
   "$(git -C /Users/gyf/MyLib/bkmr-sync/bkmrx-chrome-ext rev-list --count HEAD)"
 git -C /private/tmp/bkmrx-monorepo-rewrite-20260724 log --graph --oneline --all -20
 ```
