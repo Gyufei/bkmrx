@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type ComponentPropsWithoutRef } from 'react';
+import { open } from '@tauri-apps/plugin-shell';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -13,6 +14,21 @@ function Table(props: ComponentPropsWithoutRef<'table'>) {
     <div data-testid="markdown-table-scroll" className="overflow-x-auto">
       <table {...props} />
     </div>
+  );
+}
+
+function Link({ href, ...props }: ComponentPropsWithoutRef<'a'>) {
+  return (
+    <a
+      {...props}
+      href={href}
+      onClick={(event) => {
+        if (!href) return;
+
+        event.preventDefault();
+        open(href);
+      }}
+    />
   );
 }
 
@@ -36,7 +52,7 @@ export default function MarkdownViewer({
     >
       {content ? (
         <article className="markdown-viewer prose prose-zinc dark:prose-invert mx-auto w-full px-6 py-8">
-          <Markdown remarkPlugins={[remarkGfm]} components={{ table: Table }}>
+          <Markdown remarkPlugins={[remarkGfm]} components={{ table: Table, a: Link }}>
             {content}
           </Markdown>
         </article>
