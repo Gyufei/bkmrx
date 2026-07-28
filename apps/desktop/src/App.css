@@ -2,6 +2,7 @@
 @import '@fontsource-variable/inter';
 
 @import 'tailwindcss';
+@plugin '@tailwindcss/typography';
 @import 'shadcn/tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
@@ -153,6 +154,39 @@
 
 .dark .thin-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.28);
+}
+
+.markdown-viewer {
+  max-width: 72ch;
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-links: var(--primary);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--muted-foreground);
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--border);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: var(--muted);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+}
+
+.markdown-viewer pre,
+.markdown-viewer code {
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, Consolas, monospace;
+}
+
+.markdown-viewer pre {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+}
+
+.markdown-viewer img {
+  max-width: 100%;
 }
 
 /* ── Crepe nord theme (CSS variables only, imported as App.css since package exports block direct import) ── */
