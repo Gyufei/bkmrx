@@ -34,6 +34,11 @@ interface CapturedSaveFailure extends NoteSaveFailure {
   version: number;
 }
 
+interface SaveSessionWatermark {
+  pending: number;
+  latestSavedVersion: number;
+}
+
 const productionDefaults: NoteDocumentDependencies = {
   read: readNoteContentApi,
   save: (path, content) => sharedNoteSaveQueue.enqueue(path, content),
@@ -69,6 +74,7 @@ export function useNoteDocument(
     failure: CapturedSaveFailure;
     promise: Promise<void>;
   } | null>(null);
+  const saveSessionWatermarksRef = useRef(new Map<string, SaveSessionWatermark>());
   const [content, setContentState] = useState('');
   const [loadState, setLoadState] = useState<NoteDocumentSession['loadState']>('loading');
   const [loadError, setLoadError] = useState<Error | null>(null);
@@ -93,6 +99,13 @@ export function useNoteDocument(
   const submitSave = useCallback(
     (path: string, contentToSave: string, sessionId: number, version: number) => {
       const isCurrent = isCurrentSnapshot(path, sessionId, version);
+      const watermarkKey = `${sessionId}:${path}`;
+      const watermark = saveSessionWatermarksRef.current.get(watermarkKey) ?? {
+        pending: 0,
+        latestSavedVersion: 0,
+      };
+      watermark.pending += 1;
+      saveSessionWatermarksRef.current.set(watermarkKey, watermark);
       if (isCurrent) {
         latestSubmittedVersionRef.current = version;
         setSaveState('saving');
@@ -105,44 +118,51 @@ export function useNoteDocument(
         write = Promise.reject(error);
       }
 
-      const submitted = write.then(
-        () => {
-          if (isCurrentSession(path, sessionId)) {
-            latestSavedVersionRef.current = Math.max(latestSavedVersionRef.current, version);
-          }
-          if (isCurrentSnapshot(path, sessionId, version)) {
-            setDirty(false);
-            setSaveState('saved');
-          }
-          if (
-            saveFailureRef.current?.path === path &&
-            saveFailureRef.current.sessionId === sessionId &&
-            saveFailureRef.current.version <= version
-          ) {
-            saveFailureRef.current = null;
-            setSaveError(null);
-          }
-        },
-        (reason) => {
-          const failure: CapturedSaveFailure = {
-            path,
-            content: contentToSave,
-            error: reason instanceof Error ? reason : new Error(String(reason)),
-            sessionId,
-            version,
-          };
-          const isSuperseded =
-            isCurrentSession(path, sessionId) && latestSavedVersionRef.current > version;
-          if (!isSuperseded) {
-            saveFailureRef.current = failure;
-            setSaveError({ path, content: contentToSave, error: failure.error });
-            if (isCurrentSnapshot(path, sessionId, version)) {
-              setSaveState('error');
+      const submitted = write
+        .then(
+          () => {
+            watermark.latestSavedVersion = Math.max(watermark.latestSavedVersion, version);
+            if (isCurrentSession(path, sessionId)) {
+              latestSavedVersionRef.current = Math.max(latestSavedVersionRef.current, version);
             }
+            if (isCurrentSnapshot(path, sessionId, version)) {
+              setDirty(false);
+              setSaveState('saved');
+            }
+            if (
+              saveFailureRef.current?.path === path &&
+              saveFailureRef.current.sessionId === sessionId &&
+              saveFailureRef.current.version <= version
+            ) {
+              saveFailureRef.current = null;
+              setSaveError(null);
+            }
+          },
+          (reason) => {
+            const failure: CapturedSaveFailure = {
+              path,
+              content: contentToSave,
+              error: reason instanceof Error ? reason : new Error(String(reason)),
+              sessionId,
+              version,
+            };
+            const isSuperseded = watermark.latestSavedVersion > version;
+            if (!isSuperseded) {
+              saveFailureRef.current = failure;
+              setSaveError({ path, content: contentToSave, error: failure.error });
+              if (isCurrentSnapshot(path, sessionId, version)) {
+                setSaveState('error');
+              }
+            }
+            throw failure.error;
+          },
+        )
+        .finally(() => {
+          watermark.pending -= 1;
+          if (watermark.pending === 0) {
+            saveSessionWatermarksRef.current.delete(watermarkKey);
           }
-          throw failure.error;
-        },
-      );
+        });
       if (isCurrent) {
         latestSubmittedPromiseRef.current = submitted;
       }
@@ -218,6 +238,13 @@ export function useNoteDocument(
       }
     };
   }, [filePath, flushCurrentSnapshot, readCurrent]);
+
+  useEffect(
+    () => () => {
+      saveSessionWatermarksRef.current.clear();
+    },
+    [],
+  );
 
   const setContent = useCallback(
     (next: string) => {

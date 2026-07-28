@@ -332,6 +332,57 @@ describe('useNoteDocument save races', () => {
     await expect(flush).resolves.toBeUndefined();
   });
 
+  it('reuses a debounced write and propagates its rejection through flush', async () => {
+    const write = deferred<void>();
+    const read = vi.fn().mockResolvedValue('start');
+    const save = vi.fn().mockReturnValue(write.promise);
+    const { result } = renderHook(() => useNoteDocument('/a.md', { read, save, debounceMs: 400 }));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    act(() => {
+      result.current.setContent('draft');
+      vi.advanceTimersByTime(400);
+    });
+    const flush = result.current.flush();
+    expect(save).toHaveBeenCalledTimes(1);
+
+    write.reject(new Error('debounced write failed'));
+    await expect(flush).rejects.toThrow('debounced write failed');
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('suppresses an old-path failure after a newer version succeeds', async () => {
+    const firstWrite = deferred<void>();
+    const secondWrite = deferred<void>();
+    const b = deferred<string>();
+    const read = vi.fn((path: string) => (path === '/a.md' ? Promise.resolve('start') : b.promise));
+    const save = vi
+      .fn<(path: string, content: string) => Promise<void>>()
+      .mockReturnValueOnce(firstWrite.promise)
+      .mockReturnValueOnce(secondWrite.promise)
+      .mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(
+      ({ path }) => useNoteDocument(path, { read, save, debounceMs: 400 }),
+      { initialProps: { path: '/a.md' } },
+    );
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    act(() => result.current.setContent('v1'));
+    const first = result.current.flush();
+    act(() => result.current.setContent('v2'));
+    const second = result.current.flush();
+    rerender({ path: '/b.md' });
+
+    secondWrite.resolve();
+    await expect(second).resolves.toBeUndefined();
+    firstWrite.reject(new Error('v1 failed late'));
+    await expect(first).rejects.toThrow('v1 failed late');
+
+    expect(result.current.saveError).toBe(null);
+    await expect(result.current.retrySave()).resolves.toBeUndefined();
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
   it('ignores a late failed first save after the second version succeeds', async () => {
     const firstWrite = deferred<void>();
     const secondWrite = deferred<void>();
