@@ -99,7 +99,7 @@ describe('useNoteDocument saves', () => {
 
     act(() => result.current.setContent('draft'));
     await act(async () => {
-      await result.current.flush();
+      await result.current.flush().catch(() => undefined);
     });
 
     expect(result.current.content).toBe('draft');
@@ -215,5 +215,176 @@ describe('useNoteDocument file changes and failures', () => {
     });
 
     expect(save).not.toHaveBeenCalled();
+  });
+});
+
+describe('useNoteDocument save races', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('flushes an edit from the active retry-read session before changing files', async () => {
+    const b = deferred<string>();
+    const read = vi
+      .fn<(path: string) => Promise<string>>()
+      .mockRejectedValueOnce(new Error('missing'))
+      .mockResolvedValueOnce('recovered')
+      .mockReturnValueOnce(b.promise);
+    const save = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(
+      ({ path }) => useNoteDocument(path, { read, save, debounceMs: 400 }),
+      { initialProps: { path: '/a.md' } },
+    );
+    await vi.waitFor(() => expect(result.current.loadState).toBe('error'));
+
+    await act(async () => {
+      await result.current.retryRead();
+    });
+    act(() => result.current.setContent('draft after retry'));
+    rerender({ path: '/b.md' });
+
+    expect(save).toHaveBeenCalledWith('/a.md', 'draft after retry');
+  });
+
+  it('retires an older failed snapshot after a newer version saves', async () => {
+    const read = vi.fn().mockResolvedValue('start');
+    const save = vi
+      .fn<(path: string, content: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('v1 failed'))
+      .mockResolvedValueOnce();
+    const { result } = renderHook(() => useNoteDocument('/a.md', { read, save, debounceMs: 400 }));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    act(() => result.current.setContent('v1'));
+    await act(async () => {
+      await result.current.flush().catch(() => undefined);
+    });
+    await vi.waitFor(() => expect(result.current.saveError?.content).toBe('v1'));
+
+    act(() => result.current.setContent('v2'));
+    await act(async () => {
+      await result.current.flush();
+    });
+
+    expect(result.current.saveError).toBe(null);
+    await act(async () => {
+      await result.current.retrySave();
+    });
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it('propagates explicit flush and retry rejections', async () => {
+    const read = vi.fn().mockResolvedValue('start');
+    const save = vi
+      .fn<(path: string, content: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('flush failed'))
+      .mockRejectedValueOnce(new Error('retry failed'));
+    const { result } = renderHook(() => useNoteDocument('/a.md', { read, save, debounceMs: 400 }));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    act(() => result.current.setContent('draft'));
+    await expect(result.current.flush()).rejects.toThrow('flush failed');
+    await vi.waitFor(() => expect(result.current.saveError?.content).toBe('draft'));
+
+    await expect(result.current.retrySave()).rejects.toThrow('retry failed');
+  });
+
+  it('reuses one in-flight retry for the same failed snapshot', async () => {
+    const retry = deferred<void>();
+    const read = vi.fn().mockResolvedValue('start');
+    const save = vi
+      .fn<(path: string, content: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockReturnValueOnce(retry.promise)
+      .mockResolvedValue(undefined);
+    const { result } = renderHook(() => useNoteDocument('/a.md', { read, save, debounceMs: 400 }));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    act(() => result.current.setContent('draft'));
+    await act(async () => {
+      await result.current.flush().catch(() => undefined);
+    });
+    await vi.waitFor(() => expect(result.current.saveError?.content).toBe('draft'));
+
+    const firstRetry = result.current.retrySave();
+    const secondRetry = result.current.retrySave();
+    expect(save).toHaveBeenCalledTimes(2);
+
+    retry.resolve();
+    await expect(firstRetry).resolves.toBeUndefined();
+    await expect(secondRetry).resolves.toBeUndefined();
+  });
+
+  it('waits for an already submitted version instead of writing it twice', async () => {
+    const firstWrite = deferred<void>();
+    const read = vi.fn().mockResolvedValue('start');
+    const save = vi.fn().mockReturnValue(firstWrite.promise);
+    const { result } = renderHook(() => useNoteDocument('/a.md', { read, save, debounceMs: 400 }));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    act(() => {
+      result.current.setContent('draft');
+      vi.advanceTimersByTime(400);
+    });
+    const flush = result.current.flush();
+    expect(save).toHaveBeenCalledTimes(1);
+
+    firstWrite.resolve();
+    await expect(flush).resolves.toBeUndefined();
+  });
+
+  it('ignores a late failed first save after the second version succeeds', async () => {
+    const firstWrite = deferred<void>();
+    const secondWrite = deferred<void>();
+    const read = vi.fn().mockResolvedValue('start');
+    const save = vi
+      .fn<(path: string, content: string) => Promise<void>>()
+      .mockReturnValueOnce(firstWrite.promise)
+      .mockReturnValueOnce(secondWrite.promise);
+    const { result } = renderHook(() => useNoteDocument('/a.md', { read, save, debounceMs: 400 }));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    act(() => result.current.setContent('v1'));
+    const first = result.current.flush();
+    act(() => result.current.setContent('v2'));
+    const second = result.current.flush();
+    expect(save).toHaveBeenNthCalledWith(1, '/a.md', 'v1');
+    expect(save).toHaveBeenNthCalledWith(2, '/a.md', 'v2');
+
+    await act(async () => {
+      secondWrite.resolve();
+      await expect(second).resolves.toBeUndefined();
+    });
+    await act(async () => {
+      firstWrite.reject(new Error('v1 failed late'));
+      await expect(first).rejects.toThrow('v1 failed late');
+    });
+
+    expect(result.current.dirty).toBe(false);
+    expect(result.current.saveState).toBe('saved');
+    expect(result.current.saveError).toBe(null);
+  });
+
+  it('contains a failed submitted write after unmount without console fallback', async () => {
+    const write = deferred<void>();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const read = vi.fn().mockResolvedValue('start');
+    const save = vi.fn().mockReturnValue(write.promise);
+    const { result, unmount } = renderHook(() =>
+      useNoteDocument('/a.md', { read, save, debounceMs: 400 }),
+    );
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    act(() => {
+      result.current.setContent('draft');
+      vi.advanceTimersByTime(400);
+    });
+    unmount();
+    write.reject(new Error('disk full'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

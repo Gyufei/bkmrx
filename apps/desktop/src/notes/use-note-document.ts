@@ -65,6 +65,10 @@ export function useNoteDocument(
   const latestSavedVersionRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const saveFailureRef = useRef<CapturedSaveFailure | null>(null);
+  const retryPromiseRef = useRef<{
+    failure: CapturedSaveFailure;
+    promise: Promise<void>;
+  } | null>(null);
   const [content, setContentState] = useState('');
   const [loadState, setLoadState] = useState<NoteDocumentSession['loadState']>('loading');
   const [loadError, setLoadError] = useState<Error | null>(null);
@@ -77,6 +81,12 @@ export function useNoteDocument(
       currentPathRef.current === path &&
       currentSessionIdRef.current === sessionId &&
       currentVersionRef.current === version,
+    [],
+  );
+
+  const isCurrentSession = useCallback(
+    (path: string, sessionId: number) =>
+      currentPathRef.current === path && currentSessionIdRef.current === sessionId,
     [],
   );
 
@@ -97,16 +107,17 @@ export function useNoteDocument(
 
       const submitted = write.then(
         () => {
+          if (isCurrentSession(path, sessionId)) {
+            latestSavedVersionRef.current = Math.max(latestSavedVersionRef.current, version);
+          }
           if (isCurrentSnapshot(path, sessionId, version)) {
-            latestSavedVersionRef.current = version;
             setDirty(false);
             setSaveState('saved');
           }
           if (
             saveFailureRef.current?.path === path &&
-            saveFailureRef.current.content === contentToSave &&
             saveFailureRef.current.sessionId === sessionId &&
-            saveFailureRef.current.version === version
+            saveFailureRef.current.version <= version
           ) {
             saveFailureRef.current = null;
             setSaveError(null);
@@ -120,11 +131,16 @@ export function useNoteDocument(
             sessionId,
             version,
           };
-          saveFailureRef.current = failure;
-          setSaveError({ path, content: contentToSave, error: failure.error });
-          if (isCurrentSnapshot(path, sessionId, version)) {
-            setSaveState('error');
+          const isSuperseded =
+            isCurrentSession(path, sessionId) && latestSavedVersionRef.current > version;
+          if (!isSuperseded) {
+            saveFailureRef.current = failure;
+            setSaveError({ path, content: contentToSave, error: failure.error });
+            if (isCurrentSnapshot(path, sessionId, version)) {
+              setSaveState('error');
+            }
           }
+          throw failure.error;
         },
       );
       if (isCurrent) {
@@ -132,7 +148,7 @@ export function useNoteDocument(
       }
       return submitted;
     },
-    [isCurrentSnapshot],
+    [isCurrentSession, isCurrentSnapshot],
   );
 
   const flushCurrentSnapshot = useCallback(
@@ -191,7 +207,6 @@ export function useNoteDocument(
     setDirty(false);
     setSaveState('idle');
     void readCurrent();
-    const sessionId = currentSessionIdRef.current;
 
     return () => {
       if (saveTimerRef.current) {
@@ -199,7 +214,7 @@ export function useNoteDocument(
         saveTimerRef.current = undefined;
       }
       if (renderedPathRef.current !== filePath) {
-        void flushCurrentSnapshot(filePath, sessionId);
+        void flushCurrentSnapshot(filePath, currentSessionIdRef.current).catch(() => undefined);
       }
     };
   }, [filePath, flushCurrentSnapshot, readCurrent]);
@@ -218,7 +233,7 @@ export function useNoteDocument(
       const version = currentVersionRef.current;
       saveTimerRef.current = setTimeout(() => {
         saveTimerRef.current = undefined;
-        void submitSave(path, next, sessionId, version);
+        void submitSave(path, next, sessionId, version).catch(() => undefined);
       }, dependencyRef.current.debounceMs);
     },
     [submitSave],
@@ -228,11 +243,32 @@ export function useNoteDocument(
     await flushCurrentSnapshot(currentPathRef.current, currentSessionIdRef.current);
   }, [flushCurrentSnapshot]);
 
-  const retrySave = useCallback(async () => {
+  const retrySave = useCallback(() => {
     const failure = saveFailureRef.current;
-    if (!failure) return;
+    if (!failure) return Promise.resolve();
 
-    await submitSave(failure.path, failure.content, failure.sessionId, failure.version);
+    const activeRetry = retryPromiseRef.current;
+    if (
+      activeRetry &&
+      activeRetry.failure.path === failure.path &&
+      activeRetry.failure.content === failure.content &&
+      activeRetry.failure.sessionId === failure.sessionId &&
+      activeRetry.failure.version === failure.version
+    ) {
+      return activeRetry.promise;
+    }
+
+    const retry = submitSave(failure.path, failure.content, failure.sessionId, failure.version);
+    retryPromiseRef.current = { failure, promise: retry };
+    void retry.then(
+      () => {
+        if (retryPromiseRef.current?.promise === retry) retryPromiseRef.current = null;
+      },
+      () => {
+        if (retryPromiseRef.current?.promise === retry) retryPromiseRef.current = null;
+      },
+    );
+    return retry;
   }, [submitSave]);
 
   const dismissSaveError = useCallback(() => {
