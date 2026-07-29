@@ -206,6 +206,28 @@
   max-width: 100%;
 }
 
+.markdown-source-editor,
+.markdown-source-editor .cm-editor {
+  height: 100%;
+}
+
+.markdown-source-editor .cm-scroller {
+  overflow: auto;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, Consolas, monospace;
+}
+
+.markdown-source-editor .cm-editor {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.markdown-source-editor .cm-gutters {
+  background: var(--background);
+  color: var(--muted-foreground);
+  border-color: var(--border);
+}
+
 /* ── Crepe nord theme (CSS variables only, imported as App.css since package exports block direct import) ── */
 .milkdown {
   --crepe-color-background: #fdfcff;
