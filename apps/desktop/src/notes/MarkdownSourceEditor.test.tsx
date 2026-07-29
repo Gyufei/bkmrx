@@ -116,11 +116,13 @@ describe('MarkdownSourceEditor', () => {
   });
 
   it('visually wraps long source lines', () => {
+    const value = 'https://example.com/' + 'segment/'.repeat(40);
+    const onChange = vi.fn();
     render(
       <MarkdownSourceEditor
-        value={'https://example.com/' + 'segment/'.repeat(40)}
+        value={value}
         initialSnapshot={null}
-        onChange={vi.fn()}
+        onChange={onChange}
         onSnapshot={vi.fn()}
       />,
     );
@@ -129,6 +131,8 @@ describe('MarkdownSourceEditor', () => {
       EditorView.contentAttributes,
     );
     expect(contentAttributes).toContainEqual(expect.objectContaining({ class: 'cm-lineWrapping' }));
+    expect((editorHarness.view.state as EditorState).doc.toString()).toBe(value);
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it('reports user document changes', () => {
