@@ -39,6 +39,8 @@ interface CapturedSaveFailure extends NoteSaveFailure {
 interface PathSaveWatermark {
   latestSubmittedGeneration: number;
   latestSubmittedPromise: Promise<void> | null;
+  unsettledSubmissions: number;
+  pendingReads: number;
 }
 
 const productionDefaults: NoteDocumentDependencies = {
@@ -65,6 +67,7 @@ export function useNoteDocument(
   const currentPathRef = useRef(filePath);
   const currentSessionIdRef = useRef(0);
   const contentRef = useRef('');
+  const currentSessionEditedRef = useRef(false);
   const currentVersionRef = useRef(0);
   const latestSubmittedVersionRef = useRef(0);
   const latestSubmittedPromiseRef = useRef<Promise<void> | null>(null);
@@ -84,6 +87,32 @@ export function useNoteDocument(
   const [saveError, setSaveError] = useState<NoteSaveFailure | null>(null);
   const [dirty, setDirty] = useState(false);
 
+  const getPathSaveWatermark = useCallback((path: string) => {
+    const current = pathSaveWatermarksRef.current.get(path);
+    if (current) return current;
+
+    const created: PathSaveWatermark = {
+      latestSubmittedGeneration: 0,
+      latestSubmittedPromise: null,
+      unsettledSubmissions: 0,
+      pendingReads: 0,
+    };
+    pathSaveWatermarksRef.current.set(path, created);
+    return created;
+  }, []);
+
+  const releasePathSaveWatermark = useCallback((path: string, watermark: PathSaveWatermark) => {
+    if (
+      watermark.unsettledSubmissions === 0 &&
+      watermark.pendingReads === 0 &&
+      saveFailureRef.current?.path !== path &&
+      retryPromiseRef.current?.failure.path !== path &&
+      pathSaveWatermarksRef.current.get(path) === watermark
+    ) {
+      pathSaveWatermarksRef.current.delete(path);
+    }
+  }, []);
+
   const isCurrentSnapshot = useCallback(
     (path: string, sessionId: number, version: number) =>
       currentPathRef.current === path &&
@@ -101,13 +130,10 @@ export function useNoteDocument(
   const submitSave = useCallback(
     (path: string, contentToSave: string, sessionId: number, version: number) => {
       const isCurrent = isCurrentSnapshot(path, sessionId, version);
-      const watermark = pathSaveWatermarksRef.current.get(path) ?? {
-        latestSubmittedGeneration: 0,
-        latestSubmittedPromise: null,
-      };
+      const watermark = getPathSaveWatermark(path);
       const generation = watermark.latestSubmittedGeneration + 1;
       watermark.latestSubmittedGeneration = generation;
-      pathSaveWatermarksRef.current.set(path, watermark);
+      watermark.unsettledSubmissions += 1;
       if (isCurrent) {
         latestSubmittedVersionRef.current = version;
         if (mountedRef.current) setSaveState('saving');
@@ -156,10 +182,17 @@ export function useNoteDocument(
           }
           const isSuperseded = watermark.latestSubmittedGeneration > generation;
           if (!isSuperseded) {
+            const replacedFailure = saveFailureRef.current;
             saveFailureRef.current = failure;
             setSaveError({ path, content: contentToSave, error: failure.error });
             if (isCurrentSnapshot(path, sessionId, version)) {
               setSaveState('error');
+            }
+            if (replacedFailure && replacedFailure.path !== path) {
+              const replacedWatermark = pathSaveWatermarksRef.current.get(replacedFailure.path);
+              if (replacedWatermark) {
+                releasePathSaveWatermark(replacedFailure.path, replacedWatermark);
+              }
             }
           }
           throw failure.error;
@@ -169,9 +202,14 @@ export function useNoteDocument(
       if (isCurrent) {
         latestSubmittedPromiseRef.current = submitted;
       }
+      const settleSubmission = () => {
+        watermark.unsettledSubmissions -= 1;
+        releasePathSaveWatermark(path, watermark);
+      };
+      void submitted.then(settleSubmission, settleSubmission);
       return submitted;
     },
-    [isCurrentSession, isCurrentSnapshot],
+    [getPathSaveWatermark, isCurrentSession, isCurrentSnapshot, releasePathSaveWatermark],
   );
 
   const flushCurrentSnapshot = useCallback(
@@ -196,6 +234,9 @@ export function useNoteDocument(
   const readCurrent = useCallback(async () => {
     const path = currentPathRef.current;
     const sessionId = ++currentSessionIdRef.current;
+    const watermark = getPathSaveWatermark(path);
+    watermark.pendingReads += 1;
+    currentSessionEditedRef.current = false;
     setLoadState('loading');
     setLoadError(null);
 
@@ -220,6 +261,7 @@ export function useNoteDocument(
 
       const next = stripFrontmatter(rawContent);
       contentRef.current = next;
+      currentSessionEditedRef.current = false;
       currentVersionRef.current = 0;
       latestSubmittedVersionRef.current = 0;
       latestSubmittedPromiseRef.current = null;
@@ -237,8 +279,11 @@ export function useNoteDocument(
       }
       setLoadError(error instanceof Error ? error : new Error(String(error)));
       setLoadState('error');
+    } finally {
+      watermark.pendingReads -= 1;
+      releasePathSaveWatermark(path, watermark);
     }
-  }, []);
+  }, [getPathSaveWatermark, releasePathSaveWatermark]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -271,6 +316,7 @@ export function useNoteDocument(
   const setContent = useCallback(
     (next: string) => {
       contentRef.current = next;
+      currentSessionEditedRef.current = true;
       currentVersionRef.current += 1;
       setContentState(next);
       setDirty(currentVersionRef.current !== latestSavedVersionRef.current);
@@ -319,7 +365,8 @@ export function useNoteDocument(
     const retry =
       watermark && failure.generation < watermark.latestSubmittedGeneration
         ? (watermark.latestSubmittedPromise ?? Promise.resolve())
-        : currentPathRef.current === failure.path
+        : currentPathRef.current === failure.path &&
+            (currentSessionIdRef.current === failure.sessionId || currentSessionEditedRef.current)
           ? submitSave(
               failure.path,
               contentRef.current,
@@ -328,16 +375,16 @@ export function useNoteDocument(
             )
           : submitSave(failure.path, failure.content, failure.sessionId, failure.version);
     retryPromiseRef.current = { failure, promise: retry };
-    void retry.then(
-      () => {
-        if (retryPromiseRef.current?.promise === retry) retryPromiseRef.current = null;
-      },
-      () => {
-        if (retryPromiseRef.current?.promise === retry) retryPromiseRef.current = null;
-      },
-    );
+    const settleRetry = () => {
+      if (retryPromiseRef.current?.promise !== retry) return;
+
+      retryPromiseRef.current = null;
+      const currentWatermark = pathSaveWatermarksRef.current.get(failure.path);
+      if (currentWatermark) releasePathSaveWatermark(failure.path, currentWatermark);
+    };
+    void retry.then(settleRetry, settleRetry);
     return retry;
-  }, [submitSave]);
+  }, [releasePathSaveWatermark, submitSave]);
 
   const dismissSaveError = useCallback(() => {
     const failure = saveFailureRef.current;
@@ -351,7 +398,11 @@ export function useNoteDocument(
     }
     saveFailureRef.current = null;
     setSaveError(null);
-  }, [isCurrentSnapshot]);
+    if (failure) {
+      const watermark = pathSaveWatermarksRef.current.get(failure.path);
+      if (watermark) releasePathSaveWatermark(failure.path, watermark);
+    }
+  }, [isCurrentSnapshot, releasePathSaveWatermark]);
 
   const isCurrentDocument = currentPathRef.current === filePath;
 

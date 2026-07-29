@@ -297,6 +297,207 @@ describe('useNoteDocument save races', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it('retries the captured failed draft after reopening the same path without editing', async () => {
+    const retryWrite = deferred<void>();
+    const disk = new Map([
+      ['/a.md', 'A on disk'],
+      ['/b.md', 'B on disk'],
+    ]);
+    const attemptedContents: string[] = [];
+    let attempt = 0;
+    const queue = new NoteSaveQueue(async (path, content) => {
+      attempt += 1;
+      attemptedContents.push(content);
+      if (attempt === 1) throw new Error('old A failed');
+      await retryWrite.promise;
+      disk.set(path, content);
+    });
+    const dependencies = {
+      read: vi.fn(async (path: string) => disk.get(path) ?? ''),
+      save: (path: string, content: string) => queue.enqueue(path, content),
+      pending: (path: string) => queue.pending(path),
+      debounceMs: 400,
+    };
+    const { result, rerender } = renderHook(({ path }) => useNoteDocument(path, dependencies), {
+      initialProps: { path: '/a.md' },
+    });
+    await vi.waitFor(() => expect(result.current.content).toBe('A on disk'));
+
+    act(() => result.current.setContent('failed A draft'));
+    await act(async () => {
+      await result.current.flush().catch(() => undefined);
+    });
+    await vi.waitFor(() => expect(result.current.saveError?.content).toBe('failed A draft'));
+
+    rerender({ path: '/b.md' });
+    await vi.waitFor(() => expect(result.current.content).toBe('B on disk'));
+    rerender({ path: '/a.md' });
+    await vi.waitFor(() => expect(result.current.content).toBe('A on disk'));
+
+    const retry = result.current.retrySave();
+    await vi.waitFor(() => expect(attempt).toBe(2));
+
+    expect(attemptedContents[attemptedContents.length - 1]).toBe('failed A draft');
+    expect(result.current.saveError?.content).toBe('failed A draft');
+
+    retryWrite.resolve();
+    await act(async () => {
+      await expect(retry).resolves.toBeUndefined();
+    });
+    expect(disk.get('/a.md')).toBe('failed A draft');
+    expect(result.current.saveError).toBe(null);
+  });
+
+  it('reclaims a settled path watermark without weakening revisit retry ordering', async () => {
+    const path = '/watermark-reclaim.md';
+    const originalSet = Map.prototype.set;
+    let watermarkMap: Map<unknown, unknown> | undefined;
+    const setSpy = vi.spyOn(Map.prototype, 'set').mockImplementation(function (
+      this: Map<unknown, unknown>,
+      key: unknown,
+      value: unknown,
+    ) {
+      if (key === path) watermarkMap = this;
+      return originalSet.call(this, key, value);
+    });
+
+    try {
+      const pendingRead = deferred<void>();
+      const retryWrite = deferred<void>();
+      const disk: Record<string, string> = {
+        [path]: 'A on disk',
+        '/b.md': 'B on disk',
+      };
+      let shouldWaitForRead = false;
+      let shouldFail = false;
+      let shouldWaitForRetry = false;
+      const attemptedContents: string[] = [];
+      const dependencies = {
+        read: vi.fn(async (readPath: string) => disk[readPath] ?? ''),
+        save: async (savePath: string, content: string) => {
+          attemptedContents.push(content);
+          if (shouldFail) {
+            shouldFail = false;
+            throw new Error('disk full');
+          }
+          if (shouldWaitForRetry) await retryWrite.promise;
+          disk[savePath] = content;
+        },
+        pending: (pendingPath: string) =>
+          pendingPath === path && shouldWaitForRead ? pendingRead.promise : Promise.resolve(),
+        debounceMs: 400,
+      };
+      const { result, rerender } = renderHook(
+        ({ filePath }) => useNoteDocument(filePath, dependencies),
+        { initialProps: { filePath: path } },
+      );
+      await vi.waitFor(() => expect(result.current.content).toBe('A on disk'));
+
+      act(() => result.current.setContent('settled A'));
+      await act(async () => {
+        await result.current.flush();
+      });
+
+      expect(watermarkMap).toBeDefined();
+      await vi.waitFor(() => expect(watermarkMap?.has(path)).toBe(false));
+
+      rerender({ filePath: '/b.md' });
+      await vi.waitFor(() => expect(result.current.content).toBe('B on disk'));
+      shouldWaitForRead = true;
+      rerender({ filePath: path });
+      await vi.waitFor(() => expect(watermarkMap?.has(path)).toBe(true));
+
+      shouldWaitForRead = false;
+      pendingRead.resolve();
+      await vi.waitFor(() => expect(result.current.content).toBe('settled A'));
+      await vi.waitFor(() => expect(watermarkMap?.has(path)).toBe(false));
+
+      shouldFail = true;
+      act(() => result.current.setContent('dismissed failure'));
+      await act(async () => {
+        await result.current.flush().catch(() => undefined);
+      });
+      await vi.waitFor(() => expect(result.current.saveError?.content).toBe('dismissed failure'));
+      expect(watermarkMap?.has(path)).toBe(true);
+
+      act(() => result.current.dismissSaveError());
+      expect(result.current.saveError).toBe(null);
+      await vi.waitFor(() => expect(watermarkMap?.has(path)).toBe(false));
+
+      shouldFail = true;
+      act(() => result.current.setContent('failed after reclaim'));
+      await act(async () => {
+        await result.current.flush().catch(() => undefined);
+      });
+      await vi.waitFor(() =>
+        expect(result.current.saveError?.content).toBe('failed after reclaim'),
+      );
+      expect(watermarkMap?.has(path)).toBe(true);
+
+      shouldWaitForRetry = true;
+      const retry = result.current.retrySave();
+      await vi.waitFor(() =>
+        expect(attemptedContents[attemptedContents.length - 1]).toBe('failed after reclaim'),
+      );
+      expect(watermarkMap?.has(path)).toBe(true);
+
+      retryWrite.resolve();
+      await act(async () => {
+        await retry;
+      });
+      expect(disk[path]).toBe('failed after reclaim');
+      expect(result.current.saveError).toBe(null);
+      await vi.waitFor(() => expect(watermarkMap?.has(path)).toBe(false));
+    } finally {
+      setSpy.mockRestore();
+    }
+  });
+
+  it('reclaims a settled path when its retained failure is replaced by another path', async () => {
+    const aPath = '/replaced-failure-a.md';
+    const bPath = '/replaced-failure-b.md';
+    const originalSet = Map.prototype.set;
+    let watermarkMap: Map<unknown, unknown> | undefined;
+    const setSpy = vi.spyOn(Map.prototype, 'set').mockImplementation(function (
+      this: Map<unknown, unknown>,
+      key: unknown,
+      value: unknown,
+    ) {
+      if (key === aPath || key === bPath) watermarkMap = this;
+      return originalSet.call(this, key, value);
+    });
+
+    try {
+      const read = vi.fn().mockResolvedValue('on disk');
+      const save = vi.fn().mockRejectedValue(new Error('disk full'));
+      const { result, rerender } = renderHook(
+        ({ path }) => useNoteDocument(path, { read, save, debounceMs: 400 }),
+        { initialProps: { path: aPath } },
+      );
+      await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+      act(() => result.current.setContent('failed A'));
+      await act(async () => {
+        await result.current.flush().catch(() => undefined);
+      });
+      await vi.waitFor(() => expect(result.current.saveError?.path).toBe(aPath));
+      expect(watermarkMap?.has(aPath)).toBe(true);
+
+      rerender({ path: bPath });
+      await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+      act(() => result.current.setContent('failed B'));
+      await act(async () => {
+        await result.current.flush().catch(() => undefined);
+      });
+      await vi.waitFor(() => expect(result.current.saveError?.path).toBe(bPath));
+
+      await vi.waitFor(() => expect(watermarkMap?.has(aPath)).toBe(false));
+      expect(watermarkMap?.has(bPath)).toBe(true);
+    } finally {
+      setSpy.mockRestore();
+    }
+  });
+
   it('does not let a failed older retry overwrite a newer same-session save', async () => {
     const newerWrite = deferred<void>();
     const written: string[] = [];
