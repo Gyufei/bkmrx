@@ -82,33 +82,40 @@
 src/
 ├── App.tsx                  # Root component: tab bar + content routing + settings overlay
 ├── App.css                  # Global styles: scrollbar, Markdown viewer and source-editor typography
+├── Layout.tsx               # Page layout and active-tab routing
+├── Navbar.tsx               # Top-level navigation
 ├── main.tsx                 # React DOM entry point
 ├── types.ts                 # Shared TypeScript interfaces
 ├── vite-env.d.ts            # Vite type declarations
 │
-├── hooks/
-│   ├── useBkmr.ts           # Bookmark CRUD via Tauri invoke
-│   ├── useNotes.ts          # Note file scan/read/save/create
-│   └── useSettings.ts       # App settings load/save
+├── bookmarks/
+│   ├── BookmarkView.tsx     # Bookmark browsing view
+│   ├── SearchBar.tsx        # Bookmark search input
+│   ├── TagPanel.tsx         # Tag filter chips
+│   └── bookmarks.api.ts     # Bookmark Tauri invoke wrappers
 │
 ├── components/
-│   ├── SearchBar.tsx         # Bookmark search input
-│   ├── TagPanel.tsx          # Tag filter chips (sidebar)
-│   ├── ResultList.tsx        # Bookmark results with infinite scroll
-│   ├── NotesPanel.tsx        # Three-panel note browser (tree | list | editor)
-│   ├── SettingsPage.tsx      # Full-page settings form
-│   ├── SettingsModal.tsx     # [UNUSED] Old modal settings, replaced by SettingsPage
-│   └── Pagination.tsx        # [UNUSED] Pagination component, replaced by infinite scroll
+│   └── TagInput.tsx         # Shared tag input
 │
 ├── notes/
+│   ├── NotesPanel.tsx        # Three-panel note browser (tree | list | editor)
+│   ├── FolderTree.tsx        # Recursive folder tree navigation
+│   ├── buildFolderTree.ts    # Note tree construction
 │   ├── NoteEditor.tsx        # View-first controller; lazy-loads MarkdownSourceEditor
 │   ├── MarkdownViewer.tsx    # react-markdown + remark-gfm rendered view
 │   ├── MarkdownSourceEditor.tsx # CodeMirror 6 source editor
 │   ├── use-note-document.ts  # 400 ms versioned autosave session
+│   ├── note-save.ts          # Live shared save-queue wrapper
 │   └── note-save-queue.ts    # Per-path serialized write queue
 │
-└── utils/
-    └── tagColor.ts           # Deterministic tag → HSL color function
+├── settings/
+│   ├── SettingsPage.tsx      # Full-page settings form
+│   └── settings.api.ts       # Settings Tauri invoke wrappers
+│
+└── lib/
+    ├── invoke.ts             # Shared Tauri invoke helper
+    ├── tagColor.ts           # Deterministic tag → HSL color function
+    └── utils.ts              # Shared frontend utilities
 ```
 
 ### Backend (`src-tauri/src/`)

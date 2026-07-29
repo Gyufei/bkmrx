@@ -4,7 +4,7 @@ import { bracketMatching } from '@codemirror/language';
 import { searchKeymap } from '@codemirror/search';
 import { Annotation, Compartment, EditorState } from '@codemirror/state';
 import { EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 export interface MarkdownEditorSnapshot {
   anchor: number;
@@ -53,7 +53,7 @@ export default function MarkdownSourceEditor({
     });
   }, [value]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const parent = containerRef.current;
     if (!parent) return;
 

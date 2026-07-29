@@ -9,10 +9,11 @@ const editorHarness = vi.hoisted(() => {
   const destroy = vi.fn();
   return {
     destroy,
+    scrollTop: 0,
     view: {
       destroy,
       state: undefined as unknown,
-      scrollDOM: { scrollTop: 0 },
+      scrollDOM: null as unknown as HTMLElement,
       focus: vi.fn(),
       dispatch: vi.fn((spec: TransactionSpec) => {
         const transaction = (editorHarness.view.state as EditorState).update(spec);
@@ -46,9 +47,20 @@ const mediaHarness = vi.hoisted(() => {
 
 vi.mock('@codemirror/view', async (importOriginal) => {
   const original = await importOriginal<typeof import('@codemirror/view')>();
-  const EditorView = vi.fn((config: { state: EditorState }) => {
+  const EditorView = vi.fn((config: { state: EditorState; parent: HTMLElement }) => {
+    const scrollDOM = document.createElement('div');
+    Object.defineProperty(scrollDOM, 'scrollTop', {
+      configurable: true,
+      get: () => (scrollDOM.isConnected ? editorHarness.scrollTop : 0),
+      set: (value: number) => {
+        editorHarness.scrollTop = value;
+      },
+    });
+    config.parent.append(scrollDOM);
+
     editorHarness.configs.push(config);
     editorHarness.view.state = config.state;
+    editorHarness.view.scrollDOM = scrollDOM;
     editorHarness.updateListener = config.state.facet(original.EditorView.updateListener)[0];
     return editorHarness.view;
   });
@@ -66,7 +78,7 @@ describe('MarkdownSourceEditor', () => {
     vi.clearAllMocks();
     editorHarness.configs.length = 0;
     editorHarness.updateListener = null;
-    editorHarness.view.scrollDOM.scrollTop = 0;
+    editorHarness.scrollTop = 0;
     mediaHarness.query.matches = false;
     vi.stubGlobal(
       'matchMedia',
