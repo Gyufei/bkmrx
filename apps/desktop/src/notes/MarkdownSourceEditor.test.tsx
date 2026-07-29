@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { EditorState } from '@codemirror/state';
+import { EditorState, type TransactionSpec } from '@codemirror/state';
 import type { ViewUpdate } from '@codemirror/view';
 import { act, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,7 +14,15 @@ const editorHarness = vi.hoisted(() => {
       state: undefined as unknown,
       scrollDOM: { scrollTop: 0 },
       focus: vi.fn(),
-      dispatch: vi.fn(),
+      dispatch: vi.fn((spec: TransactionSpec) => {
+        const transaction = (editorHarness.view.state as EditorState).update(spec);
+        editorHarness.view.state = transaction.state;
+        editorHarness.updateListener?.({
+          docChanged: transaction.docChanged,
+          state: transaction.state,
+          transactions: [transaction],
+        } as unknown as ViewUpdate);
+      }),
     },
     configs: [] as Array<{ state: EditorState }>,
     updateListener: null as ((update: ViewUpdate) => void) | null,
@@ -105,21 +113,21 @@ describe('MarkdownSourceEditor', () => {
     );
 
     act(() => {
-      editorHarness.updateListener?.({
-        docChanged: true,
-        state: { doc: { toString: () => '# Updated' } },
-      } as ViewUpdate);
+      editorHarness.view.dispatch({
+        changes: { from: 0, to: '# Initial'.length, insert: '# Updated' },
+      });
     });
 
     expect(onChange).toHaveBeenCalledWith('# Updated');
   });
 
   it('synchronizes a changed external value without recreating the view', () => {
+    const onChange = vi.fn();
     const { rerender } = render(
       <MarkdownSourceEditor
         value="# Initial"
         initialSnapshot={null}
-        onChange={vi.fn()}
+        onChange={onChange}
         onSnapshot={vi.fn()}
       />,
     );
@@ -128,15 +136,18 @@ describe('MarkdownSourceEditor', () => {
       <MarkdownSourceEditor
         value="# External"
         initialSnapshot={null}
-        onChange={vi.fn()}
+        onChange={onChange}
         onSnapshot={vi.fn()}
       />,
     );
 
     expect(editorHarness.configs).toHaveLength(1);
-    expect(editorHarness.view.dispatch).toHaveBeenCalledWith({
-      changes: { from: 0, to: '# Initial'.length, insert: '# External' },
-    });
+    expect(editorHarness.view.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: { from: 0, to: '# Initial'.length, insert: '# External' },
+      }),
+    );
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it('reports the latest selection and scroll position on cleanup', () => {

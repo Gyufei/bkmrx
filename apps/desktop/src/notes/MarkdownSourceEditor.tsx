@@ -2,7 +2,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { markdown } from '@codemirror/lang-markdown';
 import { bracketMatching } from '@codemirror/language';
 import { searchKeymap } from '@codemirror/search';
-import { Compartment, EditorState } from '@codemirror/state';
+import { Annotation, Compartment, EditorState } from '@codemirror/state';
 import { EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
 import { useEffect, useRef } from 'react';
 
@@ -23,6 +23,8 @@ export interface MarkdownSourceEditorProps {
 function editorTheme(dark: boolean) {
   return EditorView.theme({}, { dark });
 }
+
+const externalValueChange = Annotation.define<boolean>();
 
 export default function MarkdownSourceEditor({
   value,
@@ -46,6 +48,7 @@ export default function MarkdownSourceEditor({
     if (!view || view.state.doc.toString() === value) return;
 
     view.dispatch({
+      annotations: externalValueChange.of(true),
       changes: { from: 0, to: view.state.doc.length, insert: value },
     });
   }, [value]);
@@ -70,7 +73,14 @@ export default function MarkdownSourceEditor({
           bracketMatching(),
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
           EditorView.updateListener.of((update) => {
-            if (update.docChanged) onChangeRef.current(update.state.doc.toString());
+            if (
+              update.docChanged &&
+              !update.transactions.some((transaction) =>
+                transaction.annotation(externalValueChange),
+              )
+            ) {
+              onChangeRef.current(update.state.doc.toString());
+            }
           }),
           theme.of(editorTheme(media.matches)),
         ],
