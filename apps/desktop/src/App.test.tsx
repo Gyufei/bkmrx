@@ -26,6 +26,7 @@ import App from './App';
 
 describe('App', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mediaHarness.query.matches = false;
     vi.stubGlobal(
       'matchMedia',
@@ -40,6 +41,14 @@ describe('App', () => {
     vi.unstubAllGlobals();
   });
 
+  it('applies the dark theme on startup when the system is dark', () => {
+    mediaHarness.query.matches = true;
+
+    render(<App />);
+
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+  });
+
   it('mirrors system color-scheme changes on the document root', () => {
     render(<App />);
 
@@ -47,5 +56,14 @@ describe('App', () => {
     act(() => mediaHarness.emitChange());
 
     expect(document.documentElement.classList.contains('dark')).toBe(true);
+  });
+
+  it('removes the system color-scheme listener on unmount', () => {
+    const { unmount } = render(<App />);
+    const listener = mediaHarness.query.addEventListener.mock.calls[0]?.[1];
+
+    unmount();
+
+    expect(mediaHarness.query.removeEventListener).toHaveBeenCalledWith('change', listener);
   });
 });

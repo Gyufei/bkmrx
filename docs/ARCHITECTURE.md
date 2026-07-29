@@ -78,11 +78,13 @@
 
 ### Frontend (`src/`)
 
+The tree below highlights representative modules and is not a complete file listing.
+
 ```
 src/
-├── App.tsx                  # Root component: tab bar + content routing + settings overlay
+├── App.tsx                  # Root composition: query provider + system theme bridge
 ├── App.css                  # Global styles: scrollbar, Markdown viewer and source-editor typography
-├── Layout.tsx               # Page layout and active-tab routing
+├── Layout.tsx               # Page layout and bookmark/notes/settings routing
 ├── Navbar.tsx               # Top-level navigation
 ├── main.tsx                 # React DOM entry point
 ├── types.ts                 # Shared TypeScript interfaces

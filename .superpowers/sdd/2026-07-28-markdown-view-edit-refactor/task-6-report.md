@@ -231,3 +231,26 @@ only the disposable notes directory.
   `/Users/gyf/Library/Application Support/com.bkmrx.task6`
 - Isolated bundle:
   `/Users/gyf/MyLib/bkmrx-app/.worktrees/markdown-view-edit-refactor/apps/desktop/src-tauri/target/release/bundle/macos/bkmrx Task 6.app`
+
+## Fix Round 2 — Architecture Scope and Theme Lifecycle Tests
+
+- Clarified that the frontend source tree presents representative modules
+  rather than a complete `src/` inventory, without expanding it with every
+  API, test, or UI file.
+- Corrected the root responsibilities: `App.tsx` composes the query provider
+  and system-theme bridge, while `Layout.tsx` owns bookmark, notes, and settings
+  routing.
+- Added a startup regression that renders with
+  `matchMedia.matches === true` and observes the root `.dark` class.
+- Added an unmount regression that verifies the registered system-theme
+  listener is removed with the same callback.
+- RED mutation check: temporarily removed the initial `updateTheme()` and
+  cleanup return from `App.tsx`. The targeted run failed exactly the two new
+  tests while the existing live-change test remained green (1 passed,
+  2 failed).
+- GREEN: restored the production bridge unchanged; the targeted App suite
+  passed all 3 tests.
+- Final verification: `pnpm --filter bkmrx test` passed 11 files and 71 tests;
+  `pnpm --filter bkmrx build` exited 0; `git diff --check` produced no output.
+  The same pre-existing sourcemap-location and chunk-size warnings remain
+  non-failing.
