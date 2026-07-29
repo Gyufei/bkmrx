@@ -33,6 +33,12 @@ function basename(filePath: string): string {
   return filePath.split(/[\\/]/).pop() || filePath;
 }
 
+function modeShortcutLabel(): string {
+  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+    ? '⌘E'
+    : 'Ctrl E';
+}
+
 export default function NoteEditor({ filePath }: Props): JSX.Element {
   const session = useNoteDocument(filePath);
   const [modeState, setModeState] = useState<ModeState>({ filePath, value: 'view' });
@@ -46,6 +52,8 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
   const [editorReady, setEditorReady] = useState(false);
   const editorReadyRef = useRef(false);
   const [modeTransitionPending, setModeTransitionPending] = useState(false);
+  const [showSavedStatus, setShowSavedStatus] = useState(false);
+  const previousSaveStateRef = useRef(session.saveState);
   const [viewPosition, setViewPosition] = useState<ViewPosition>({
     filePath,
     scrollTop: 0,
@@ -58,6 +66,7 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
   const mode = modeState.filePath === filePath ? modeState.value : 'view';
   const viewScrollTop = viewPosition.filePath === filePath ? viewPosition.scrollTop : 0;
   const editorSnapshot = editorPosition.filePath === filePath ? editorPosition.snapshot : null;
+  const shortcutLabel = modeShortcutLabel();
 
   useLayoutEffect(() => {
     if (filePathRef.current !== filePath) {
@@ -82,6 +91,21 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
     setViewPosition({ filePath, scrollTop: 0 });
     setEditorPosition({ filePath, snapshot: null });
   }, [filePath]);
+
+  useEffect(() => {
+    const previousSaveState = previousSaveStateRef.current;
+    previousSaveStateRef.current = session.saveState;
+
+    if (mode !== 'edit' || session.saveState !== 'saved') {
+      setShowSavedStatus(false);
+      return;
+    }
+    if (previousSaveState === 'saved') return;
+
+    setShowSavedStatus(true);
+    const timer = window.setTimeout(() => setShowSavedStatus(false), 1_500);
+    return () => window.clearTimeout(timer);
+  }, [mode, session.saveState]);
 
   const toggleMode = useCallback(async () => {
     if (transitionPendingRef.current) return;
@@ -168,6 +192,15 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
           {basename(filePath)}
         </span>
+        {mode === 'edit' && session.saveState === 'saving' ? (
+          <span role="status" className="text-xs text-muted-foreground">
+            保存中...
+          </span>
+        ) : showSavedStatus ? (
+          <span role="status" className="text-xs text-emerald-600 dark:text-emerald-400">
+            已保存
+          </span>
+        ) : null}
         {session.loadState === 'ready' ? (
           <Button
             type="button"
@@ -176,7 +209,7 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
             disabled={modeTransitionPending || (mode === 'edit' && !editorReady)}
             onClick={() => void toggleMode()}
           >
-            {mode === 'view' ? '编辑' : '查看'}
+            {mode === 'view' ? '编辑' : '查看'} {shortcutLabel}
           </Button>
         ) : null}
       </header>

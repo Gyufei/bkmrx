@@ -17,6 +17,7 @@ afterEach(cleanup);
 
 beforeEach(() => {
   openMock.mockReset();
+  openMock.mockResolvedValue(undefined);
 });
 
 describe('MarkdownViewer', () => {
@@ -61,17 +62,87 @@ describe('MarkdownViewer', () => {
     );
 
     expect(container.querySelector('img')).toBeNull();
-    expect(screen.getByText('bad').closest('a')?.getAttribute('href') ?? '').not.toMatch(
-      /^javascript:/,
-    );
+    const badLink = screen.getByText('bad').closest('a');
+    expect(badLink?.getAttribute('href') ?? '').not.toMatch(/^javascript:/);
+
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+    badLink?.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(openMock).not.toHaveBeenCalled();
   });
 
-  it('opens safe external links with the desktop shell', () => {
-    render(<MarkdownViewer content="[OpenAI](https://openai.com)" />);
+  it('opens only absolute links allowed by the desktop shell', () => {
+    render(
+      <MarkdownViewer
+        content={[
+          '[HTTP](http://example.com)',
+          '[HTTPS](https://example.com)',
+          '[Mail](mailto:hello@example.com)',
+          '[Phone](tel:+123456)',
+        ].join(' ')}
+      />,
+    );
 
-    fireEvent.click(screen.getByRole('link', { name: 'OpenAI' }));
+    for (const name of ['HTTP', 'HTTPS', 'Mail', 'Phone']) {
+      fireEvent.click(screen.getByRole('link', { name }));
+    }
 
-    expect(openMock).toHaveBeenCalledWith('https://openai.com');
+    expect(openMock.mock.calls).toEqual([
+      ['http://example.com'],
+      ['https://example.com'],
+      ['mailto:hello@example.com'],
+      ['tel:+123456'],
+    ]);
+  });
+
+  it('keeps relative, anchor, and unsupported protocol links inert', () => {
+    render(
+      <MarkdownViewer
+        content={[
+          '[Relative](./other.md)',
+          '[Anchor](#section)',
+          '[IRC](irc://chat.example.com)',
+          '[XMPP](xmpp:hello@example.com)',
+        ].join(' ')}
+      />,
+    );
+
+    for (const name of ['Relative', 'Anchor', 'IRC', 'XMPP']) {
+      const link = screen.getByText(name).closest('a');
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+      link?.dispatchEvent(click);
+      expect(click.defaultPrevented).toBe(true);
+    }
+    expect(openMock).not.toHaveBeenCalled();
+  });
+
+  it('reports a desktop shell rejection without leaving an unhandled promise', async () => {
+    const error = new Error('open denied');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    openMock.mockRejectedValueOnce(error);
+    render(<MarkdownViewer content="[External](https://example.com)" />);
+
+    fireEvent.click(screen.getByRole('link', { name: 'External' }));
+
+    await vi.waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith('Failed to open external note link', {
+        href: 'https://example.com',
+        error,
+      }),
+    );
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
+  });
+
+  it('does not forward react-markdown node metadata to native elements', () => {
+    render(
+      <MarkdownViewer
+        content={'[External](https://example.com)\n\n| Name |\n| --- |\n| Value |'}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'External' })).not.toHaveAttribute('node');
+    expect(screen.getByRole('table')).not.toHaveAttribute('node');
   });
 
   it('maps dark Typography tokens to the application theme', () => {

@@ -221,6 +221,14 @@ describe('NoteEditor', () => {
     expect(editorHarness.mounts).toBe(0);
   });
 
+  it('shows the macOS mode shortcut in the toolbar on macOS', () => {
+    const platform = vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('MacIntel');
+    renderEditor();
+
+    expect(screen.getByRole('button', { name: /编辑/ }).textContent).toBe('编辑 ⌘E');
+    platform.mockRestore();
+  });
+
   it('disables the mode toggle until the source editor signals readiness', async () => {
     editorHarness.autoReady = false;
     renderEditor();
@@ -234,6 +242,30 @@ describe('NoteEditor', () => {
     const unavailableToggle = dispatchShortcut('e');
     expect(unavailableToggle.defaultPrevented).toBe(false);
     expect(screen.getByRole('textbox', { name: 'Markdown source' })).toBeTruthy();
+  });
+
+  it('shows the saving status while editing', async () => {
+    session.saveState = 'saving';
+    renderEditor();
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }));
+    await screen.findByRole('textbox', { name: 'Markdown source' });
+
+    expect(screen.getByRole('status').textContent).toBe('保存中...');
+  });
+
+  it('shows a saved status transiently while editing', async () => {
+    vi.useFakeTimers();
+    const editor = renderEditor();
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }));
+    session.saveState = 'saved';
+    editor.rerenderEditor('/notes/a.md');
+
+    expect(screen.getByRole('status').textContent).toBe('已保存');
+    act(() => vi.advanceTimersByTime(1_500));
+    expect(screen.queryByRole('status')).toBeNull();
+
+    editor.unmount();
+    vi.useRealTimers();
   });
 
   it('enters source edit mode from the button', async () => {

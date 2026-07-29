@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, type ComponentPropsWithoutRef } from 'react';
 import { open } from '@tauri-apps/plugin-shell';
-import Markdown from 'react-markdown';
+import Markdown, { defaultUrlTransform, type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 export interface MarkdownViewerProps {
@@ -9,7 +9,7 @@ export interface MarkdownViewerProps {
   onScrollTopChange?(scrollTop: number): void;
 }
 
-function Table(props: ComponentPropsWithoutRef<'table'>) {
+function Table({ node: _node, ...props }: ComponentPropsWithoutRef<'table'> & ExtraProps) {
   return (
     <div data-testid="markdown-table-scroll" className="overflow-x-auto">
       <table {...props} />
@@ -17,16 +17,39 @@ function Table(props: ComponentPropsWithoutRef<'table'>) {
   );
 }
 
-function Link({ href, ...props }: ComponentPropsWithoutRef<'a'>) {
+function isAllowedExternalHref(href: string): boolean {
+  try {
+    const url = new URL(href);
+    if (/^https?:\/\//i.test(href)) {
+      return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname);
+    }
+    return (
+      /^(?:mailto|tel):/i.test(href) && (url.protocol === 'mailto:' || url.protocol === 'tel:')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function transformMarkdownUrl(url: string, key: string): string {
+  return key === 'href' ? (isAllowedExternalHref(url) ? url : '') : defaultUrlTransform(url);
+}
+
+function Link({ href, node: _node, ...props }: ComponentPropsWithoutRef<'a'> & ExtraProps) {
+  const allowedHref = href && isAllowedExternalHref(href) ? href : undefined;
+
   return (
     <a
       {...props}
-      href={href}
+      href={allowedHref}
       onClick={(event) => {
-        if (!href) return;
-
         event.preventDefault();
-        open(href);
+        if (!allowedHref) return;
+
+        void open(allowedHref).catch((reason) => {
+          const error = reason instanceof Error ? reason : new Error(String(reason));
+          console.error('Failed to open external note link', { href: allowedHref, error });
+        });
       }}
     />
   );
@@ -52,7 +75,11 @@ export default function MarkdownViewer({
     >
       {content ? (
         <article className="markdown-viewer prose prose-zinc dark:prose-invert mx-auto w-full px-6 py-8">
-          <Markdown remarkPlugins={[remarkGfm]} components={{ table: Table, a: Link }}>
+          <Markdown
+            remarkPlugins={[remarkGfm]}
+            components={{ table: Table, a: Link }}
+            urlTransform={transformMarkdownUrl}
+          >
             {content}
           </Markdown>
         </article>

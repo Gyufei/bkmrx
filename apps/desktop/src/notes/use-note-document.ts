@@ -6,6 +6,7 @@ import { readNoteContentApi } from './notes.api';
 export interface NoteDocumentDependencies {
   read(path: string): Promise<string>;
   save(path: string, content: string): Promise<void>;
+  pending(path: string): Promise<void>;
   debounceMs: number;
 }
 
@@ -32,16 +33,18 @@ export interface NoteDocumentSession {
 interface CapturedSaveFailure extends NoteSaveFailure {
   sessionId: number;
   version: number;
+  generation: number;
 }
 
-interface SaveSessionWatermark {
-  pending: number;
-  latestSavedVersion: number;
+interface PathSaveWatermark {
+  latestSubmittedGeneration: number;
+  latestSubmittedPromise: Promise<void> | null;
 }
 
 const productionDefaults: NoteDocumentDependencies = {
   read: readNoteContentApi,
   save: (path, content) => sharedNoteSaveQueue.enqueue(path, content),
+  pending: (path) => sharedNoteSaveQueue.pending(path),
   debounceMs: 400,
 };
 
@@ -60,8 +63,6 @@ export function useNoteDocument(
   const dependencyRef = useRef<NoteDocumentDependencies>(productionDefaults);
   dependencyRef.current = { ...productionDefaults, ...dependencies };
   const currentPathRef = useRef(filePath);
-  const renderedPathRef = useRef(filePath);
-  renderedPathRef.current = filePath;
   const currentSessionIdRef = useRef(0);
   const contentRef = useRef('');
   const currentVersionRef = useRef(0);
@@ -69,12 +70,13 @@ export function useNoteDocument(
   const latestSubmittedPromiseRef = useRef<Promise<void> | null>(null);
   const latestSavedVersionRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const mountedRef = useRef(false);
   const saveFailureRef = useRef<CapturedSaveFailure | null>(null);
   const retryPromiseRef = useRef<{
     failure: CapturedSaveFailure;
     promise: Promise<void>;
   } | null>(null);
-  const saveSessionWatermarksRef = useRef(new Map<string, SaveSessionWatermark>());
+  const pathSaveWatermarksRef = useRef(new Map<string, PathSaveWatermark>());
   const [content, setContentState] = useState('');
   const [loadState, setLoadState] = useState<NoteDocumentSession['loadState']>('loading');
   const [loadError, setLoadError] = useState<Error | null>(null);
@@ -99,16 +101,16 @@ export function useNoteDocument(
   const submitSave = useCallback(
     (path: string, contentToSave: string, sessionId: number, version: number) => {
       const isCurrent = isCurrentSnapshot(path, sessionId, version);
-      const watermarkKey = `${sessionId}:${path}`;
-      const watermark = saveSessionWatermarksRef.current.get(watermarkKey) ?? {
-        pending: 0,
-        latestSavedVersion: 0,
+      const watermark = pathSaveWatermarksRef.current.get(path) ?? {
+        latestSubmittedGeneration: 0,
+        latestSubmittedPromise: null,
       };
-      watermark.pending += 1;
-      saveSessionWatermarksRef.current.set(watermarkKey, watermark);
+      const generation = watermark.latestSubmittedGeneration + 1;
+      watermark.latestSubmittedGeneration = generation;
+      pathSaveWatermarksRef.current.set(path, watermark);
       if (isCurrent) {
         latestSubmittedVersionRef.current = version;
-        setSaveState('saving');
+        if (mountedRef.current) setSaveState('saving');
       }
 
       let write: Promise<void>;
@@ -118,51 +120,52 @@ export function useNoteDocument(
         write = Promise.reject(error);
       }
 
-      const submitted = write
-        .then(
-          () => {
-            watermark.latestSavedVersion = Math.max(watermark.latestSavedVersion, version);
-            if (isCurrentSession(path, sessionId)) {
-              latestSavedVersionRef.current = Math.max(latestSavedVersionRef.current, version);
-            }
-            if (isCurrentSnapshot(path, sessionId, version)) {
-              setDirty(false);
-              setSaveState('saved');
-            }
-            if (
-              saveFailureRef.current?.path === path &&
-              saveFailureRef.current.sessionId === sessionId &&
-              saveFailureRef.current.version <= version
-            ) {
-              saveFailureRef.current = null;
-              setSaveError(null);
-            }
-          },
-          (reason) => {
-            const failure: CapturedSaveFailure = {
-              path,
-              content: contentToSave,
-              error: reason instanceof Error ? reason : new Error(String(reason)),
-              sessionId,
-              version,
-            };
-            const isSuperseded = watermark.latestSavedVersion > version;
-            if (!isSuperseded) {
-              saveFailureRef.current = failure;
-              setSaveError({ path, content: contentToSave, error: failure.error });
-              if (isCurrentSnapshot(path, sessionId, version)) {
-                setSaveState('error');
-              }
-            }
-            throw failure.error;
-          },
-        )
-        .finally(() => {
-          watermark.pending -= 1;
-          if (watermark.pending === 0) {
-            saveSessionWatermarksRef.current.delete(watermarkKey);
+      const submitted = write.then(
+        () => {
+          if (isCurrentSession(path, sessionId)) {
+            latestSavedVersionRef.current = Math.max(latestSavedVersionRef.current, version);
           }
-        });
+          if (mountedRef.current && isCurrentSnapshot(path, sessionId, version)) {
+            setDirty(false);
+            setSaveState('saved');
+          }
+          if (
+            saveFailureRef.current?.path === path &&
+            saveFailureRef.current.generation <= generation
+          ) {
+            saveFailureRef.current = null;
+            if (mountedRef.current) setSaveError(null);
+          }
+        },
+        (reason) => {
+          const failure: CapturedSaveFailure = {
+            path,
+            content: contentToSave,
+            error: reason instanceof Error ? reason : new Error(String(reason)),
+            sessionId,
+            version,
+            generation,
+          };
+          if (!mountedRef.current) {
+            console.error('Note save failed after unmount', {
+              path,
+              version,
+              error: failure.error,
+            });
+            throw failure.error;
+          }
+          const isSuperseded = watermark.latestSubmittedGeneration > generation;
+          if (!isSuperseded) {
+            saveFailureRef.current = failure;
+            setSaveError({ path, content: contentToSave, error: failure.error });
+            if (isCurrentSnapshot(path, sessionId, version)) {
+              setSaveState('error');
+            }
+          }
+          throw failure.error;
+        },
+      );
+      watermark.latestSubmittedPromise = submitted;
       if (isCurrent) {
         latestSubmittedPromiseRef.current = submitted;
       }
@@ -197,8 +200,23 @@ export function useNoteDocument(
     setLoadError(null);
 
     try {
+      await dependencyRef.current.pending(path);
+      if (
+        !mountedRef.current ||
+        currentPathRef.current !== path ||
+        currentSessionIdRef.current !== sessionId
+      ) {
+        return;
+      }
+
       const rawContent = await dependencyRef.current.read(path);
-      if (currentPathRef.current !== path || currentSessionIdRef.current !== sessionId) return;
+      if (
+        !mountedRef.current ||
+        currentPathRef.current !== path ||
+        currentSessionIdRef.current !== sessionId
+      ) {
+        return;
+      }
 
       const next = stripFrontmatter(rawContent);
       contentRef.current = next;
@@ -210,10 +228,23 @@ export function useNoteDocument(
       setDirty(false);
       setLoadState('ready');
     } catch (error) {
-      if (currentPathRef.current !== path || currentSessionIdRef.current !== sessionId) return;
+      if (
+        !mountedRef.current ||
+        currentPathRef.current !== path ||
+        currentSessionIdRef.current !== sessionId
+      ) {
+        return;
+      }
       setLoadError(error instanceof Error ? error : new Error(String(error)));
       setLoadState('error');
     }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -233,18 +264,9 @@ export function useNoteDocument(
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = undefined;
       }
-      if (renderedPathRef.current !== filePath) {
-        void flushCurrentSnapshot(filePath, currentSessionIdRef.current).catch(() => undefined);
-      }
+      void flushCurrentSnapshot(filePath, currentSessionIdRef.current).catch(() => undefined);
     };
   }, [filePath, flushCurrentSnapshot, readCurrent]);
-
-  useEffect(
-    () => () => {
-      saveSessionWatermarksRef.current.clear();
-    },
-    [],
-  );
 
   const setContent = useCallback(
     (next: string) => {
@@ -267,8 +289,15 @@ export function useNoteDocument(
   );
 
   const flush = useCallback(async () => {
-    await flushCurrentSnapshot(currentPathRef.current, currentSessionIdRef.current);
-  }, [flushCurrentSnapshot]);
+    const path = currentPathRef.current;
+    const sessionId = currentSessionIdRef.current;
+
+    while (isCurrentSession(path, sessionId)) {
+      const version = currentVersionRef.current;
+      await flushCurrentSnapshot(path, sessionId);
+      if (!isCurrentSession(path, sessionId) || currentVersionRef.current === version) return;
+    }
+  }, [flushCurrentSnapshot, isCurrentSession]);
 
   const retrySave = useCallback(() => {
     const failure = saveFailureRef.current;
@@ -280,12 +309,24 @@ export function useNoteDocument(
       activeRetry.failure.path === failure.path &&
       activeRetry.failure.content === failure.content &&
       activeRetry.failure.sessionId === failure.sessionId &&
-      activeRetry.failure.version === failure.version
+      activeRetry.failure.version === failure.version &&
+      activeRetry.failure.generation === failure.generation
     ) {
       return activeRetry.promise;
     }
 
-    const retry = submitSave(failure.path, failure.content, failure.sessionId, failure.version);
+    const watermark = pathSaveWatermarksRef.current.get(failure.path);
+    const retry =
+      watermark && failure.generation < watermark.latestSubmittedGeneration
+        ? (watermark.latestSubmittedPromise ?? Promise.resolve())
+        : currentPathRef.current === failure.path
+          ? submitSave(
+              failure.path,
+              contentRef.current,
+              currentSessionIdRef.current,
+              currentVersionRef.current,
+            )
+          : submitSave(failure.path, failure.content, failure.sessionId, failure.version);
     retryPromiseRef.current = { failure, promise: retry };
     void retry.then(
       () => {
