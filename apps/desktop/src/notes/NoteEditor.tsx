@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 
@@ -42,6 +42,7 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
   const dirtyRef = useRef(session.dirty);
   const flushRef = useRef(session.flush);
   const transitionPendingRef = useRef(false);
+  const transitionTokenRef = useRef(0);
   const [editorReady, setEditorReady] = useState(false);
   const editorReadyRef = useRef(false);
   const [modeTransitionPending, setModeTransitionPending] = useState(false);
@@ -54,15 +55,22 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
     snapshot: null,
   });
 
-  filePathRef.current = filePath;
-  loadStateRef.current = session.loadState;
-  dirtyRef.current = session.dirty;
-  flushRef.current = session.flush;
-
   const mode = modeState.filePath === filePath ? modeState.value : 'view';
-  modeRef.current = mode;
   const viewScrollTop = viewPosition.filePath === filePath ? viewPosition.scrollTop : 0;
   const editorSnapshot = editorPosition.filePath === filePath ? editorPosition.snapshot : null;
+
+  useLayoutEffect(() => {
+    if (filePathRef.current !== filePath) {
+      transitionTokenRef.current += 1;
+      transitionPendingRef.current = false;
+    }
+
+    filePathRef.current = filePath;
+    loadStateRef.current = session.loadState;
+    dirtyRef.current = session.dirty;
+    flushRef.current = session.flush;
+    modeRef.current = mode;
+  }, [filePath, mode, session.dirty, session.flush, session.loadState]);
 
   useEffect(() => {
     modeRef.current = 'view';
@@ -96,18 +104,25 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
     }
 
     const transitionPath = filePathRef.current;
+    const transitionToken = ++transitionTokenRef.current;
     transitionPendingRef.current = true;
     setModeTransitionPending(true);
     try {
       await flushRef.current();
-      if (filePathRef.current === transitionPath && transitionPendingRef.current) {
+      if (
+        filePathRef.current === transitionPath &&
+        transitionTokenRef.current === transitionToken
+      ) {
         modeRef.current = 'view';
         setModeState({ filePath: transitionPath, value: 'view' });
       }
     } catch {
       // Keep the source editor open so the user can retry without losing content.
     } finally {
-      if (filePathRef.current === transitionPath) {
+      if (
+        filePathRef.current === transitionPath &&
+        transitionTokenRef.current === transitionToken
+      ) {
         transitionPendingRef.current = false;
         setModeTransitionPending(false);
       }
@@ -117,6 +132,7 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!event.metaKey && !event.ctrlKey) return;
+      if (event.shiftKey || event.altKey) return;
 
       const key = event.key.toLowerCase();
       const canToggleMode =

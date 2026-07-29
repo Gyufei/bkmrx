@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { startTransition, Suspense, useLayoutEffect, useRef, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const session = vi.hoisted(() => ({
@@ -33,9 +34,27 @@ const editorHarness = vi.hoisted(() => ({
   nextSnapshot: { anchor: 3, head: 7, scrollTop: 96 },
 }));
 
-vi.mock('./use-note-document', () => ({
-  useNoteDocument: vi.fn(() => session),
+const noteDocumentHarness = vi.hoisted(() => ({
+  useReal: false,
+  read: vi.fn<(path: string) => Promise<string>>(),
+  save: vi.fn<(path: string, content: string) => Promise<void>>(),
+  debounceMs: 60_000,
 }));
+
+vi.mock('./use-note-document', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./use-note-document')>();
+  return {
+    ...original,
+    useNoteDocument: (filePath: string) =>
+      noteDocumentHarness.useReal
+        ? original.useNoteDocument(filePath, {
+            read: noteDocumentHarness.read,
+            save: noteDocumentHarness.save,
+            debounceMs: noteDocumentHarness.debounceMs,
+          })
+        : session,
+  };
+});
 
 vi.mock('./MarkdownSourceEditor', async () => {
   const { useEffect, useRef } = await import('react');
@@ -77,13 +96,54 @@ vi.mock('./MarkdownSourceEditor', async () => {
 
 import NoteEditor from './NoteEditor';
 
-function renderEditor(filePath = '/notes/a.md') {
+function EditorCommitProbe({
+  filePath,
+  onCommit,
+}: {
+  filePath: string;
+  onCommit?(textContent: string): void;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    onCommit?.(rootRef.current?.textContent ?? '');
+  });
+
+  return (
+    <div ref={rootRef}>
+      <NoteEditor filePath={filePath} />
+    </div>
+  );
+}
+
+let setConcurrentRoute: ((route: { filePath: string; suspended: boolean }) => void) | undefined;
+
+function ConcurrentPathHarness({ suspension }: { suspension: Promise<void> }) {
+  const [route, setRoute] = useState({
+    filePath: '/notes/a.md',
+    suspended: false,
+  });
+  setConcurrentRoute = setRoute;
+
+  return (
+    <Suspense fallback={<div>Pending route</div>}>
+      <NoteEditor filePath={route.filePath} />
+      {route.suspended ? <RouteSuspension suspension={suspension} /> : null}
+    </Suspense>
+  );
+}
+
+function RouteSuspension({ suspension }: { suspension: Promise<void> }): never {
+  throw suspension;
+}
+
+function renderEditor(filePath = '/notes/a.md', onCommit?: (textContent: string) => void) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <NoteEditor filePath={filePath} />
+      <EditorCommitProbe filePath={filePath} onCommit={onCommit} />
     </QueryClientProvider>,
   );
   return {
@@ -91,7 +151,7 @@ function renderEditor(filePath = '/notes/a.md') {
     rerenderEditor(nextFilePath: string) {
       result.rerender(
         <QueryClientProvider client={queryClient}>
-          <NoteEditor filePath={nextFilePath} />
+          <EditorCommitProbe filePath={nextFilePath} onCommit={onCommit} />
         </QueryClientProvider>,
       );
     },
@@ -100,7 +160,12 @@ function renderEditor(filePath = '/notes/a.md') {
 
 function dispatchShortcut(
   key: string,
-  modifiers: { metaKey?: boolean; ctrlKey?: boolean } = { metaKey: true },
+  modifiers: {
+    metaKey?: boolean;
+    ctrlKey?: boolean;
+    shiftKey?: boolean;
+    altKey?: boolean;
+  } = { metaKey: true },
 ) {
   const event = new KeyboardEvent('keydown', {
     key,
@@ -109,6 +174,16 @@ function dispatchShortcut(
   });
   act(() => document.dispatchEvent(event));
   return event;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 afterEach(cleanup);
@@ -130,6 +205,11 @@ describe('NoteEditor', () => {
     editorHarness.mounts = 0;
     editorHarness.initialSnapshots.length = 0;
     editorHarness.nextSnapshot = { anchor: 3, head: 7, scrollTop: 96 };
+    noteDocumentHarness.useReal = false;
+    noteDocumentHarness.read.mockReset().mockResolvedValue('# Read me');
+    noteDocumentHarness.save.mockReset().mockResolvedValue(undefined);
+    noteDocumentHarness.debounceMs = 60_000;
+    setConcurrentRoute = undefined;
   });
 
   it('opens in rendered view and exposes a low-emphasis edit button', async () => {
@@ -170,6 +250,18 @@ describe('NoteEditor', () => {
 
     expect(enter.defaultPrevented).toBe(true);
     expect(await screen.findByRole('textbox', { name: 'Markdown source' })).toBeTruthy();
+  });
+
+  it.each([
+    ['Shift', { metaKey: true, shiftKey: true }],
+    ['Alt', { ctrlKey: true, altKey: true }],
+  ])('ignores %s-modified mode shortcuts', (_name, modifiers) => {
+    renderEditor();
+
+    const event = dispatchShortcut('e', modifiers);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(screen.queryByRole('textbox', { name: 'Markdown source' })).toBeNull();
   });
 
   it('waits for a dirty flush before returning to view mode', async () => {
@@ -236,6 +328,20 @@ describe('NoteEditor', () => {
     expect(session.flush).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['Shift', { metaKey: true, shiftKey: true }],
+    ['Alt', { ctrlKey: true, altKey: true }],
+  ])('ignores %s-modified save shortcuts', async (_name, modifiers) => {
+    renderEditor();
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }));
+    await screen.findByRole('textbox', { name: 'Markdown source' });
+
+    const event = dispatchShortcut('s', modifiers);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(session.flush).not.toHaveBeenCalled();
+  });
+
   it('coalesces repeated mode shortcuts while an exit flush is pending', async () => {
     let resolveSave!: () => void;
     session.dirty = true;
@@ -256,6 +362,71 @@ describe('NoteEditor', () => {
     await screen.findByRole('heading', { name: 'Read me' });
   });
 
+  it('isolates exit flush generations across A to B to A transitions', async () => {
+    const firstFlush = deferred<void>();
+    const secondFlush = deferred<void>();
+    session.dirty = true;
+    session.flush.mockReturnValueOnce(firstFlush.promise).mockReturnValueOnce(secondFlush.promise);
+    const editor = renderEditor('/notes/a.md');
+
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }));
+    await screen.findByRole('textbox', { name: 'Markdown source' });
+    fireEvent.click(screen.getByRole('button', { name: /查看/ }));
+    editor.rerenderEditor('/notes/b.md');
+    editor.rerenderEditor('/notes/a.md');
+
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }));
+    await screen.findByRole('textbox', { name: 'Markdown source' });
+    fireEvent.click(screen.getByRole('button', { name: /查看/ }));
+    expect(session.flush).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      firstFlush.resolve();
+      await firstFlush.promise;
+    });
+    expect(screen.getByRole('textbox', { name: 'Markdown source' })).toBeTruthy();
+
+    await act(async () => {
+      secondFlush.reject(new Error('second flush failed'));
+      await secondFlush.promise.catch(() => undefined);
+    });
+    expect(screen.getByRole('textbox', { name: 'Markdown source' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /查看/ }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('does not invalidate the committed path flush for an abandoned path render', async () => {
+    const flush = deferred<void>();
+    const suspension = deferred<void>();
+    session.dirty = true;
+    session.flush.mockReturnValueOnce(flush.promise);
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ConcurrentPathHarness suspension={suspension.promise} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }));
+    await screen.findByRole('textbox', { name: 'Markdown source' });
+    fireEvent.click(screen.getByRole('button', { name: /查看/ }));
+
+    act(() => {
+      startTransition(() => {
+        setConcurrentRoute?.({ filePath: '/notes/b.md', suspended: true });
+      });
+    });
+    expect(screen.getByRole('textbox', { name: 'Markdown source' })).toBeTruthy();
+
+    await act(async () => {
+      flush.resolve();
+      await flush.promise;
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Read me' })).toBeTruthy();
+  });
+
   it('resets to rendered view when the selected file changes', async () => {
     const editor = renderEditor();
     fireEvent.click(screen.getByRole('button', { name: /编辑/ }));
@@ -266,6 +437,26 @@ describe('NoteEditor', () => {
     expect(await screen.findByRole('heading', { name: 'Read me' })).toBeTruthy();
     expect(screen.getByText('b.md')).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'Markdown source' })).toBeNull();
+  });
+
+  it('does not expose the previous document on the first commit for a new path', async () => {
+    const nextRead = deferred<string>();
+    const commits: string[] = [];
+    noteDocumentHarness.useReal = true;
+    noteDocumentHarness.read.mockImplementation((path) =>
+      path === '/notes/a.md' ? Promise.resolve('# A private') : nextRead.promise,
+    );
+    const editor = renderEditor('/notes/a.md', (textContent) => commits.push(textContent));
+    expect(await screen.findByRole('heading', { name: 'A private' })).toBeTruthy();
+
+    commits.length = 0;
+    editor.rerenderEditor('/notes/b.md');
+
+    expect(commits.length).toBeGreaterThan(0);
+    expect(commits[0]).not.toContain('A private');
+    expect(commits[0]).not.toContain('编辑');
+    expect(screen.queryByRole('heading', { name: 'A private' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /编辑/ })).toBeNull();
   });
 
   it('removes its document shortcuts on unmount', () => {
@@ -291,6 +482,34 @@ describe('NoteEditor', () => {
 
     expect(session.retrySave).toHaveBeenCalledTimes(1);
     expect(session.dismissSaveError).toHaveBeenCalledTimes(1);
+  });
+
+  it('can save the same dirty snapshot after dismissing its failure', async () => {
+    noteDocumentHarness.useReal = true;
+    noteDocumentHarness.read.mockResolvedValue('# Start');
+    noteDocumentHarness.save
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockResolvedValueOnce(undefined);
+    renderEditor('/notes/a.md');
+    expect(await screen.findByRole('heading', { name: 'Start' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /编辑/ }));
+    const source = await screen.findByRole('textbox', { name: 'Markdown source' });
+    fireEvent.change(source, { target: { value: '# Recovered' } });
+    fireEvent.click(screen.getByRole('button', { name: /查看/ }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Markdown source' })).toHaveProperty(
+      'value',
+      '# Recovered',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '忽略' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /查看/ }));
+
+    expect(await screen.findByRole('heading', { name: 'Recovered' })).toBeTruthy();
+    expect(noteDocumentHarness.save).toHaveBeenCalledTimes(2);
+    expect(noteDocumentHarness.save).toHaveBeenNthCalledWith(2, '/notes/a.md', '# Recovered');
   });
 
   it('restores rendered-view scroll after an edit round trip', async () => {

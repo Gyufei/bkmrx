@@ -299,16 +299,28 @@ export function useNoteDocument(
   }, [submitSave]);
 
   const dismissSaveError = useCallback(() => {
+    const failure = saveFailureRef.current;
+    if (failure && isCurrentSnapshot(failure.path, failure.sessionId, failure.version)) {
+      latestSubmittedVersionRef.current = Math.min(
+        latestSubmittedVersionRef.current,
+        failure.version - 1,
+      );
+      latestSubmittedPromiseRef.current = null;
+      setSaveState('idle');
+    }
+    saveFailureRef.current = null;
     setSaveError(null);
-  }, []);
+  }, [isCurrentSnapshot]);
+
+  const isCurrentDocument = currentPathRef.current === filePath;
 
   return {
-    content,
-    loadState,
-    loadError,
-    saveState,
+    content: isCurrentDocument ? content : '',
+    loadState: isCurrentDocument ? loadState : 'loading',
+    loadError: isCurrentDocument ? loadError : null,
+    saveState: isCurrentDocument ? saveState : 'idle',
     saveError,
-    dirty,
+    dirty: isCurrentDocument ? dirty : false,
     setContent,
     retryRead: readCurrent,
     flush,
