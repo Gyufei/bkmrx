@@ -168,6 +168,13 @@ describe('MarkdownViewer', () => {
     }
   });
 
+  it('wraps long links inside the rendered document width', () => {
+    const linkCss = appCss.match(/\.markdown-viewer a \{([^}]*)}/)?.[1] ?? '';
+
+    expect(linkCss).toContain('overflow-wrap: anywhere;');
+    expect(linkCss).toContain('word-break: break-word;');
+  });
+
   it('renders a discoverable empty-note state', () => {
     render(<MarkdownViewer content="" />);
 

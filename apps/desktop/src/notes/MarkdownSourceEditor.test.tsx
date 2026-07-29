@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { EditorState, type TransactionSpec } from '@codemirror/state';
-import type { ViewUpdate } from '@codemirror/view';
+import { EditorView, type ViewUpdate } from '@codemirror/view';
 import { act, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -65,6 +65,8 @@ vi.mock('@codemirror/view', async (importOriginal) => {
     return editorHarness.view;
   });
   Object.assign(EditorView, {
+    contentAttributes: original.EditorView.contentAttributes,
+    lineWrapping: original.EditorView.lineWrapping,
     theme: original.EditorView.theme,
     updateListener: original.EditorView.updateListener,
   });
@@ -111,6 +113,22 @@ describe('MarkdownSourceEditor', () => {
     );
 
     expect((editorHarness.view.state as EditorState).doc.toString()).toBe('# Initial');
+  });
+
+  it('visually wraps long source lines', () => {
+    render(
+      <MarkdownSourceEditor
+        value={'https://example.com/' + 'segment/'.repeat(40)}
+        initialSnapshot={null}
+        onChange={vi.fn()}
+        onSnapshot={vi.fn()}
+      />,
+    );
+
+    const contentAttributes = (editorHarness.view.state as EditorState).facet(
+      EditorView.contentAttributes,
+    );
+    expect(contentAttributes).toContainEqual(expect.objectContaining({ class: 'cm-lineWrapping' }));
   });
 
   it('reports user document changes', () => {

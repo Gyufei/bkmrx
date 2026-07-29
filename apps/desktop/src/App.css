@@ -206,6 +206,11 @@
   max-width: 100%;
 }
 
+.markdown-viewer a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .markdown-source-editor,
 .markdown-source-editor .cm-editor {
   height: 100%;

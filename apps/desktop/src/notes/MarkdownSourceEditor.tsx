@@ -71,6 +71,7 @@ export default function MarkdownSourceEditor({
           lineNumbers(),
           highlightActiveLine(),
           bracketMatching(),
+          EditorView.lineWrapping,
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
           EditorView.updateListener.of((update) => {
             if (
