@@ -2,6 +2,7 @@
 @import '@fontsource-variable/inter';
 
 @import 'tailwindcss';
+@plugin '@tailwindcss/typography';
 @import 'shadcn/tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
@@ -155,69 +156,76 @@
   background-color: rgba(255, 255, 255, 0.28);
 }
 
-/* ── Crepe nord theme (CSS variables only, imported as App.css since package exports block direct import) ── */
-.milkdown {
-  --crepe-color-background: #fdfcff;
-  --crepe-color-on-background: #1b1c1d;
-  --crepe-color-surface: #f8f9ff;
-  --crepe-color-surface-low: #f2f3fa;
-  --crepe-color-on-surface: #191c20;
-  --crepe-color-on-surface-variant: #43474e;
-  --crepe-color-outline: #73777f;
-  --crepe-color-primary: #37618e;
-  --crepe-color-secondary: #d7e3f8;
-  --crepe-color-on-secondary: #101c2b;
-  --crepe-color-inverse: #2e3135;
-  --crepe-color-on-inverse: #eff0f7;
-  --crepe-color-inline-code: #ba1a1a;
-  --crepe-color-error: #ba1a1a;
-  --crepe-color-hover: #eceef4;
-  --crepe-color-selected: #e1e2e8;
-  --crepe-color-inline-area: #d8dae0;
-  --crepe-font-title:
-    Rubik, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', 'Noto Sans SC',
-    'Segoe UI', sans-serif;
-  --crepe-font-default:
-    Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Noto Sans SC',
-    'Segoe UI', sans-serif;
-  --crepe-font-code:
+.markdown-viewer {
+  max-width: 72ch;
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-links: var(--primary);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--muted-foreground);
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--border);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: var(--muted);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+}
+
+.dark .markdown-viewer {
+  --tw-prose-invert-body: var(--foreground);
+  --tw-prose-invert-headings: var(--foreground);
+  --tw-prose-invert-links: var(--primary);
+  --tw-prose-invert-bold: var(--foreground);
+  --tw-prose-invert-counters: var(--muted-foreground);
+  --tw-prose-invert-bullets: var(--muted-foreground);
+  --tw-prose-invert-hr: var(--border);
+  --tw-prose-invert-quotes: var(--foreground);
+  --tw-prose-invert-quote-borders: var(--border);
+  --tw-prose-invert-code: var(--foreground);
+  --tw-prose-invert-pre-code: var(--foreground);
+  --tw-prose-invert-pre-bg: var(--muted);
+  --tw-prose-invert-th-borders: var(--border);
+  --tw-prose-invert-td-borders: var(--border);
+}
+
+.markdown-viewer pre,
+.markdown-viewer code {
+  font-family:
     'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, Consolas, monospace;
-  --crepe-shadow-1: 0px 1px 3px 1px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
-  --crepe-shadow-2: 0px 2px 6px 2px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
 }
 
-@media (prefers-color-scheme: dark) {
-  .milkdown {
-    --crepe-color-background: #1b1c1d;
-    --crepe-color-on-background: #f8f9ff;
-    --crepe-color-surface: #111418;
-    --crepe-color-surface-low: #191c20;
-    --crepe-color-on-surface: #e1e2e8;
-    --crepe-color-on-surface-variant: #c3c6cf;
-    --crepe-color-outline: #8d9199;
-    --crepe-color-primary: #a1c9fd;
-    --crepe-color-secondary: #3c4858;
-    --crepe-color-on-secondary: #d7e3f8;
-    --crepe-color-inverse: #e1e2e8;
-    --crepe-color-on-inverse: #2e3135;
-    --crepe-color-inline-code: #ffb4ab;
-    --crepe-color-error: #ffb4ab;
-    --crepe-color-hover: #1d2024;
-    --crepe-color-selected: #32353a;
-    --crepe-color-inline-area: #111418;
-    --crepe-shadow-1:
-      0px 1px 2px 0px rgba(255, 255, 255, 0.3), 0px 1px 3px 1px rgba(255, 255, 255, 0.15);
-    --crepe-shadow-2:
-      0px 1px 2px 0px rgba(255, 255, 255, 0.3), 0px 2px 6px 2px rgba(255, 255, 255, 0.15);
-  }
+.markdown-viewer pre {
+  overflow-x: auto;
+  border: 1px solid var(--border);
 }
 
-.ProseMirror {
-  word-wrap: anywhere;
+.markdown-viewer img {
+  max-width: 100%;
 }
 
-.ͼo .cm-activeLineGutter {
-  background-color: #2c313a20;
+.markdown-source-editor,
+.markdown-source-editor .cm-editor {
+  height: 100%;
+}
+
+.markdown-source-editor .cm-scroller {
+  overflow: auto;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, Consolas, monospace;
+}
+
+.markdown-source-editor .cm-editor {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.markdown-source-editor .cm-gutters {
+  background: var(--background);
+  color: var(--muted-foreground);
+  border-color: var(--border);
 }
 
 /* ── Custom titlebar (macOS traffic-light buttons overlay) ── */

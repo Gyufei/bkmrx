@@ -1,209 +1,285 @@
-import { useEffect, useRef, useState } from 'react';
-import { Crepe } from '@milkdown/crepe';
-import '@milkdown/crepe/theme/common/style.css';
-import '@milkdown/crepe/theme/nord.css';
-import { MilkdownCreapConfig } from './config';
-import { useMutation } from '@tanstack/react-query';
-import { readNoteContentApi } from './notes.api';
-import { sharedNoteSaveQueue } from './note-save';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+
+import type { MarkdownEditorSnapshot } from './MarkdownSourceEditor';
+import MarkdownViewer from './MarkdownViewer';
+import { useNoteDocument } from './use-note-document';
+
+const MarkdownSourceEditor = lazy(() => import('./MarkdownSourceEditor'));
 
 interface Props {
   filePath: string;
 }
 
-function stripFrontmatter(content: string): string {
-  if (content.startsWith('---')) {
-    const end = content.indexOf('---', 3);
-    if (end !== -1) return content.slice(end + 3).trimStart();
-  }
-  return content;
+type Mode = 'view' | 'edit';
+
+interface ModeState {
+  filePath: string;
+  value: Mode;
 }
 
-export default function NoteEditor({ filePath }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const crepeRef = useRef<Crepe | null>(null);
+interface ViewPosition {
+  filePath: string;
+  scrollTop: number;
+}
 
-  // 记录当前编辑器绑定的文件路径和最新内容
-  const currentPathRef = useRef(filePath);
-  const latestContentRef = useRef<string>('');
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+interface EditorPosition {
+  filePath: string;
+  snapshot: MarkdownEditorSnapshot | null;
+}
 
-  // 手动管理读取状态，避开 mutation 状态竞争
-  const [isReading, setIsReading] = useState(true);
-  const [readError, setReadError] = useState<Error | null>(null);
+function basename(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() || filePath;
+}
 
-  const {
-    mutateAsync: save,
-    error: saveError,
-    isSuccess: isSaveSuccess,
-    isPending: isSaving,
-  } = useMutation({
-    mutationFn: ({ path, content }: { path: string; content: string }) =>
-      sharedNoteSaveQueue.enqueue(path, content),
+function modeShortcutLabel(): string {
+  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+    ? '⌘E'
+    : 'Ctrl E';
+}
+
+export default function NoteEditor({ filePath }: Props): JSX.Element {
+  const session = useNoteDocument(filePath);
+  const [modeState, setModeState] = useState<ModeState>({ filePath, value: 'view' });
+  const modeRef = useRef<Mode>('view');
+  const filePathRef = useRef(filePath);
+  const loadStateRef = useRef(session.loadState);
+  const dirtyRef = useRef(session.dirty);
+  const flushRef = useRef(session.flush);
+  const transitionPendingRef = useRef(false);
+  const transitionTokenRef = useRef(0);
+  const [editorReady, setEditorReady] = useState(false);
+  const editorReadyRef = useRef(false);
+  const [modeTransitionPending, setModeTransitionPending] = useState(false);
+  const [showSavedStatus, setShowSavedStatus] = useState(false);
+  const previousSaveStateRef = useRef(session.saveState);
+  const [viewPosition, setViewPosition] = useState<ViewPosition>({
+    filePath,
+    scrollTop: 0,
+  });
+  const [editorPosition, setEditorPosition] = useState<EditorPosition>({
+    filePath,
+    snapshot: null,
   });
 
-  const enqueueSave = (path: string, content: string) => save({ path, content });
+  const mode = modeState.filePath === filePath ? modeState.value : 'view';
+  const viewScrollTop = viewPosition.filePath === filePath ? viewPosition.scrollTop : 0;
+  const editorSnapshot = editorPosition.filePath === filePath ? editorPosition.snapshot : null;
+  const shortcutLabel = modeShortcutLabel();
 
-  // 1. 核心保存逻辑：显式绑定保存时的 targetPath 与 targetContent
-  const flushSave = (targetPath: string, content: string) => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = undefined;
-    }
-    if (!content) return;
-
-    void enqueueSave(targetPath, content).catch(() => undefined);
-  };
-
-  // 2. Cmd+S / Ctrl+S 快捷键保存
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault();
-        flushSave(currentPathRef.current, latestContentRef.current);
-      }
-    };
-
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, []);
-
-  // 3. 编辑器初始化与切换监听
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    let isCancelled = false;
-    let createdCrepeInstance: Crepe | null = null;
-
-    // 当 filePath 变化时，更新 Ref 指向
-    currentPathRef.current = filePath;
-    latestContentRef.current = '';
-
-    async function initLoad() {
-      setIsReading(true);
-      setReadError(null);
-
-      try {
-        // 直接调用 API 获取数据，不经过 mutation，保证当前 closure 的准确性
-        const rawContent = await readNoteContentApi(filePath);
-        if (isCancelled) return;
-
-        const markdown = stripFrontmatter(rawContent || '');
-        latestContentRef.current = markdown;
-
-        // 如果容器里有上一次残存的节点，先清空
-        if (container) {
-          container.innerHTML = '';
-        }
-
-        const crepe = new Crepe({
-          root: container,
-          defaultValue: markdown,
-          ...MilkdownCreapConfig,
-        });
-
-        // 绑定内容监听
-        crepe.on((listener) => {
-          listener.markdownUpdated((_ctx, md) => {
-            latestContentRef.current = md;
-
-            // 闭包隔离：保存触发时，锁定当时传进来的 filePath！
-            const targetPath = filePath;
-
-            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-            saveTimerRef.current = setTimeout(() => {
-              void enqueueSave(targetPath, md).catch(() => undefined);
-            }, 400);
-          });
-        });
-
-        // 异步创建 Milkdown 实例
-        await crepe.create();
-
-        if (isCancelled) {
-          // 如果在 create 过程中用户已经切换了文件，创建完立刻销毁
-          crepe.destroy();
-          return;
-        }
-
-        createdCrepeInstance = crepe;
-        crepeRef.current = crepe;
-        setIsReading(false);
-      } catch (err: any) {
-        if (!isCancelled) {
-          setReadError(err);
-          setIsReading(false);
-        }
-      }
+  useLayoutEffect(() => {
+    if (filePathRef.current !== filePath) {
+      transitionTokenRef.current += 1;
+      transitionPendingRef.current = false;
     }
 
-    initLoad();
+    filePathRef.current = filePath;
+    loadStateRef.current = session.loadState;
+    dirtyRef.current = session.dirty;
+    flushRef.current = session.flush;
+    modeRef.current = mode;
+  }, [filePath, mode, session.dirty, session.flush, session.loadState]);
 
-    // 💥 关键点：卸载/切换文件时的清理与安全保存逻辑
-    return () => {
-      isCancelled = true;
-
-      // A. 如果上一个文件有还没到期的防抖保存，立刻强制冲刷保存落盘！
-      const pendingContent = latestContentRef.current;
-      const pathToSave = filePath; // 锁定旧文件路径
-
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = undefined;
-
-        if (pendingContent) {
-          // 异步写入旧文件
-          enqueueSave(pathToSave, pendingContent).catch((e) =>
-            console.error('切换文件时自动保存旧文件失败:', e),
-          );
-        }
-      }
-
-      // B. 安全销毁 Crepe 实例，防止 DOM 重叠
-      if (createdCrepeInstance) {
-        createdCrepeInstance.destroy();
-      } else if (crepeRef.current) {
-        crepeRef.current.destroy();
-      }
-      crepeRef.current = null;
-    };
+  useEffect(() => {
+    modeRef.current = 'view';
+    transitionPendingRef.current = false;
+    editorReadyRef.current = false;
+    setModeState({ filePath, value: 'view' });
+    setEditorReady(false);
+    setModeTransitionPending(false);
+    setViewPosition({ filePath, scrollTop: 0 });
+    setEditorPosition({ filePath, snapshot: null });
   }, [filePath]);
 
+  useEffect(() => {
+    const previousSaveState = previousSaveStateRef.current;
+    previousSaveStateRef.current = session.saveState;
+
+    if (mode !== 'edit' || session.saveState !== 'saved') {
+      setShowSavedStatus(false);
+      return;
+    }
+    if (previousSaveState === 'saved') return;
+
+    setShowSavedStatus(true);
+    const timer = window.setTimeout(() => setShowSavedStatus(false), 1_500);
+    return () => window.clearTimeout(timer);
+  }, [mode, session.saveState]);
+
+  const toggleMode = useCallback(async () => {
+    if (transitionPendingRef.current) return;
+    if (modeRef.current === 'edit' && !editorReadyRef.current) return;
+
+    if (modeRef.current === 'view') {
+      const activePath = filePathRef.current;
+      modeRef.current = 'edit';
+      editorReadyRef.current = false;
+      setEditorReady(false);
+      setModeState({ filePath: activePath, value: 'edit' });
+      return;
+    }
+
+    if (!dirtyRef.current) {
+      const activePath = filePathRef.current;
+      modeRef.current = 'view';
+      setModeState({ filePath: activePath, value: 'view' });
+      return;
+    }
+
+    const transitionPath = filePathRef.current;
+    const transitionToken = ++transitionTokenRef.current;
+    transitionPendingRef.current = true;
+    setModeTransitionPending(true);
+    try {
+      await flushRef.current();
+      if (
+        filePathRef.current === transitionPath &&
+        transitionTokenRef.current === transitionToken
+      ) {
+        modeRef.current = 'view';
+        setModeState({ filePath: transitionPath, value: 'view' });
+      }
+    } catch {
+      // Keep the source editor open so the user can retry without losing content.
+    } finally {
+      if (
+        filePathRef.current === transitionPath &&
+        transitionTokenRef.current === transitionToken
+      ) {
+        transitionPendingRef.current = false;
+        setModeTransitionPending(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.metaKey && !event.ctrlKey) return;
+      if (event.shiftKey || event.altKey) return;
+
+      const key = event.key.toLowerCase();
+      const canToggleMode =
+        loadStateRef.current === 'ready' &&
+        !transitionPendingRef.current &&
+        (modeRef.current === 'view' || editorReadyRef.current);
+      if (key === 'e' && canToggleMode) {
+        event.preventDefault();
+        void toggleMode();
+      } else if (key === 's' && modeRef.current === 'edit') {
+        event.preventDefault();
+        void flushRef.current().catch(() => undefined);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [toggleMode]);
+
+  const handleViewScroll = useCallback(
+    (scrollTop: number) => setViewPosition({ filePath, scrollTop }),
+    [filePath],
+  );
+
+  const handleEditorSnapshot = useCallback(
+    (snapshot: MarkdownEditorSnapshot) => setEditorPosition({ filePath, snapshot }),
+    [filePath],
+  );
+
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-[#1a1a2e] relative">
-      {isReading ? (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white dark:bg-[#1a1a2e] text-sm text-muted-foreground">
-          <div className="w-4 h-4 mr-2 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          加载编辑器...
-        </div>
-      ) : readError ? (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white dark:bg-[#1a1a2e] text-sm text-destructive">
-          <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
-          加载失败
-        </div>
-      ) : null}
-
-      <div ref={containerRef} className="flex-1 overflow-y-auto thin-scrollbar" />
-
-      <div className="shrink-0 h-6 flex items-center justify-end gap-2 px-6 text-[11px] text-muted-foreground border-t border-border/50">
-        {saveError ? (
-          <span className="text-destructive flex items-center gap-1" title={saveError.message}>
-            <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
-            保存失败: {saveError.message}
-          </span>
-        ) : isSaving ? (
-          <span className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-yellow-600 dark:bg-yellow-400" />
+    <div className="flex h-full flex-col bg-background">
+      <header className="flex h-9 shrink-0 items-center gap-2 border-b border-border/50 px-3">
+        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+          {basename(filePath)}
+        </span>
+        {mode === 'edit' && session.saveState === 'saving' ? (
+          <span role="status" className="text-xs text-muted-foreground">
             保存中...
           </span>
-        ) : isSaveSuccess ? (
-          <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-600 dark:bg-green-400" />
+        ) : showSavedStatus ? (
+          <span role="status" className="text-xs text-emerald-600 dark:text-emerald-400">
             已保存
           </span>
         ) : null}
+        {session.loadState === 'ready' ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={modeTransitionPending || (mode === 'edit' && !editorReady)}
+            onClick={() => void toggleMode()}
+          >
+            {mode === 'view' ? '编辑' : '查看'} {shortcutLabel}
+          </Button>
+        ) : null}
+      </header>
+
+      <div className="min-h-0 flex-1">
+        {session.loadState === 'loading' ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            加载笔记...
+          </div>
+        ) : session.loadState === 'error' ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-sm">
+            <span className="text-destructive">加载失败</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => void session.retryRead()}
+            >
+              重试
+            </Button>
+          </div>
+        ) : mode === 'view' ? (
+          <MarkdownViewer
+            content={session.content}
+            initialScrollTop={viewScrollTop}
+            onScrollTopChange={handleViewScroll}
+          />
+        ) : (
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                加载编辑器...
+              </div>
+            }
+          >
+            <MarkdownSourceEditor
+              value={session.content}
+              initialSnapshot={editorSnapshot}
+              onChange={session.setContent}
+              onSnapshot={handleEditorSnapshot}
+              onReady={() => {
+                editorReadyRef.current = true;
+                setEditorReady(true);
+              }}
+            />
+          </Suspense>
+        )}
       </div>
+
+      {session.saveError ? (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center gap-2 border-t border-destructive/20 px-3 py-1 text-xs text-destructive"
+        >
+          <span className="min-w-0 flex-1 truncate">
+            {basename(session.saveError.path)} 保存失败
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => void session.retrySave().catch(() => undefined)}
+          >
+            重试
+          </Button>
+          <Button type="button" variant="ghost" size="xs" onClick={session.dismissSaveError}>
+            忽略
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
