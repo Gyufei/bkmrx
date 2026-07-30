@@ -65,8 +65,14 @@ function Link({ href, node: _node, ...props }: ComponentPropsWithoutRef<'a'> & E
 }
 
 function ListItem({ node, ...props }: ComponentPropsWithoutRef<'li'> & ExtraProps) {
+  const sourceLine = node?.position?.start.line;
+  const taskSourceLine =
+    typeof sourceLine === 'number' && Number.isInteger(sourceLine) && sourceLine > 0
+      ? sourceLine
+      : null;
+
   return (
-    <TaskSourceLineContext.Provider value={node?.position?.start.line ?? null}>
+    <TaskSourceLineContext.Provider value={taskSourceLine}>
       <li {...props} />
     </TaskSourceLineContext.Provider>
   );

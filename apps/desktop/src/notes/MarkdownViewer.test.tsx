@@ -13,6 +13,37 @@ const appCss = readFileSync('src/App.css', 'utf8');
 
 vi.mock('@tauri-apps/plugin-shell', () => ({ open: openMock }));
 
+vi.mock('react-markdown', async (importOriginal) => {
+  const React = await import('react');
+  const actual = await importOriginal<typeof import('react-markdown')>();
+
+  return {
+    ...actual,
+    default: (props: {
+      children?: unknown;
+      components?: Record<string, React.ComponentType<Record<string, unknown>>>;
+    }) => {
+      if (props.children !== '- [ ] invalid-position-task') {
+        return React.createElement(
+          actual.default,
+          props as React.ComponentProps<typeof actual.default>,
+        );
+      }
+
+      const ListItem = props.components?.li ?? 'li';
+      const Input = props.components?.input ?? 'input';
+      return React.createElement(
+        ListItem,
+        {
+          node: { position: { start: { line: 0 } } },
+          className: 'task-list-item',
+        },
+        React.createElement(Input, { node: {}, type: 'checkbox', checked: false }),
+      );
+    },
+  };
+});
+
 afterEach(cleanup);
 
 beforeEach(() => {
@@ -73,6 +104,16 @@ describe('MarkdownViewer', () => {
   it('keeps task checkboxes disabled without a toggle callback', () => {
     render(<MarkdownViewer content="- [ ] task" />);
     expect(screen.getByRole('checkbox')).toBeDisabled();
+  });
+
+  it('keeps a checkbox disabled when its AST source line is invalid', () => {
+    const onToggleTask = vi.fn();
+    render(<MarkdownViewer content="- [ ] invalid-position-task" onToggleTask={onToggleTask} />);
+
+    const checkbox = screen.getByRole('checkbox');
+    expect(checkbox).toBeDisabled();
+    fireEvent.click(checkbox);
+    expect(onToggleTask).not.toHaveBeenCalled();
   });
 
   it('does not turn raw html or dangerous urls into executable elements', () => {
