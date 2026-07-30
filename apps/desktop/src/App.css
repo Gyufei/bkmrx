@@ -214,6 +214,10 @@
   accent-color: var(--primary);
 }
 
+.markdown-viewer .task-list-item > input[type='checkbox']:not(:disabled) {
+  cursor: pointer;
+}
+
 .markdown-viewer a {
   overflow-wrap: anywhere;
   word-break: break-word;

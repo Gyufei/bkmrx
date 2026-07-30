@@ -45,15 +45,34 @@ describe('MarkdownViewer', () => {
     const checkboxes = screen.getAllByRole('checkbox');
     expect(checkboxes).toHaveLength(2);
     expect(checkboxes[0]).toBeChecked();
-    expect(checkboxes[0]).toBeDisabled();
     expect(checkboxes[1]).not.toBeChecked();
-    expect(checkboxes[1]).toBeDisabled();
 
     const tableScroll = screen.getByTestId('markdown-table-scroll');
     expect(within(tableScroll).getByRole('table')).toBeTruthy();
     expect(screen.getByText('const value = 1;').closest('code')?.className).toContain(
       'language-ts',
     );
+  });
+
+  it('reports the clicked task source line through an enabled checkbox', () => {
+    const onToggleTask = vi.fn();
+    render(
+      <MarkdownViewer
+        content={'- [ ] first\n\n  - [x] nested'}
+        onToggleTask={onToggleTask}
+      />,
+    );
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes[0]).toBeEnabled();
+    expect(checkboxes[1]).toBeEnabled();
+    fireEvent.click(checkboxes[1]);
+    expect(onToggleTask).toHaveBeenCalledWith(3);
+  });
+
+  it('keeps task checkboxes disabled without a toggle callback', () => {
+    render(<MarkdownViewer content="- [ ] task" />);
+    expect(screen.getByRole('checkbox')).toBeDisabled();
   });
 
   it('does not turn raw html or dangerous urls into executable elements', () => {
@@ -176,16 +195,21 @@ describe('MarkdownViewer', () => {
   });
 
   it('sizes and aligns rendered task checkboxes with the application accent color', () => {
-    const checkboxCss =
+    const taskCheckboxCss =
       appCss.match(
         /\.markdown-viewer \.task-list-item > input\[type='checkbox'\] \{([^}]*)}/,
       )?.[1] ?? '';
+    const checkboxCss =
+      appCss.match(
+        /\.markdown-viewer \.task-list-item > input\[type='checkbox'\]:not\(:disabled\) \{([^}]*)}/,
+      )?.[1] ?? '';
 
-    expect(checkboxCss).toContain('width: 1rem;');
-    expect(checkboxCss).toContain('height: 1rem;');
-    expect(checkboxCss).toContain('margin: 0 0.375rem 0 0;');
-    expect(checkboxCss).toContain('vertical-align: -0.125em;');
-    expect(checkboxCss).toContain('accent-color: var(--primary);');
+    expect(taskCheckboxCss).toContain('width: 1rem;');
+    expect(taskCheckboxCss).toContain('height: 1rem;');
+    expect(taskCheckboxCss).toContain('margin: 0 0.375rem 0 0;');
+    expect(taskCheckboxCss).toContain('vertical-align: -0.125em;');
+    expect(taskCheckboxCss).toContain('accent-color: var(--primary);');
+    expect(checkboxCss).toContain('cursor: pointer;');
   });
 
   it('renders a discoverable empty-note state', () => {

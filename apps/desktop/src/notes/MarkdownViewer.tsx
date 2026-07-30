@@ -1,4 +1,10 @@
-import { useLayoutEffect, useRef, type ComponentPropsWithoutRef } from 'react';
+import {
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useRef,
+  type ComponentPropsWithoutRef,
+} from 'react';
 import { open } from '@tauri-apps/plugin-shell';
 import Markdown, { defaultUrlTransform, type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -7,7 +13,10 @@ export interface MarkdownViewerProps {
   content: string;
   initialScrollTop?: number;
   onScrollTopChange?(scrollTop: number): void;
+  onToggleTask?(sourceLine: number): void;
 }
+
+const TaskSourceLineContext = createContext<number | null>(null);
 
 function Table({ node: _node, ...props }: ComponentPropsWithoutRef<'table'> & ExtraProps) {
   return (
@@ -55,10 +64,39 @@ function Link({ href, node: _node, ...props }: ComponentPropsWithoutRef<'a'> & E
   );
 }
 
+function ListItem({ node, ...props }: ComponentPropsWithoutRef<'li'> & ExtraProps) {
+  return (
+    <TaskSourceLineContext.Provider value={node?.position?.start.line ?? null}>
+      <li {...props} />
+    </TaskSourceLineContext.Provider>
+  );
+}
+
+interface InputProps extends ComponentPropsWithoutRef<'input'>, ExtraProps {
+  onToggleTask?: MarkdownViewerProps['onToggleTask'];
+}
+
+function Input({ node: _node, onToggleTask, ...props }: InputProps) {
+  const sourceLine = useContext(TaskSourceLineContext);
+
+  if (props.type !== 'checkbox') return <input {...props} />;
+
+  return (
+    <input
+      {...props}
+      disabled={!onToggleTask || sourceLine === null}
+      onChange={() => {
+        if (sourceLine !== null) onToggleTask?.(sourceLine);
+      }}
+    />
+  );
+}
+
 export default function MarkdownViewer({
   content,
   initialScrollTop = 0,
   onScrollTopChange,
+  onToggleTask,
 }: MarkdownViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -77,7 +115,12 @@ export default function MarkdownViewer({
         <article className="markdown-viewer prose prose-zinc dark:prose-invert mx-auto w-full px-6 py-8">
           <Markdown
             remarkPlugins={[remarkGfm]}
-            components={{ table: Table, a: Link }}
+            components={{
+              table: Table,
+              a: Link,
+              li: ListItem,
+              input: (props) => <Input {...props} onToggleTask={onToggleTask} />,
+            }}
             urlTransform={transformMarkdownUrl}
           >
             {content}
