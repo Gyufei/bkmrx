@@ -101,6 +101,41 @@ describe('MarkdownViewer', () => {
     expect(onToggleTask).toHaveBeenCalledWith(3);
   });
 
+  it('gives every enabled task checkbox a line-based accessible name', () => {
+    render(<MarkdownViewer content="- [ ] task" onToggleTask={vi.fn()} />);
+
+    expect(screen.getByRole('checkbox', { name: '切换第 1 行任务' })).toBeEnabled();
+  });
+
+  it('disables rendered task checkboxes whose exact source line is not transformable', () => {
+    const onToggleTask = vi.fn();
+    render(
+      <MarkdownViewer
+        content={[
+          '- [ ]',
+          '  continuation task',
+          '',
+          '> - [ ] quoted task',
+          '',
+          '- [ ] ordinary task',
+        ].join('\n')}
+        onToggleTask={onToggleTask}
+      />,
+    );
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes).toHaveLength(3);
+    expect(checkboxes[0]).toBeDisabled();
+    expect(checkboxes[1]).toBeDisabled();
+    expect(checkboxes[2]).toBeEnabled();
+
+    fireEvent.click(checkboxes[0]);
+    fireEvent.click(checkboxes[1]);
+    expect(onToggleTask).not.toHaveBeenCalled();
+    fireEvent.click(checkboxes[2]);
+    expect(onToggleTask).toHaveBeenCalledWith(6);
+  });
+
   it('keeps task checkboxes disabled without a toggle callback', () => {
     render(<MarkdownViewer content="- [ ] task" />);
     expect(screen.getByRole('checkbox')).toBeDisabled();

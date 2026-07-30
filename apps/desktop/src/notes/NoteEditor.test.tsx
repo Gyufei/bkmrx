@@ -222,7 +222,7 @@ describe('NoteEditor', () => {
     expect(editorHarness.mounts).toBe(0);
   });
 
-  it('persists repeated task toggles from rendered view without entering source edit mode', async () => {
+  it('coalesces rapid rendered-view task toggles into one saved snapshot', async () => {
     noteDocumentHarness.useReal = true;
     noteDocumentHarness.read.mockResolvedValue('- [ ] first\n- [ ] second');
     noteDocumentHarness.debounceMs = 400;
@@ -232,23 +232,18 @@ describe('NoteEditor', () => {
 
     vi.useFakeTimers();
     try {
-      fireEvent.click(checkboxes[1]);
+      fireEvent.click(checkboxes[0]);
+      fireEvent.click(screen.getAllByRole('checkbox')[1]);
 
       expect(screen.getByTestId('markdown-view-scroll')).toBeInTheDocument();
       expect(screen.queryByTestId('markdown-source-editor')).not.toBeInTheDocument();
       expect(screen.queryByRole('textbox', { name: 'Markdown source' })).not.toBeInTheDocument();
+      expect(noteDocumentHarness.save).not.toHaveBeenCalled();
       act(() => vi.advanceTimersByTime(400));
-      expect(noteDocumentHarness.save).toHaveBeenCalledWith(
-        filePath,
-        '- [ ] first\n- [x] second',
-      );
-
-      fireEvent.click(screen.getAllByRole('checkbox')[1]);
-      act(() => vi.advanceTimersByTime(400));
-      expect(noteDocumentHarness.save).toHaveBeenLastCalledWith(
-        filePath,
-        '- [ ] first\n- [ ] second',
-      );
+      expect(noteDocumentHarness.save).toHaveBeenCalledTimes(1);
+      expect(noteDocumentHarness.save).toHaveBeenCalledWith(filePath, '- [x] first\n- [x] second');
+      expect(screen.getByTestId('markdown-view-scroll')).toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: 'Markdown source' })).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

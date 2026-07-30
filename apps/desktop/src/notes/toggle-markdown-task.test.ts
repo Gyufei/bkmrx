@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toggleMarkdownTaskAtLine } from './toggle-markdown-task';
+import { isMarkdownTaskAtLine, toggleMarkdownTaskAtLine } from './toggle-markdown-task';
 
 describe('toggleMarkdownTaskAtLine', () => {
   it.each([
@@ -16,6 +16,11 @@ describe('toggleMarkdownTaskAtLine', () => {
     expect(toggleMarkdownTaskAtLine(content, 2)).toBe('- [ ] same\r\n- [x] same\r\n');
   });
 
+  it('targets one-based source lines and preserves lone-CR separators', () => {
+    const content = '- [ ] first\r- [ ] second\r- [ ] third';
+    expect(toggleMarkdownTaskAtLine(content, 2)).toBe('- [ ] first\r- [x] second\r- [ ] third');
+  });
+
   it.each([0, 3, Number.NaN])('ignores invalid source line %s', (line) => {
     expect(toggleMarkdownTaskAtLine('- [ ] task', line)).toBe('- [ ] task');
   });
@@ -24,4 +29,23 @@ describe('toggleMarkdownTaskAtLine', () => {
     expect(toggleMarkdownTaskAtLine('paragraph [ ] text', 1)).toBe('paragraph [ ] text');
     expect(toggleMarkdownTaskAtLine('- [maybe] task', 1)).toBe('- [maybe] task');
   });
+
+  it.each(['- [ ]task', '- [ ]', '- [ ]   ', '- [ ]\vtask'])(
+    'ignores a task marker without horizontal whitespace and non-whitespace content: %j',
+    (content) => {
+      expect(toggleMarkdownTaskAtLine(content, 1)).toBe(content);
+    },
+  );
+
+  it.each([
+    ['- [ ] task', 1, true],
+    ['intro\r- [x] task', 2, true],
+    ['- [ ]\n  continuation text', 1, false],
+    ['> - [ ] quoted task', 1, false],
+  ] as const)(
+    'recognizes only a transformable same-line task in %j at source line %i',
+    (content, sourceLine, expected) => {
+      expect(isMarkdownTaskAtLine(content, sourceLine)).toBe(expected);
+    },
+  );
 });

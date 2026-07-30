@@ -9,6 +9,8 @@ import { open } from '@tauri-apps/plugin-shell';
 import Markdown, { defaultUrlTransform, type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { isMarkdownTaskAtLine } from './toggle-markdown-task';
+
 export interface MarkdownViewerProps {
   content: string;
   initialScrollTop?: number;
@@ -79,20 +81,27 @@ function ListItem({ node, ...props }: ComponentPropsWithoutRef<'li'> & ExtraProp
 }
 
 interface InputProps extends ComponentPropsWithoutRef<'input'>, ExtraProps {
+  content: string;
   onToggleTask?: MarkdownViewerProps['onToggleTask'];
 }
 
-function Input({ node: _node, onToggleTask, ...props }: InputProps) {
+function Input({ node: _node, content, onToggleTask, ...props }: InputProps) {
   const sourceLine = useContext(TaskSourceLineContext);
 
   if (props.type !== 'checkbox') return <input {...props} />;
 
+  const toggleSourceLine =
+    sourceLine !== null && isMarkdownTaskAtLine(content, sourceLine) ? sourceLine : null;
+
   return (
     <input
       {...props}
-      disabled={!onToggleTask || sourceLine === null}
+      aria-label={
+        onToggleTask && toggleSourceLine !== null ? `切换第 ${toggleSourceLine} 行任务` : undefined
+      }
+      disabled={!onToggleTask || toggleSourceLine === null}
       onChange={() => {
-        if (sourceLine !== null) onToggleTask?.(sourceLine);
+        if (toggleSourceLine !== null) onToggleTask?.(toggleSourceLine);
       }}
     />
   );
@@ -125,7 +134,7 @@ export default function MarkdownViewer({
               table: Table,
               a: Link,
               li: ListItem,
-              input: (props) => <Input {...props} onToggleTask={onToggleTask} />,
+              input: (props) => <Input {...props} content={content} onToggleTask={onToggleTask} />,
             }}
             urlTransform={transformMarkdownUrl}
           >
