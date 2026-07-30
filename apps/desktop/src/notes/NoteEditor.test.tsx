@@ -229,7 +229,19 @@ describe('NoteEditor', () => {
       const toggle = screen.getByRole('button', { name: '编辑（⌘ + E）' });
       expect(toggle.getAttribute('title')).toBe('编辑（⌘ + E）');
       expect(toggle.textContent).toBe('');
-      expect(toggle.querySelector('svg')).not.toBeNull();
+      expect(toggle.querySelector('.lucide-pencil')).not.toBeNull();
+    } finally {
+      platform.mockRestore();
+    }
+  });
+
+  it('shows the Ctrl+E shortcut tooltip on non-macOS platforms', () => {
+    const platform = vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('Linux x86_64');
+    try {
+      renderEditor();
+
+      const toggle = screen.getByRole('button', { name: '编辑（Ctrl + E）' });
+      expect(toggle.getAttribute('title')).toBe('编辑（Ctrl + E）');
     } finally {
       platform.mockRestore();
     }
@@ -284,7 +296,7 @@ describe('NoteEditor', () => {
       const toggle = screen.getByRole('button', { name: '查看（⌘ + E）' });
       expect(toggle.getAttribute('title')).toBe('查看（⌘ + E）');
       expect(toggle.textContent).toBe('');
-      expect(toggle.querySelector('svg')).not.toBeNull();
+      expect(toggle.querySelector('.lucide-book-open')).not.toBeNull();
     } finally {
       platform.mockRestore();
     }
