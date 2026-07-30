@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { BookOpen, Pencil } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 
@@ -67,6 +68,8 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
   const viewScrollTop = viewPosition.filePath === filePath ? viewPosition.scrollTop : 0;
   const editorSnapshot = editorPosition.filePath === filePath ? editorPosition.snapshot : null;
   const shortcutLabel = modeShortcutLabel();
+  const shortcutHint = shortcutLabel === '⌘E' ? '⌘ + E' : 'Ctrl + E';
+  const modeToggleLabel = `${mode === 'view' ? '编辑' : '查看'}（${shortcutHint}）`;
 
   useLayoutEffect(() => {
     if (filePathRef.current !== filePath) {
@@ -205,11 +208,13 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
           <Button
             type="button"
             variant="ghost"
-            size="xs"
+            size="icon-xs"
+            aria-label={modeToggleLabel}
+            title={modeToggleLabel}
             disabled={modeTransitionPending || (mode === 'edit' && !editorReady)}
             onClick={() => void toggleMode()}
           >
-            {mode === 'view' ? '编辑' : '查看'} {shortcutLabel}
+            {mode === 'view' ? <Pencil aria-hidden="true" /> : <BookOpen aria-hidden="true" />}
           </Button>
         ) : null}
       </header>

@@ -221,12 +221,18 @@ describe('NoteEditor', () => {
     expect(editorHarness.mounts).toBe(0);
   });
 
-  it('shows the macOS mode shortcut in the toolbar on macOS', () => {
+  it('shows an icon-only edit action with the macOS shortcut tooltip in view mode', () => {
     const platform = vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('MacIntel');
-    renderEditor();
+    try {
+      renderEditor();
 
-    expect(screen.getByRole('button', { name: /编辑/ }).textContent).toBe('编辑 ⌘E');
-    platform.mockRestore();
+      const toggle = screen.getByRole('button', { name: '编辑（⌘ + E）' });
+      expect(toggle.getAttribute('title')).toBe('编辑（⌘ + E）');
+      expect(toggle.textContent).toBe('');
+      expect(toggle.querySelector('svg')).not.toBeNull();
+    } finally {
+      platform.mockRestore();
+    }
   });
 
   it('disables the mode toggle until the source editor signals readiness', async () => {
@@ -269,11 +275,19 @@ describe('NoteEditor', () => {
   });
 
   it('enters source edit mode from the button', async () => {
-    renderEditor();
-    fireEvent.click(screen.getByRole('button', { name: /编辑/ }));
+    const platform = vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('MacIntel');
+    try {
+      renderEditor();
+      fireEvent.click(screen.getByRole('button', { name: /编辑/ }));
 
-    expect(await screen.findByRole('textbox', { name: 'Markdown source' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /查看/ })).toBeTruthy();
+      expect(await screen.findByRole('textbox', { name: 'Markdown source' })).toBeTruthy();
+      const toggle = screen.getByRole('button', { name: '查看（⌘ + E）' });
+      expect(toggle.getAttribute('title')).toBe('查看（⌘ + E）');
+      expect(toggle.textContent).toBe('');
+      expect(toggle.querySelector('svg')).not.toBeNull();
+    } finally {
+      platform.mockRestore();
+    }
   });
 
   it('toggles with Cmd/Ctrl+E and prevents the applicable default action', async () => {
