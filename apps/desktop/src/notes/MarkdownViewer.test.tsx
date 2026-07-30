@@ -175,6 +175,19 @@ describe('MarkdownViewer', () => {
     expect(linkCss).toContain('word-break: break-word;');
   });
 
+  it('sizes and aligns rendered task checkboxes with the application accent color', () => {
+    const checkboxCss =
+      appCss.match(
+        /\.markdown-viewer \.task-list-item > input\[type='checkbox'\] \{([^}]*)}/,
+      )?.[1] ?? '';
+
+    expect(checkboxCss).toContain('width: 1rem;');
+    expect(checkboxCss).toContain('height: 1rem;');
+    expect(checkboxCss).toContain('margin: 0 0.375rem 0 0;');
+    expect(checkboxCss).toContain('vertical-align: -0.125em;');
+    expect(checkboxCss).toContain('accent-color: var(--primary);');
+  });
+
   it('renders a discoverable empty-note state', () => {
     render(<MarkdownViewer content="" />);
 
