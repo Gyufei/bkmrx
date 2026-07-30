@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 
 import type { MarkdownEditorSnapshot } from './MarkdownSourceEditor';
 import MarkdownViewer from './MarkdownViewer';
+import { toggleMarkdownTaskAtLine } from './toggle-markdown-task';
 import { useNoteDocument } from './use-note-document';
 
 const MarkdownSourceEditor = lazy(() => import('./MarkdownSourceEditor'));
@@ -48,6 +49,7 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
   const loadStateRef = useRef(session.loadState);
   const dirtyRef = useRef(session.dirty);
   const flushRef = useRef(session.flush);
+  const contentRef = useRef(session.content);
   const transitionPendingRef = useRef(false);
   const transitionTokenRef = useRef(0);
   const [editorReady, setEditorReady] = useState(false);
@@ -81,8 +83,9 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
     loadStateRef.current = session.loadState;
     dirtyRef.current = session.dirty;
     flushRef.current = session.flush;
+    contentRef.current = session.content;
     modeRef.current = mode;
-  }, [filePath, mode, session.dirty, session.flush, session.loadState]);
+  }, [filePath, mode, session.content, session.dirty, session.flush, session.loadState]);
 
   useEffect(() => {
     modeRef.current = 'view';
@@ -184,6 +187,17 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
     [filePath],
   );
 
+  const handleToggleTask = useCallback(
+    (sourceLine: number) => {
+      const next = toggleMarkdownTaskAtLine(contentRef.current, sourceLine);
+      if (next === contentRef.current) return;
+
+      contentRef.current = next;
+      session.setContent(next);
+    },
+    [session.setContent],
+  );
+
   const handleEditorSnapshot = useCallback(
     (snapshot: MarkdownEditorSnapshot) => setEditorPosition({ filePath, snapshot }),
     [filePath],
@@ -241,6 +255,7 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
             content={session.content}
             initialScrollTop={viewScrollTop}
             onScrollTopChange={handleViewScroll}
+            onToggleTask={handleToggleTask}
           />
         ) : (
           <Suspense

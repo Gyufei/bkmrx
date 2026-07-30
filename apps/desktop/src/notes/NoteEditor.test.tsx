@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { startTransition, Suspense, useLayoutEffect, useRef, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -219,6 +220,37 @@ describe('NoteEditor', () => {
     expect(screen.getByRole('button', { name: /编辑/ })).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'Markdown source' })).toBeNull();
     expect(editorHarness.mounts).toBe(0);
+  });
+
+  it('persists repeated task toggles from rendered view without entering source edit mode', async () => {
+    noteDocumentHarness.useReal = true;
+    noteDocumentHarness.read.mockResolvedValue('- [ ] first\n- [ ] second');
+    noteDocumentHarness.debounceMs = 400;
+    const filePath = '/notes/tasks.md';
+    renderEditor(filePath);
+    const checkboxes = await screen.findAllByRole('checkbox');
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(checkboxes[1]);
+
+      expect(screen.getByTestId('markdown-view-scroll')).toBeInTheDocument();
+      expect(screen.queryByTestId('markdown-source-editor')).not.toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(400));
+      expect(noteDocumentHarness.save).toHaveBeenCalledWith(
+        filePath,
+        '- [ ] first\n- [x] second',
+      );
+
+      fireEvent.click(screen.getAllByRole('checkbox')[1]);
+      act(() => vi.advanceTimersByTime(400));
+      expect(noteDocumentHarness.save).toHaveBeenLastCalledWith(
+        filePath,
+        '- [ ] first\n- [ ] second',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows an icon-only edit action with the macOS shortcut tooltip in view mode', () => {
