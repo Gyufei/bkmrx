@@ -236,6 +236,7 @@ describe('NoteEditor', () => {
 
       expect(screen.getByTestId('markdown-view-scroll')).toBeInTheDocument();
       expect(screen.queryByTestId('markdown-source-editor')).not.toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: 'Markdown source' })).not.toBeInTheDocument();
       act(() => vi.advanceTimersByTime(400));
       expect(noteDocumentHarness.save).toHaveBeenCalledWith(
         filePath,
