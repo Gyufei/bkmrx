@@ -1,4 +1,4 @@
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy, FileText, Trash2 } from 'lucide-react';
 import { buildFolderTree } from './buildFolderTree';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -174,10 +174,6 @@ export default function NotesPanel() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="shrink-0 px-4 py-3 border-b border-border">
-        <div className="text-xs text-muted-foreground">共 {notes.length} 篇笔记</div>
-      </div>
-
       {error && (
         <div className="shrink-0 px-4 py-2 text-sm text-destructive bg-destructive/10">{error.message}</div>
       )}
@@ -186,7 +182,7 @@ export default function NotesPanel() {
         <div className="w-48 shrink-0 border-r border-border flex flex-col px-2">
           <div className="shrink-0 pt-3 pb-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              文件夹
+              共 {notes.length} 篇笔记
             </span>
           </div>
           <FolderTree
@@ -255,8 +251,9 @@ export default function NotesPanel() {
                           selectedFilePath === note.path ? 'bg-primary/10' : 'hover:bg-accent/15'
                         }`}
                       >
-                        <div className="text-sm font-medium text-foreground truncate">
-                          {note.title}
+                        <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                          <FileText className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                          <span className="truncate">{note.title}</span>
                         </div>
                         {note.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1">
