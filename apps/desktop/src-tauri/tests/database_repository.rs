@@ -59,7 +59,12 @@ fn repository_create_round_trips_bookmark_and_tags() {
         repository.get_by_id(created.id).unwrap(),
         Some(created.clone())
     );
-    assert_eq!(repository.get_by_url(&created.url).unwrap(), Some(created));
+    assert_eq!(
+        repository
+            .get_by_url(" https://example.com/path?x=One#Part ")
+            .unwrap(),
+        Some(created)
+    );
 }
 
 #[test]
@@ -184,7 +189,7 @@ fn repository_record_access_does_not_change_updated_at() {
 }
 
 #[test]
-fn repository_get_by_ids_preserves_input_order() {
+fn repository_get_by_ids_preserves_input_order_and_omits_duplicates() {
     let (_, repository) = repository();
     let first = repository
         .create(bookmark("https://example.com/1", &[]))
@@ -194,7 +199,7 @@ fn repository_get_by_ids_preserves_input_order() {
         .unwrap();
 
     let bookmarks = repository
-        .get_by_ids_ordered(&[second.id, first.id])
+        .get_by_ids_ordered(&[second.id, first.id, second.id])
         .unwrap();
 
     assert_eq!(

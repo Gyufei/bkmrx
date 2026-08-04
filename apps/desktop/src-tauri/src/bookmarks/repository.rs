@@ -2,21 +2,30 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use chrono::{SecondsFormat, Utc};
-use rusqlite::{params, params_from_iter, Transaction};
+use rusqlite::{params, params_from_iter, OptionalExtension, Transaction};
 
 use crate::database::Database;
 
 use super::{AppError, AppResult, Bookmark, CreateBookmark, TagSummary, UpdateBookmark};
 
 pub trait BookmarkRepository: Send + Sync {
+    /// Creates a bookmark after normalizing its URL, title, and tags.
     fn create(&self, input: CreateBookmark) -> AppResult<Bookmark>;
+    /// Merges the supplied fields into the existing bookmark and returns the result.
     fn update(&self, id: i64, input: UpdateBookmark) -> AppResult<Bookmark>;
+    /// Deletes the bookmarks, their search entries and tag relations, then removes unused tags.
     fn delete_many(&self, ids: &[i64]) -> AppResult<u64>;
+    /// Returns the bookmark with the given ID, if it exists.
     fn get_by_id(&self, id: i64) -> AppResult<Option<Bookmark>>;
+    /// Returns the bookmark whose normalized URL matches the supplied URL, if any.
     fn get_by_url(&self, url: &str) -> AppResult<Option<Bookmark>>;
+    /// Returns existing bookmarks in first-occurrence input order, omitting duplicate IDs.
     fn get_by_ids_ordered(&self, ids: &[i64]) -> AppResult<Vec<Bookmark>>;
+    /// Returns tags ordered by bookmark count descending, then name ascending.
     fn get_tags(&self) -> AppResult<Vec<TagSummary>>;
+    /// Increments a bookmark's access count and records its latest access time.
     fn record_access(&self, id: i64) -> AppResult<Bookmark>;
+    /// Rebuilds the full-text search index from the current bookmarks and tags.
     fn rebuild_search_index(&self) -> AppResult<()>;
 }
 
@@ -128,10 +137,11 @@ impl BookmarkRepository for SqliteBookmarkRepository {
     }
 
     fn get_by_url(&self, url: &str) -> AppResult<Option<Bookmark>> {
+        let url = normalize_url(url)?;
         let id = self
             .database
             .connection()?
-            .query_row("SELECT id FROM bookmarks WHERE url = ?1", [url], |row| {
+            .query_row("SELECT id FROM bookmarks WHERE url = ?1", [&url], |row| {
                 row.get::<_, i64>(0)
             })
             .optional()
@@ -421,18 +431,4 @@ fn write_error(error: rusqlite::Error, url: &str) -> AppError {
 
 fn database_error(error: rusqlite::Error) -> AppError {
     AppError::database_error(error.to_string())
-}
-
-trait OptionalRow<T> {
-    fn optional(self) -> rusqlite::Result<Option<T>>;
-}
-
-impl<T> OptionalRow<T> for rusqlite::Result<T> {
-    fn optional(self) -> rusqlite::Result<Option<T>> {
-        match self {
-            Ok(value) => Ok(Some(value)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(error) => Err(error),
-        }
-    }
 }
