@@ -85,6 +85,14 @@ describe('MarkdownViewer', () => {
     );
   });
 
+  it('preserves adjacent source line breaks in rendered text', () => {
+    const { container } = render(<MarkdownViewer content={'first line\nsecond line'} />);
+
+    const paragraph = container.querySelector('p');
+    expect(paragraph?.querySelector('br')).not.toBeNull();
+    expect(paragraph?.textContent).toBe('first line\nsecond line');
+  });
+
   it('reports the clicked task source line through an enabled checkbox', () => {
     const onToggleTask = vi.fn();
     render(

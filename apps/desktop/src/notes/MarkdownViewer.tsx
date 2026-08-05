@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { open } from '@tauri-apps/plugin-shell';
 import Markdown, { defaultUrlTransform, type ExtraProps } from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 import { isMarkdownTaskAtLine } from './toggle-markdown-task';
@@ -129,7 +130,7 @@ export default function MarkdownViewer({
       {content ? (
         <article className="markdown-viewer prose prose-zinc dark:prose-invert mx-auto w-full px-6 py-8">
           <Markdown
-            remarkPlugins={[remarkGfm]}
+            remarkPlugins={[remarkGfm, remarkBreaks]}
             components={{
               table: Table,
               a: Link,
