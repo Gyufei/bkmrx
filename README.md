@@ -66,8 +66,6 @@ pnpm tauri dev
 
 - [系统架构](docs/ARCHITECTURE.md)
 - [HTTP API](docs/http-api.md)
-- [迁移操作手册](docs/migration/runbook.md)
-- [回滚操作手册](docs/migration/rollback.md)
 - [设计与实施记录](docs/superpowers/)
 
 ## 许可证

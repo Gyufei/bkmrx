@@ -86,13 +86,6 @@ Rust 书签代码位于 `src-tauri/src/bookmarks/`：
 
 完整参数、响应与错误格式见 [HTTP API 文档](../../docs/http-api.md)。
 
-## 迁移与回滚
-
-- [迁移操作手册](../../docs/migration/runbook.md)
-- [回滚操作手册](../../docs/migration/rollback.md)
-
-一次性 BKMR 迁移工具只在 `legacy-migration` feature 下构建，并在真实迁移成功后从源码删除。日常跨设备传输只使用 JSON v1。
-
 ## 相关项目
 
 Chrome 扩展通过桌面端 HTTP API 保存当前网页，安装与调试方式见 [Chrome 扩展 README](../chrome-extension/README.md)。
