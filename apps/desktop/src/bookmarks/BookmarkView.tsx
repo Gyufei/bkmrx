@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
 import { Plus } from 'lucide-react';
 
@@ -10,6 +10,7 @@ import {
   bookmarkQueryKey,
   getNextBookmarkPageParam,
   queryBookmarksApi,
+  setBookmarkStarredApi,
 } from './bookmarks.api';
 import ResultList from './ResultList';
 import SearchBar from './SearchBar';
@@ -40,6 +41,13 @@ export default function BookmarkView() {
     () => bookmarksQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [bookmarksQuery.data],
   );
+  const starredView = query.length === 0 && selectedTags.length === 0;
+  const starMutation = useMutation({
+    mutationFn: setBookmarkStarredApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+    },
+  });
 
   const handleSearch = useCallback((value: string) => {
     setQuery(value.trim());
@@ -97,6 +105,15 @@ export default function BookmarkView() {
               }
               onLoadMore={() => bookmarksQuery.fetchNextPage()}
               onRetryNextPage={() => bookmarksQuery.fetchNextPage()}
+              starredView={starredView}
+              emptyMessage={
+                starredView
+                  ? '暂无星标书签。在搜索结果中点击星形按钮，即可将常用书签显示在这里。'
+                  : '暂无匹配的书签'
+              }
+              onToggleStarred={(bookmark, starred) =>
+                starMutation.mutate({ id: bookmark.id, starred })
+              }
             />
           </div>
         </main>

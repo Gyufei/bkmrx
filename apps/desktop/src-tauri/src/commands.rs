@@ -61,6 +61,15 @@ pub fn record_bookmark_access(
 }
 
 #[tauri::command]
+pub fn set_bookmark_starred(
+    service: State<'_, SharedBookmarkService>,
+    id: i64,
+    starred: bool,
+) -> AppResult<Bookmark> {
+    service.set_starred(id, starred)
+}
+
+#[tauri::command]
 pub fn export_bookmarks(
     service: State<'_, SharedBookmarkService>,
     path: String,

@@ -79,7 +79,8 @@ fn fixture() -> Fixture {
     for (position, id) in ids.iter().enumerate() {
         database
             .execute_batch_for_test(&format!(
-                "UPDATE bookmarks SET updated_at = {} WHERE id = {}",
+                "UPDATE bookmarks SET updated_at = {}, starred_at = {} WHERE id = {}",
+                1_700_000_000 + position,
                 1_700_000_000 + position,
                 id
             ))
@@ -103,20 +104,41 @@ fn request(query: &str, tags: &[&str], page_size: u32) -> BookmarkPageRequest {
 }
 
 #[test]
-fn empty_query_pages_by_updated_at_then_id() {
+fn empty_query_without_tags_only_pages_starred_by_starred_at_then_id() {
     let fixture = fixture();
+    fixture
+        .database
+        .execute_batch_for_test(&format!(
+            "UPDATE bookmarks SET starred_at = NULL;
+             UPDATE bookmarks SET starred_at = 100 WHERE id IN ({}, {});
+             UPDATE bookmarks SET starred_at = 200 WHERE id = {};",
+            fixture.ids[1], fixture.ids[2], fixture.ids[4]
+        ))
+        .unwrap();
 
     let page = fixture.search.search(&request("", &[], 3)).unwrap();
 
     assert_eq!(
         page.bookmark_ids,
-        vec![fixture.ids[6], fixture.ids[5], fixture.ids[4]]
+        vec![fixture.ids[4], fixture.ids[2], fixture.ids[1]]
     );
-    assert!(page.next_cursor.is_some());
+    assert!(page.next_cursor.is_none());
 }
 
 #[test]
 fn tag_filter_requires_all_selected_tags() {
+    let fixture = fixture();
+
+    let page = fixture
+        .search
+        .search(&request("", &["search", "rust"], 50))
+        .unwrap();
+
+    assert_eq!(page.bookmark_ids, vec![fixture.ids[6], fixture.ids[5]]);
+}
+
+#[test]
+fn empty_query_with_tags_keeps_recent_tag_filter_behavior() {
     let fixture = fixture();
 
     let page = fixture
@@ -313,6 +335,7 @@ fn service_maps_not_found_and_notifies_only_successful_mutations() {
             },
         )
         .unwrap();
+    service.set_starred(created.id, true).unwrap();
     service.record_access(created.id).unwrap();
     assert_eq!(
         service
@@ -329,5 +352,5 @@ fn service_maps_not_found_and_notifies_only_successful_mutations() {
     service.delete_many(vec![created.id]).unwrap();
     service.delete_many(Vec::new()).unwrap();
 
-    assert_eq!(notifications.load(Ordering::SeqCst), 4);
+    assert_eq!(notifications.load(Ordering::SeqCst), 5);
 }

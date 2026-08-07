@@ -5,10 +5,10 @@ use bkmrx_lib::database::Database;
 use std::sync::Arc;
 
 #[test]
-fn creates_v1_schema_and_enables_fts5_trigram() {
+fn creates_v2_schema_and_enables_fts5_trigram() {
     let db = Database::open_in_memory().unwrap();
 
-    assert_eq!(db.schema_version().unwrap(), 1);
+    assert_eq!(db.schema_version().unwrap(), 2);
     assert!(db.has_table("bookmarks").unwrap());
     assert!(db.has_table("tags").unwrap());
     assert!(db.has_table("bookmark_tags").unwrap());
@@ -17,9 +17,50 @@ fn creates_v1_schema_and_enables_fts5_trigram() {
 }
 
 #[test]
+fn migrates_v1_bookmarks_to_v2_as_unstarred() {
+    let directory = tempfile::TempDir::new().unwrap();
+    let path = directory.path().join("bookmarks.db");
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE bookmarks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT NOT NULL UNIQUE,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                access_count INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                accessed_at INTEGER NULL
+             );
+             PRAGMA user_version = 1;",
+        )
+        .unwrap();
+    connection
+        .execute(
+            "INSERT INTO bookmarks
+             (url, title, description, access_count, created_at, updated_at)
+             VALUES ('https://example.com', 'Example', '', 0, 1, 1)",
+            [],
+        )
+        .unwrap();
+    drop(connection);
+
+    let database = Database::open(&path).unwrap();
+
+    assert_eq!(database.schema_version().unwrap(), 2);
+    assert_eq!(
+        database
+            .query_i64_for_test("SELECT count(*) FROM bookmarks WHERE starred_at IS NOT NULL",)
+            .unwrap(),
+        0
+    );
+}
+
+#[test]
 fn rejects_database_newer_than_supported_schema() {
     let db = Database::open_in_memory().unwrap();
-    db.set_user_version_for_test(2).unwrap();
+    db.set_user_version_for_test(3).unwrap();
 
     let error = db.verify_supported_version().unwrap_err();
 
@@ -55,6 +96,7 @@ fn repository_create_round_trips_bookmark_and_tags() {
     assert_eq!(created.url, "https://example.com/path?x=One#Part");
     assert_eq!(created.title, "Example");
     assert_eq!(created.tags, vec!["rust", "中文"]);
+    assert_eq!(created.starred_at, None);
     assert_eq!(
         repository.get_by_id(created.id).unwrap(),
         Some(created.clone())
@@ -65,6 +107,31 @@ fn repository_create_round_trips_bookmark_and_tags() {
             .unwrap(),
         Some(created)
     );
+}
+
+#[test]
+fn repository_sets_and_clears_starred_at_without_changing_updated_at() {
+    let (_, repository) = repository();
+    let created = repository
+        .create(bookmark("https://example.com", &[]))
+        .unwrap();
+
+    let starred = repository.set_starred(created.id, true).unwrap();
+    assert!(starred.starred_at.is_some());
+    assert_eq!(starred.updated_at, created.updated_at);
+
+    let unstarred = repository.set_starred(created.id, false).unwrap();
+    assert_eq!(unstarred.starred_at, None);
+    assert_eq!(unstarred.updated_at, created.updated_at);
+}
+
+#[test]
+fn repository_set_starred_returns_not_found_for_unknown_id() {
+    let (_, repository) = repository();
+
+    let error = repository.set_starred(99, true).unwrap_err();
+
+    assert_eq!(error.code(), "bookmark_not_found");
 }
 
 #[test]

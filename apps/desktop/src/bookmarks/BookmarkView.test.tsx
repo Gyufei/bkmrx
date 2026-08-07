@@ -1,17 +1,22 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Bookmark, BookmarkPage } from '@/types';
 import BookmarkView from './BookmarkView';
 
 const queryBookmarksMock = vi.hoisted(() => vi.fn());
+const setBookmarkStarredMock = vi.hoisted(() => vi.fn());
 
 vi.mock('./bookmarks.api', async (importOriginal) => {
   const original = await importOriginal<typeof import('./bookmarks.api')>();
-  return { ...original, queryBookmarksApi: queryBookmarksMock };
+  return {
+    ...original,
+    queryBookmarksApi: queryBookmarksMock,
+    setBookmarkStarredApi: setBookmarkStarredMock,
+  };
 });
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -19,10 +24,18 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 vi.mock('./SearchBar', () => ({
-  default: () => <div data-testid="search-bar" />,
+  default: ({ onSearch }: { onSearch: (value: string) => void }) => (
+    <button data-testid="search-bar" onClick={() => onSearch('needle')}>
+      搜索
+    </button>
+  ),
 }));
 vi.mock('./TagPanel', () => ({
-  default: () => <div data-testid="tag-panel" />,
+  default: ({ onTagsChange }: { onTagsChange: (tags: string[]) => void }) => (
+    <button data-testid="tag-panel" onClick={() => onTagsChange(['tool'])}>
+      标签
+    </button>
+  ),
 }));
 vi.mock('./AddBookmarkDialog', () => ({
   default: () => null,
@@ -33,8 +46,12 @@ vi.mock('./ResultList', () => ({
     hasMore: boolean;
     nextPageError: string | null;
     onLoadMore: () => void;
+    starredView: boolean;
+    emptyMessage: string;
   }) => (
     <div>
+      <div>{props.starredView ? '星标模式' : '普通模式'}</div>
+      {props.bookmarks.length === 0 && <div>{props.emptyMessage}</div>}
       {props.bookmarks.map((bookmark) => (
         <div key={bookmark.id}>{bookmark.title}</div>
       ))}
@@ -55,6 +72,7 @@ function bookmark(id: number, title: string): Bookmark {
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     accessed_at: null,
+    starred_at: null,
   };
 }
 
@@ -72,7 +90,10 @@ function renderView() {
 describe('BookmarkView infinite pagination', () => {
   beforeEach(() => {
     queryBookmarksMock.mockReset();
+    setBookmarkStarredMock.mockReset();
   });
+
+  afterEach(cleanup);
 
   it('flattens pages and loads the next cursor once', async () => {
     queryBookmarksMock.mockImplementation(
@@ -105,5 +126,19 @@ describe('BookmarkView infinite pagination', () => {
     fireEvent.click(screen.getByText('加载更多'));
     await waitFor(() => expect(screen.getByText('下一页失败')).toBeTruthy());
     expect(screen.getByText('Still visible')).toBeTruthy();
+  });
+
+  it('uses the dedicated starred empty state only without query or tags', async () => {
+    queryBookmarksMock.mockResolvedValue({ items: [], next_cursor: null });
+    renderView();
+
+    expect(await screen.findByText('星标模式')).toBeTruthy();
+    expect(
+      screen.getByText('暂无星标书签。在搜索结果中点击星形按钮，即可将常用书签显示在这里。'),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('search-bar'));
+    expect(await screen.findByText('普通模式')).toBeTruthy();
+    expect(screen.getByText('暂无匹配的书签')).toBeTruthy();
   });
 });

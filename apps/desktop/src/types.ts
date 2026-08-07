@@ -8,6 +8,7 @@ export interface Bookmark {
   created_at: string;
   updated_at: string;
   accessed_at: string | null;
+  starred_at: string | null;
 }
 
 export interface Tag {

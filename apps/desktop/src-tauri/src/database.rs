@@ -5,9 +5,9 @@ use rusqlite::Connection;
 
 use crate::bookmarks::{AppError, AppResult};
 
-const SUPPORTED_SCHEMA_VERSION: i64 = 1;
+const SUPPORTED_SCHEMA_VERSION: i64 = 2;
 
-const CREATE_V1_SCHEMA: &str = r#"
+const CREATE_V2_SCHEMA: &str = r#"
 BEGIN IMMEDIATE;
 
 CREATE TABLE bookmarks (
@@ -18,7 +18,8 @@ CREATE TABLE bookmarks (
     access_count INTEGER NOT NULL DEFAULT 0 CHECK (access_count >= 0),
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
-    accessed_at INTEGER NULL
+    accessed_at INTEGER NULL,
+    starred_at INTEGER NULL
 );
 
 CREATE TABLE tags (
@@ -43,7 +44,21 @@ CREATE VIRTUAL TABLE bookmarks_fts USING fts5(
     tokenize = 'trigram'
 );
 
-PRAGMA user_version = 1;
+CREATE INDEX idx_bookmarks_starred
+    ON bookmarks(starred_at DESC, id DESC)
+    WHERE starred_at IS NOT NULL;
+
+PRAGMA user_version = 2;
+COMMIT;
+"#;
+
+const MIGRATE_V1_TO_V2: &str = r#"
+BEGIN IMMEDIATE;
+ALTER TABLE bookmarks ADD COLUMN starred_at INTEGER NULL;
+CREATE INDEX idx_bookmarks_starred
+    ON bookmarks(starred_at DESC, id DESC)
+    WHERE starred_at IS NOT NULL;
+PRAGMA user_version = 2;
 COMMIT;
 "#;
 
@@ -159,11 +174,16 @@ impl Database {
             connection: Mutex::new(connection),
         };
         database.verify_supported_version()?;
-        if database.schema_version()? == 0 {
-            database
+        match database.schema_version()? {
+            0 => database
                 .connection()?
-                .execute_batch(CREATE_V1_SCHEMA)
-                .map_err(database_error)?;
+                .execute_batch(CREATE_V2_SCHEMA)
+                .map_err(database_error)?,
+            1 => database
+                .connection()?
+                .execute_batch(MIGRATE_V1_TO_V2)
+                .map_err(database_error)?,
+            _ => {}
         }
         Ok(database)
     }

@@ -45,14 +45,19 @@ impl BookmarkSearch for SqliteFtsSearch {
             return Err(AppError::invalid_cursor());
         }
 
-        match query.chars().count() {
-            0 => self.search_recent(
+        match (query.chars().count(), tags.is_empty()) {
+            (0, true) => self.search_starred(
+                request.page_size,
+                query_hash,
+                cursor.map(|cursor| cursor.mode),
+            ),
+            (0, false) => self.search_recent(
                 &tags,
                 request.page_size,
                 query_hash,
                 cursor.map(|cursor| cursor.mode),
             ),
-            1 | 2 => self.search_like(
+            (1 | 2, _) => self.search_like(
                 query,
                 &tags,
                 request.page_size,
@@ -71,6 +76,61 @@ impl BookmarkSearch for SqliteFtsSearch {
 }
 
 impl SqliteFtsSearch {
+    fn search_starred(
+        &self,
+        page_size: u32,
+        query_hash: String,
+        cursor: Option<CursorMode>,
+    ) -> AppResult<SearchPage> {
+        let mut sql =
+            String::from("SELECT id, starred_at FROM bookmarks WHERE starred_at IS NOT NULL");
+        let mut values = Vec::new();
+        if let Some(cursor) = cursor {
+            let CursorMode::Starred { starred_at, id } = cursor else {
+                return Err(AppError::invalid_cursor());
+            };
+            sql.push_str(" AND (starred_at < ? OR (starred_at = ? AND id < ?))");
+            values.push(Value::Integer(starred_at));
+            values.push(Value::Integer(starred_at));
+            values.push(Value::Integer(id));
+        }
+        sql.push_str(" ORDER BY starred_at DESC, id DESC LIMIT ?");
+        values.push(Value::Integer(i64::from(page_size) + 1));
+
+        let connection = self.database.connection()?;
+        let mut statement = connection.prepare(&sql).map_err(database_error)?;
+        let rows = statement
+            .query_map(params_from_iter(values.iter()), |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
+            })
+            .map_err(database_error)?;
+        let mut hits = rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(database_error)?;
+        let has_more = hits.len() > page_size as usize;
+        hits.truncate(page_size as usize);
+        let next_cursor = if has_more {
+            hits.last()
+                .map(|(id, starred_at)| {
+                    encode_cursor(&CursorV1 {
+                        version: 1,
+                        query_hash,
+                        mode: CursorMode::Starred {
+                            starred_at: *starred_at,
+                            id: *id,
+                        },
+                    })
+                })
+                .transpose()?
+        } else {
+            None
+        };
+        Ok(SearchPage {
+            bookmark_ids: hits.into_iter().map(|(id, _)| id).collect(),
+            next_cursor,
+        })
+    }
+
     fn search_recent(
         &self,
         tags: &[String],
@@ -242,6 +302,7 @@ struct CursorV1 {
 
 #[derive(Debug, Serialize, Deserialize)]
 enum CursorMode {
+    Starred { starred_at: i64, id: i64 },
     Recent { updated_at: i64, id: i64 },
     SearchOffset { offset: u64 },
 }
@@ -264,6 +325,7 @@ fn search_offset(cursor: Option<CursorMode>) -> AppResult<u64> {
         None => Ok(0),
         Some(CursorMode::SearchOffset { offset }) => Ok(offset),
         Some(CursorMode::Recent { .. }) => Err(AppError::invalid_cursor()),
+        Some(CursorMode::Starred { .. }) => Err(AppError::invalid_cursor()),
     }
 }
 

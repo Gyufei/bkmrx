@@ -81,6 +81,12 @@ impl<R: BookmarkRepository, S: BookmarkSearch> BookmarkService<R, S> {
         (self.notify_changed)();
         Ok(bookmark)
     }
+
+    pub fn set_starred(&self, id: i64, starred: bool) -> AppResult<Bookmark> {
+        let bookmark = self.repository.set_starred(id, starred)?;
+        (self.notify_changed)();
+        Ok(bookmark)
+    }
 }
 
 pub type SharedBookmarkService = Arc<BookmarkService<SqliteBookmarkRepository, SqliteFtsSearch>>;

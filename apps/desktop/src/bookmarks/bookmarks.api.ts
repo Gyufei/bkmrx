@@ -4,6 +4,7 @@ import {
   invokeGetBookmarkByUrl,
   invokeGetTags,
   invokeQueryBookmarks,
+  invokeSetBookmarkStarred,
   invokeUpdateBookmark,
 } from '../lib/invoke';
 import type {
@@ -54,4 +55,8 @@ export function updateBookmarkApi({
   input: UpdateBookmark;
 }) {
   return invokeUpdateBookmark(id, input);
+}
+
+export function setBookmarkStarredApi({ id, starred }: { id: number; starred: boolean }) {
+  return invokeSetBookmarkStarred(id, starred);
 }

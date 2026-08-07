@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { ExternalLink, Link, Code, Pencil, Trash2 } from 'lucide-react';
+import { ExternalLink, Link, Code, Pencil, Star, Trash2 } from 'lucide-react';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -23,6 +23,9 @@ interface Props {
   nextPageError: string | null;
   onLoadMore: () => void;
   onRetryNextPage: () => void;
+  starredView: boolean;
+  emptyMessage: string;
+  onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
 }
 
 export default function ResultList({
@@ -34,6 +37,9 @@ export default function ResultList({
   nextPageError,
   onLoadMore,
   onRetryNextPage,
+  starredView,
+  emptyMessage,
+  onToggleStarred,
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -84,7 +90,7 @@ export default function ResultList({
   if (bookmarks.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
-        暂无匹配的书签
+        {emptyMessage}
       </div>
     );
   }
@@ -94,7 +100,12 @@ export default function ResultList({
       {bookmarks.map((bm) => (
         <ContextMenu key={bm.id}>
           <ContextMenuTrigger>
-            <BookmarkRow bookmark={bm} onRequestDelete={setDeleteTarget} />
+            <BookmarkRow
+              bookmark={bm}
+              starredView={starredView}
+              onToggleStarred={onToggleStarred}
+              onRequestDelete={setDeleteTarget}
+            />
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem
@@ -182,9 +193,13 @@ export default function ResultList({
 
 function BookmarkRow({
   bookmark,
+  starredView,
+  onToggleStarred,
   onRequestDelete,
 }: {
   bookmark: Bookmark;
+  starredView: boolean;
+  onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
   onRequestDelete: (bm: Bookmark) => void;
 }) {
   const handleClick = async () => {
@@ -231,11 +246,35 @@ function BookmarkRow({
         )}
       </div>
       <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          const nextStarred = bookmark.starred_at === null;
+          if (
+            !nextStarred &&
+            starredView &&
+            !window.confirm('取消星标后，该书签将不再显示在默认列表中。')
+          ) {
+            return;
+          }
+          onToggleStarred(bookmark, nextStarred);
+        }}
+        className={`absolute right-2 top-2 p-1.5 rounded-md transition-colors ${
+          bookmark.starred_at
+            ? 'text-amber-500 hover:bg-amber-500/10'
+            : 'text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-amber-500 hover:bg-amber-500/10'
+        }`}
+        title={bookmark.starred_at ? '取消星标' : '添加星标'}
+        aria-label={bookmark.starred_at ? '取消星标' : '添加星标'}
+      >
+        <Star className="h-4 w-4" fill={bookmark.starred_at ? 'currentColor' : 'none'} />
+      </button>
+      <button
         onClick={(e) => {
           e.stopPropagation();
           onRequestDelete(bookmark);
         }}
-        className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1.5 rounded-md text-muted-foreground hover:text-destructive dark:hover:text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/10"
+        className="absolute right-10 top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1.5 rounded-md text-muted-foreground hover:text-destructive dark:hover:text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/10"
         title="删除书签"
       >
         <Trash2 className="h-4 w-4" />

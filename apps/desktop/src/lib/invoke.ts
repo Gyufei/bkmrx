@@ -40,6 +40,10 @@ export function invokeRecordBookmarkAccess(id: number): Promise<Bookmark> {
   return invoke<Bookmark>('record_bookmark_access', { id });
 }
 
+export function invokeSetBookmarkStarred(id: number, starred: boolean): Promise<Bookmark> {
+  return invoke<Bookmark>('set_bookmark_starred', { id, starred });
+}
+
 export function invokeExportBookmarks(path: string): Promise<string> {
   return invoke<string>('export_bookmarks', { path });
 }

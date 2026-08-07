@@ -75,6 +75,92 @@ fn export_v1_omits_database_ids() {
     assert_eq!(json["format_version"], 1);
     assert!(json["bookmarks"][0].get("id").is_none());
     assert_eq!(json["bookmarks"][0]["url"], "https://example.com");
+    assert!(json["bookmarks"][0].get("starred_at").is_some());
+    assert!(json["bookmarks"][0]["starred_at"].is_null());
+}
+
+#[test]
+fn exported_starred_at_round_trips_into_empty_database() {
+    let (_, source) = service();
+    create(&source, "https://example.com");
+    let source_bookmark = source
+        .get_by_url("https://example.com".to_owned())
+        .unwrap()
+        .unwrap();
+    source.set_starred(source_bookmark.id, true).unwrap();
+    let directory = TempDir::new().unwrap();
+    let path = source.export_bookmarks(directory.path()).unwrap();
+    let (_, target) = service();
+
+    let preview = target.preview_bookmark_import(&path).unwrap();
+    target
+        .apply_bookmark_import(&path, &preview.file_hash)
+        .unwrap();
+
+    assert!(target
+        .get_by_url("https://example.com".to_owned())
+        .unwrap()
+        .unwrap()
+        .starred_at
+        .is_some());
+}
+
+#[test]
+fn legacy_import_without_starred_at_preserves_existing_local_star() {
+    let (_, service) = service();
+    create(&service, "https://example.com");
+    let local = service
+        .get_by_url("https://example.com".to_owned())
+        .unwrap()
+        .unwrap();
+    service.set_starred(local.id, true).unwrap();
+    let directory = TempDir::new().unwrap();
+    let path = write_json(
+        &directory,
+        "legacy.json",
+        export(vec![record("https://example.com")]),
+    );
+
+    let preview = service.preview_bookmark_import(&path).unwrap();
+    service
+        .apply_bookmark_import(&path, &preview.file_hash)
+        .unwrap();
+
+    assert!(service
+        .get_by_url("https://example.com".to_owned())
+        .unwrap()
+        .unwrap()
+        .starred_at
+        .is_some());
+}
+
+#[test]
+fn newer_import_with_explicit_null_clears_existing_local_star() {
+    let (_, service) = service();
+    create(&service, "https://example.com");
+    let local = service
+        .get_by_url("https://example.com".to_owned())
+        .unwrap()
+        .unwrap();
+    service.set_starred(local.id, true).unwrap();
+    let directory = TempDir::new().unwrap();
+    let mut imported = record("https://example.com");
+    imported["starred_at"] = Value::Null;
+    let path = write_json(&directory, "clear-star.json", export(vec![imported]));
+
+    let preview = service.preview_bookmark_import(&path).unwrap();
+    service
+        .apply_bookmark_import(&path, &preview.file_hash)
+        .unwrap();
+
+    assert_eq!(
+        service
+            .get_by_url("https://example.com".to_owned())
+            .unwrap()
+            .unwrap()
+            .starred_at,
+        None
+    );
 }
 
 #[test]
@@ -110,6 +196,44 @@ fn preview_rejects_tags_that_cannot_use_the_http_filter_contract() {
     let error = service.preview_bookmark_import(path).unwrap_err();
 
     assert_eq!(error.code(), "import_validation_failed");
+}
+
+#[test]
+fn preview_rejects_invalid_starred_at() {
+    let (_, service) = service();
+    let directory = TempDir::new().unwrap();
+    let mut invalid = record("https://example.com");
+    invalid["starred_at"] = json!("not-a-timestamp");
+    let path = write_json(&directory, "invalid-star.json", export(vec![invalid]));
+
+    let error = service.preview_bookmark_import(path).unwrap_err();
+
+    assert_eq!(error.code(), "import_validation_failed");
+}
+
+#[test]
+fn legacy_import_without_starred_at_creates_unstarred_bookmark() {
+    let (_, service) = service();
+    let directory = TempDir::new().unwrap();
+    let path = write_json(
+        &directory,
+        "legacy-new.json",
+        export(vec![record("https://example.com")]),
+    );
+
+    let preview = service.preview_bookmark_import(&path).unwrap();
+    service
+        .apply_bookmark_import(&path, &preview.file_hash)
+        .unwrap();
+
+    assert_eq!(
+        service
+            .get_by_url("https://example.com".to_owned())
+            .unwrap()
+            .unwrap()
+            .starred_at,
+        None
+    );
 }
 
 #[test]

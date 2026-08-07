@@ -11,6 +11,7 @@ pub struct Bookmark {
     pub created_at: String,
     pub updated_at: String,
     pub accessed_at: Option<String>,
+    pub starred_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -69,6 +70,15 @@ pub struct BookmarkTransferRecord {
     pub created_at: String,
     pub updated_at: String,
     pub accessed_at: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_present_nullable")]
+    pub starred_at: Option<Option<String>>,
+}
+
+fn deserialize_present_nullable<'de, D>(deserializer: D) -> Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<String>::deserialize(deserializer).map(Some)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

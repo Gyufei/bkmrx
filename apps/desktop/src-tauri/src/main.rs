@@ -57,6 +57,7 @@ fn main() {
             bkmrx_lib::commands::get_bookmark_by_url,
             bkmrx_lib::commands::get_tags,
             bkmrx_lib::commands::record_bookmark_access,
+            bkmrx_lib::commands::set_bookmark_starred,
             bkmrx_lib::commands::export_bookmarks,
             bkmrx_lib::commands::preview_bookmark_import,
             bkmrx_lib::commands::apply_bookmark_import,

@@ -25,6 +25,8 @@ pub trait BookmarkRepository: Send + Sync {
     fn get_tags(&self) -> AppResult<Vec<TagSummary>>;
     /// Increments a bookmark's access count and records its latest access time.
     fn record_access(&self, id: i64) -> AppResult<Bookmark>;
+    /// Adds or removes a bookmark star without changing content updated_at.
+    fn set_starred(&self, id: i64, starred: bool) -> AppResult<Bookmark>;
     /// Rebuilds the full-text search index from the current bookmarks and tags.
     fn rebuild_search_index(&self) -> AppResult<()>;
 }
@@ -161,7 +163,7 @@ impl BookmarkRepository for SqliteBookmarkRepository {
         let mut statement = connection
             .prepare(&format!(
                 "SELECT id, url, title, description, access_count,
-                        created_at, updated_at, accessed_at
+                        created_at, updated_at, accessed_at, starred_at
                  FROM bookmarks
                  WHERE id IN ({placeholders})"
             ))
@@ -238,6 +240,23 @@ impl BookmarkRepository for SqliteBookmarkRepository {
         }
         self.get_by_id(id)?
             .ok_or_else(|| AppError::internal_error("accessed bookmark could not be reloaded"))
+    }
+
+    fn set_starred(&self, id: i64, starred: bool) -> AppResult<Bookmark> {
+        let starred_at = starred.then(|| Utc::now().timestamp_millis());
+        let changed = self
+            .database
+            .connection()?
+            .execute(
+                "UPDATE bookmarks SET starred_at = ?1 WHERE id = ?2",
+                params![starred_at, id],
+            )
+            .map_err(database_error)?;
+        if changed == 0 {
+            return Err(AppError::bookmark_not_found(id));
+        }
+        self.get_by_id(id)?
+            .ok_or_else(|| AppError::internal_error("starred bookmark could not be reloaded"))
     }
 
     fn rebuild_search_index(&self) -> AppResult<()> {
@@ -377,6 +396,17 @@ fn bookmark_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Bookmark> {
                 Box::new(error),
             )
         })?;
+    let starred_at = row
+        .get::<_, Option<i64>>(8)?
+        .map(timestamp_to_string)
+        .transpose()
+        .map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                8,
+                rusqlite::types::Type::Integer,
+                Box::new(error),
+            )
+        })?;
     Ok(Bookmark {
         id: row.get(0)?,
         url: row.get(1)?,
@@ -399,6 +429,7 @@ fn bookmark_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Bookmark> {
             )
         })?,
         accessed_at,
+        starred_at,
     })
 }
 

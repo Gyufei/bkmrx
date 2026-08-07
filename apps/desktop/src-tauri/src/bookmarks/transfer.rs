@@ -78,7 +78,7 @@ pub(crate) fn apply_import(
         let existing = transaction
             .query_row(
                 "SELECT id, title, description, access_count,
-                        created_at, updated_at, accessed_at
+                        created_at, updated_at, accessed_at, starred_at
                  FROM bookmarks WHERE url = ?1",
                 [&record.url],
                 |row| {
@@ -90,6 +90,7 @@ pub(crate) fn apply_import(
                         created_at: row.get(4)?,
                         updated_at: row.get(5)?,
                         accessed_at: row.get(6)?,
+                        starred_at: row.get(7)?,
                     })
                 },
             )
@@ -102,8 +103,8 @@ pub(crate) fn apply_import(
                     .execute(
                         "INSERT INTO bookmarks (
                             url, title, description, access_count,
-                            created_at, updated_at, accessed_at
-                         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                            created_at, updated_at, accessed_at, starred_at
+                         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                         params![
                             record.url,
                             record.title,
@@ -112,6 +113,7 @@ pub(crate) fn apply_import(
                             record.created_at,
                             record.updated_at,
                             record.accessed_at,
+                            record.starred_at.flatten(),
                         ],
                     )
                     .map_err(database_error)?;
@@ -140,6 +142,11 @@ pub(crate) fn apply_import(
                 };
                 let updated_at = existing.updated_at.max(record.updated_at);
                 let accessed_at = latest_optional(existing.accessed_at, record.accessed_at);
+                let starred_at = if content_is_newer {
+                    record.starred_at.unwrap_or(existing.starred_at)
+                } else {
+                    existing.starred_at
+                };
                 transaction
                     .execute(
                         "UPDATE bookmarks
@@ -148,8 +155,9 @@ pub(crate) fn apply_import(
                              access_count = ?3,
                              created_at = ?4,
                              updated_at = ?5,
-                             accessed_at = ?6
-                         WHERE id = ?7",
+                             accessed_at = ?6,
+                             starred_at = ?7
+                         WHERE id = ?8",
                         params![
                             title,
                             description,
@@ -157,6 +165,7 @@ pub(crate) fn apply_import(
                             existing.created_at.min(record.created_at),
                             updated_at,
                             accessed_at,
+                            starred_at,
                             existing.id,
                         ],
                     )
@@ -186,7 +195,7 @@ fn snapshot(database: &Database) -> AppResult<BookmarkExportV1> {
     let mut statement = transaction
         .prepare(
             "SELECT id, url, title, description, access_count,
-                    created_at, updated_at, accessed_at
+                    created_at, updated_at, accessed_at, starred_at
              FROM bookmarks
              ORDER BY url",
         )
@@ -207,6 +216,11 @@ fn snapshot(database: &Database) -> AppResult<BookmarkExportV1> {
                         .get::<_, Option<i64>>(7)?
                         .map(timestamp_to_string)
                         .transpose()?,
+                    starred_at: Some(
+                        row.get::<_, Option<i64>>(8)?
+                            .map(timestamp_to_string)
+                            .transpose()?,
+                    ),
                 },
             ))
         })
@@ -287,6 +301,16 @@ fn parse_and_validate(bytes: &[u8]) -> AppResult<ValidatedExport> {
             .map(|value| parse_timestamp("accessed_at", value))
             .transpose()
             .map_err(|_| record_error(index, "accessed_at must be RFC 3339"))?;
+        let starred_at = record
+            .starred_at
+            .map(|value| {
+                value
+                    .as_deref()
+                    .map(|value| parse_timestamp("starred_at", value))
+                    .transpose()
+            })
+            .transpose()
+            .map_err(|_| record_error(index, "starred_at must be RFC 3339"))?;
         let title = {
             let title = record.title.trim();
             if title.is_empty() {
@@ -315,6 +339,7 @@ fn parse_and_validate(bytes: &[u8]) -> AppResult<ValidatedExport> {
             created_at,
             updated_at,
             accessed_at,
+            starred_at,
         });
     }
     records.sort_by(|left, right| left.url.cmp(&right.url));
@@ -370,6 +395,7 @@ struct ValidatedRecord {
     created_at: i64,
     updated_at: i64,
     accessed_at: Option<i64>,
+    starred_at: Option<Option<i64>>,
 }
 
 struct ExistingBookmark {
@@ -380,6 +406,7 @@ struct ExistingBookmark {
     created_at: i64,
     updated_at: i64,
     accessed_at: Option<i64>,
+    starred_at: Option<i64>,
 }
 
 fn parse_timestamp(field: &str, value: &str) -> AppResult<i64> {
