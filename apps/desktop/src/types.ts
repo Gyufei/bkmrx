@@ -21,6 +21,7 @@ export interface BookmarkPageRequest {
   tags: string[];
   cursor: string | null;
   page_size: number;
+  starred_only: boolean;
 }
 
 export interface BookmarkPage {

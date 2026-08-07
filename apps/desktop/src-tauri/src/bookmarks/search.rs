@@ -36,7 +36,7 @@ impl BookmarkSearch for SqliteFtsSearch {
         validate_page_size(request.page_size)?;
         let query = request.query.trim();
         let tags = normalize_tags(&request.tags);
-        let query_hash = query_hash(query, &tags, request.page_size)?;
+        let query_hash = query_hash(query, &tags, request.page_size, request.starred_only)?;
         let cursor = request.cursor.as_deref().map(decode_cursor).transpose()?;
         if cursor
             .as_ref()
@@ -45,19 +45,22 @@ impl BookmarkSearch for SqliteFtsSearch {
             return Err(AppError::invalid_cursor());
         }
 
-        match (query.chars().count(), tags.is_empty()) {
-            (0, true) => self.search_starred(
+        if request.starred_only {
+            return self.search_starred(
                 request.page_size,
                 query_hash,
                 cursor.map(|cursor| cursor.mode),
-            ),
-            (0, false) => self.search_recent(
+            );
+        }
+
+        match query.chars().count() {
+            0 => self.search_recent(
                 &tags,
                 request.page_size,
                 query_hash,
                 cursor.map(|cursor| cursor.mode),
             ),
-            (1 | 2, _) => self.search_like(
+            1 | 2 => self.search_like(
                 query,
                 &tags,
                 request.page_size,
@@ -329,8 +332,13 @@ fn search_offset(cursor: Option<CursorMode>) -> AppResult<u64> {
     }
 }
 
-fn query_hash(query: &str, tags: &[String], page_size: u32) -> AppResult<String> {
-    let input = serde_json::to_vec(&(query, tags, page_size))
+fn query_hash(
+    query: &str,
+    tags: &[String],
+    page_size: u32,
+    starred_only: bool,
+) -> AppResult<String> {
+    let input = serde_json::to_vec(&(query, tags, page_size, starred_only))
         .map_err(|error| AppError::internal_error(format!("failed to hash query: {error}")))?;
     Ok(URL_SAFE_NO_PAD.encode(Sha256::digest(input)))
 }

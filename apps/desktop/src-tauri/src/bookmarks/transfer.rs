@@ -210,15 +210,15 @@ fn snapshot(database: &Database) -> AppResult<BookmarkExportV1> {
                     description: row.get(3)?,
                     tags: Vec::new(),
                     access_count: row.get(4)?,
-                    created_at: timestamp_to_string(row.get(5)?)?,
-                    updated_at: timestamp_to_string(row.get(6)?)?,
+                    created_at: timestamp_to_string(row.get(5)?, SecondsFormat::Secs)?,
+                    updated_at: timestamp_to_string(row.get(6)?, SecondsFormat::Secs)?,
                     accessed_at: row
                         .get::<_, Option<i64>>(7)?
-                        .map(timestamp_to_string)
+                        .map(|timestamp| timestamp_to_string(timestamp, SecondsFormat::Secs))
                         .transpose()?,
                     starred_at: Some(
                         row.get::<_, Option<i64>>(8)?
-                            .map(timestamp_to_string)
+                            .map(|timestamp| timestamp_to_string(timestamp, SecondsFormat::Millis))
                             .transpose()?,
                     ),
                 },
@@ -417,9 +417,9 @@ fn parse_timestamp(field: &str, value: &str) -> AppResult<i64> {
         })
 }
 
-fn timestamp_to_string(timestamp: i64) -> rusqlite::Result<String> {
+fn timestamp_to_string(timestamp: i64, format: SecondsFormat) -> rusqlite::Result<String> {
     DateTime::<Utc>::from_timestamp_millis(timestamp)
-        .map(|value| value.to_rfc3339_opts(SecondsFormat::Secs, true))
+        .map(|value| value.to_rfc3339_opts(format, true))
         .ok_or_else(|| {
             rusqlite::Error::FromSqlConversionFailure(
                 0,

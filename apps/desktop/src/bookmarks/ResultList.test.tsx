@@ -66,6 +66,7 @@ it('waits for explicit retry after a next-page failure', () => {
       onRetryNextPage={vi.fn()}
       starredView={false}
       emptyMessage="暂无匹配的书签"
+      starPendingId={null}
       onToggleStarred={vi.fn()}
     />,
   );
@@ -99,6 +100,7 @@ function renderList({
       onRetryNextPage={vi.fn()}
       starredView={starredView}
       emptyMessage="空"
+      starPendingId={null}
       onToggleStarred={onToggleStarred}
     />,
   );
@@ -173,4 +175,39 @@ it('does not confirm before unstar in search or tag results', () => {
 
   expect(confirm).not.toHaveBeenCalled();
   expect(onToggleStarred).toHaveBeenCalledWith(bookmark, false);
+});
+
+it('disables the star button while that bookmark is updating', () => {
+  const bookmark: Bookmark = {
+    id: 1,
+    url: 'https://example.com',
+    title: 'Example',
+    description: '',
+    tags: [],
+    access_count: 0,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    accessed_at: null,
+    starred_at: null,
+  };
+  render(
+    <ResultList
+      bookmarks={[bookmark]}
+      initialLoading={false}
+      initialError={null}
+      hasMore={false}
+      isFetchingNextPage={false}
+      nextPageError={null}
+      onLoadMore={vi.fn()}
+      onRetryNextPage={vi.fn()}
+      starredView={false}
+      emptyMessage="空"
+      starPendingId={bookmark.id}
+      onToggleStarred={vi.fn()}
+    />,
+  );
+
+  expect(
+    (screen.getByRole('button', { name: '添加星标' }) as HTMLButtonElement).disabled,
+  ).toBe(true);
 });

@@ -48,6 +48,8 @@ vi.mock('./ResultList', () => ({
     onLoadMore: () => void;
     starredView: boolean;
     emptyMessage: string;
+    starPendingId: number | null;
+    onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
   }) => (
     <div>
       <div>{props.starredView ? '星标模式' : '普通模式'}</div>
@@ -55,6 +57,12 @@ vi.mock('./ResultList', () => ({
       {props.bookmarks.map((bookmark) => (
         <div key={bookmark.id}>{bookmark.title}</div>
       ))}
+      {props.bookmarks[0] && (
+        <button onClick={() => props.onToggleStarred(props.bookmarks[0], true)}>
+          切换星标
+        </button>
+      )}
+      {props.starPendingId !== null && <div>正在更新 {props.starPendingId}</div>}
       {props.hasMore && <button onClick={props.onLoadMore}>加载更多</button>}
       {props.nextPageError && <div>{props.nextPageError}</div>}
     </div>
@@ -140,5 +148,41 @@ describe('BookmarkView infinite pagination', () => {
     fireEvent.click(screen.getByTestId('search-bar'));
     expect(await screen.findByText('普通模式')).toBeTruthy();
     expect(screen.getByText('暂无匹配的书签')).toBeTruthy();
+  });
+
+  it('calls the star API, exposes pending state, and refreshes bookmarks on success', async () => {
+    queryBookmarksMock.mockResolvedValue({
+      items: [bookmark(1, 'Star me')],
+      next_cursor: null,
+    });
+    let resolveStar!: (value: Bookmark) => void;
+    setBookmarkStarredMock.mockImplementation(
+      () => new Promise<Bookmark>((resolve) => (resolveStar = resolve)),
+    );
+    renderView();
+
+    expect(await screen.findByText('Star me')).toBeTruthy();
+    fireEvent.click(screen.getByText('切换星标'));
+    await waitFor(() =>
+      expect(setBookmarkStarredMock.mock.calls[0]?.[0]).toEqual({ id: 1, starred: true }),
+    );
+    expect(await screen.findByText('正在更新 1')).toBeTruthy();
+
+    resolveStar({ ...bookmark(1, 'Star me'), starred_at: '2026-01-02T00:00:00Z' });
+    await waitFor(() => expect(queryBookmarksMock.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it('shows a visible error when updating a star fails', async () => {
+    queryBookmarksMock.mockResolvedValue({
+      items: [bookmark(1, 'Star me')],
+      next_cursor: null,
+    });
+    setBookmarkStarredMock.mockRejectedValue(new Error('写入失败'));
+    renderView();
+
+    expect(await screen.findByText('Star me')).toBeTruthy();
+    fireEvent.click(screen.getByText('切换星标'));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('写入失败');
   });
 });

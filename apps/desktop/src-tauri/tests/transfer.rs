@@ -2,7 +2,10 @@ use std::{fs, path::Path, sync::Arc};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use bkmrx_lib::{
-    bookmarks::{BookmarkService, CreateBookmark, SqliteBookmarkRepository, SqliteFtsSearch},
+    bookmarks::{
+        BookmarkPageRequest, BookmarkService, CreateBookmark, SqliteBookmarkRepository,
+        SqliteFtsSearch,
+    },
     database::Database,
 };
 use serde_json::{json, Value};
@@ -103,6 +106,63 @@ fn exported_starred_at_round_trips_into_empty_database() {
         .unwrap()
         .starred_at
         .is_some());
+}
+
+#[test]
+fn exported_starred_at_preserves_milliseconds_and_import_order() {
+    let (source_database, source) = service();
+    create(&source, "https://a.example");
+    create(&source, "https://z.example");
+    let later = source
+        .get_by_url("https://a.example".to_owned())
+        .unwrap()
+        .unwrap();
+    let earlier = source
+        .get_by_url("https://z.example".to_owned())
+        .unwrap()
+        .unwrap();
+    source_database
+        .execute_batch_for_test(&format!(
+            "UPDATE bookmarks SET starred_at = 1767225600456 WHERE id = {};
+             UPDATE bookmarks SET starred_at = 1767225600123 WHERE id = {};",
+            later.id, earlier.id
+        ))
+        .unwrap();
+    let directory = TempDir::new().unwrap();
+    let path = source.export_bookmarks(directory.path()).unwrap();
+    let exported: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+
+    assert_eq!(
+        exported["bookmarks"][0]["starred_at"],
+        "2026-01-01T00:00:00.456Z"
+    );
+    assert_eq!(
+        exported["bookmarks"][1]["starred_at"],
+        "2026-01-01T00:00:00.123Z"
+    );
+
+    let (_, target) = service();
+    let preview = target.preview_bookmark_import(&path).unwrap();
+    target
+        .apply_bookmark_import(&path, &preview.file_hash)
+        .unwrap();
+    let page = target
+        .query(BookmarkPageRequest {
+            query: String::new(),
+            tags: Vec::new(),
+            cursor: None,
+            page_size: 50,
+            starred_only: true,
+        })
+        .unwrap();
+
+    assert_eq!(
+        page.items
+            .iter()
+            .map(|bookmark| bookmark.url.as_str())
+            .collect::<Vec<_>>(),
+        vec!["https://a.example", "https://z.example"]
+    );
 }
 
 #[test]

@@ -12,6 +12,7 @@ describe('bookmark pagination helpers', () => {
       '中文',
       ['a', 'z'],
       50,
+      false,
     ]);
   });
 

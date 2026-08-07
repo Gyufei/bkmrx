@@ -168,6 +168,16 @@ async fn list_route_defaults_to_fifty_and_maps_cursor_errors() {
     }
     let app = http_server::router(service);
 
+    let unfiltered = app
+        .clone()
+        .oneshot(Request::get("/api/bookmarks").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let (status, unfiltered) = json_response(unfiltered).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(unfiltered["items"].as_array().unwrap().len(), 50);
+    assert!(unfiltered["next_cursor"].is_string());
+
     let response = app
         .clone()
         .oneshot(

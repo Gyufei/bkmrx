@@ -25,6 +25,7 @@ interface Props {
   onRetryNextPage: () => void;
   starredView: boolean;
   emptyMessage: string;
+  starPendingId: number | null;
   onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
 }
 
@@ -39,6 +40,7 @@ export default function ResultList({
   onRetryNextPage,
   starredView,
   emptyMessage,
+  starPendingId,
   onToggleStarred,
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -103,6 +105,7 @@ export default function ResultList({
             <BookmarkRow
               bookmark={bm}
               starredView={starredView}
+              starPending={starPendingId === bm.id}
               onToggleStarred={onToggleStarred}
               onRequestDelete={setDeleteTarget}
             />
@@ -194,11 +197,13 @@ export default function ResultList({
 function BookmarkRow({
   bookmark,
   starredView,
+  starPending,
   onToggleStarred,
   onRequestDelete,
 }: {
   bookmark: Bookmark;
   starredView: boolean;
+  starPending: boolean;
   onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
   onRequestDelete: (bm: Bookmark) => void;
 }) {
@@ -247,6 +252,8 @@ function BookmarkRow({
       </div>
       <button
         type="button"
+        disabled={starPending}
+        aria-busy={starPending}
         onClick={(event) => {
           event.stopPropagation();
           const nextStarred = bookmark.starred_at === null;
@@ -259,7 +266,7 @@ function BookmarkRow({
           }
           onToggleStarred(bookmark, nextStarred);
         }}
-        className={`absolute right-2 top-2 p-1.5 rounded-md transition-colors ${
+        className={`absolute right-2 top-2 p-1.5 rounded-md transition-colors disabled:cursor-wait disabled:opacity-50 ${
           bookmark.starred_at
             ? 'text-amber-500 hover:bg-amber-500/10'
             : 'text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-amber-500 hover:bg-amber-500/10'

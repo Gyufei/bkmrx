@@ -100,6 +100,14 @@ fn request(query: &str, tags: &[&str], page_size: u32) -> BookmarkPageRequest {
         tags: tags.iter().map(|tag| (*tag).to_owned()).collect(),
         cursor: None,
         page_size,
+        starred_only: false,
+    }
+}
+
+fn starred_request(page_size: u32) -> BookmarkPageRequest {
+    BookmarkPageRequest {
+        starred_only: true,
+        ..request("", &[], page_size)
     }
 }
 
@@ -116,7 +124,7 @@ fn empty_query_without_tags_only_pages_starred_by_starred_at_then_id() {
         ))
         .unwrap();
 
-    let page = fixture.search.search(&request("", &[], 3)).unwrap();
+    let page = fixture.search.search(&starred_request(3)).unwrap();
 
     assert_eq!(
         page.bookmark_ids,
@@ -247,7 +255,7 @@ fn cursor_is_bound_to_query_and_sorted_tags() {
 #[test]
 fn pages_contain_no_duplicates_or_omissions() {
     let fixture = fixture();
-    let mut request = request("", &[], 2);
+    let mut request = starred_request(2);
     let mut ids = Vec::new();
 
     loop {
@@ -284,7 +292,7 @@ fn service_query_hydrates_in_search_order_and_forwards_validation() {
     let repository = SqliteBookmarkRepository::new(Arc::clone(&fixture.database));
     let service = BookmarkService::new(repository, fixture.search);
 
-    let page = service.query(request("", &[], 3)).unwrap();
+    let page = service.query(starred_request(3)).unwrap();
 
     assert_eq!(
         page.items

@@ -26,6 +26,8 @@ pub struct BookmarkPageRequest {
     pub tags: Vec<String>,
     pub cursor: Option<String>,
     pub page_size: u32,
+    #[serde(default)]
+    pub starred_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

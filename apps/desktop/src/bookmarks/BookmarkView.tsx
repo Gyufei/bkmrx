@@ -23,9 +23,10 @@ export default function BookmarkView() {
   const [query, setQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const starredView = query.length === 0 && selectedTags.length === 0;
 
   const bookmarksQuery = useInfiniteQuery({
-    queryKey: bookmarkQueryKey(query, selectedTags, PAGE_SIZE),
+    queryKey: bookmarkQueryKey(query, selectedTags, PAGE_SIZE, starredView),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) =>
       queryBookmarksApi({
@@ -33,6 +34,7 @@ export default function BookmarkView() {
         tags: selectedTags,
         cursor: pageParam,
         page_size: PAGE_SIZE,
+        starred_only: starredView,
       }),
     getNextPageParam: getNextBookmarkPageParam,
   });
@@ -41,7 +43,6 @@ export default function BookmarkView() {
     () => bookmarksQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [bookmarksQuery.data],
   );
-  const starredView = query.length === 0 && selectedTags.length === 0;
   const starMutation = useMutation({
     mutationFn: setBookmarkStarredApi,
     onSuccess: () => {
@@ -87,6 +88,14 @@ export default function BookmarkView() {
           <TagPanel selectedTags={selectedTags} onTagsChange={handleTagsChange} />
         </aside>
         <main className="flex-1 flex flex-col overflow-hidden">
+          {starMutation.isError && (
+            <div
+              role="alert"
+              className="shrink-0 px-4 py-2 text-sm text-destructive border-b border-border"
+            >
+              更新星标失败：{starMutation.error.message}
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto p-3 thin-scrollbar">
             <ResultList
               bookmarks={bookmarks}
@@ -110,6 +119,9 @@ export default function BookmarkView() {
                 starredView
                   ? '暂无星标书签。在搜索结果中点击星形按钮，即可将常用书签显示在这里。'
                   : '暂无匹配的书签'
+              }
+              starPendingId={
+                starMutation.isPending ? (starMutation.variables?.id ?? null) : null
               }
               onToggleStarred={(bookmark, starred) =>
                 starMutation.mutate({ id: bookmark.id, starred })

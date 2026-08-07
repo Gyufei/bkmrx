@@ -19,8 +19,13 @@ export const BkQueryApiKey = {
   TAGS: 'tags',
 } as const;
 
-export function bookmarkQueryKey(query: string, tags: string[], pageSize = 50) {
-  return [BkQueryApiKey.BOOKMARKS, query, [...tags].sort(), pageSize] as const;
+export function bookmarkQueryKey(
+  query: string,
+  tags: string[],
+  pageSize = 50,
+  starredOnly = false,
+) {
+  return [BkQueryApiKey.BOOKMARKS, query, [...tags].sort(), pageSize, starredOnly] as const;
 }
 
 export function getNextBookmarkPageParam(lastPage: BookmarkPage) {

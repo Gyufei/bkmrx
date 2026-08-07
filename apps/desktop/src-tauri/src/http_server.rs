@@ -120,6 +120,7 @@ async fn list_bookmarks_handler(
             tags,
             cursor: query.cursor,
             page_size: query.page_size,
+            starred_only: false,
         })
         .map(Json)
         .map_err(ApiError)

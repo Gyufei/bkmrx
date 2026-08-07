@@ -24,6 +24,12 @@ export default function SearchBar({ onSearch, loading }: Props) {
     [handleSearch],
   );
 
+  const handleBlur = useCallback(() => {
+    if (value.trim() === '') {
+      onSearch('');
+    }
+  }, [value, onSearch]);
+
   return (
     <div className="relative flex-1">
       <Input
@@ -36,6 +42,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
         placeholder="搜索书签..."
         className="h-10 pl-4 pr-10 text-[15px] font-medium"
         autoFocus
