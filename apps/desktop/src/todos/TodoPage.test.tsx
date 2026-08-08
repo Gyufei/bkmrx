@@ -12,9 +12,10 @@ const mocks = vi.hoisted(() => ({
   setStatus: vi.fn(),
   toastAdd: vi.fn(),
   dialog: vi.fn(),
+  listen: vi.fn(),
 }));
 
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: mocks.listen }));
 vi.mock('@/components/ui/toast', () => ({ toast: { add: mocks.toastAdd } }));
 vi.mock('./todos.api', async (importOriginal) => {
   const original = await importOriginal<typeof import('./todos.api')>();
@@ -64,6 +65,7 @@ describe('TodoPage', () => {
       completed: 0,
     });
     mocks.create.mockResolvedValue({ id: 2 });
+    mocks.listen.mockResolvedValue(() => {});
   });
 
   afterEach(cleanup);
@@ -150,5 +152,21 @@ describe('TodoPage', () => {
       }),
     );
     expect(input).toHaveProperty('value', '不要丢失');
+  });
+
+  it('cleans up a listener that resolves after unmount', async () => {
+    let resolveListen: ((unlisten: () => void) => void) | undefined;
+    const unlisten = vi.fn();
+    mocks.listen.mockReturnValue(
+      new Promise<() => void>((resolve) => {
+        resolveListen = resolve;
+      }),
+    );
+
+    const view = renderPage();
+    view.unmount();
+    resolveListen?.(unlisten);
+
+    await waitFor(() => expect(unlisten).toHaveBeenCalledOnce());
   });
 });

@@ -1,0 +1,69 @@
+import { Pencil, Tag as TagIcon, Trash2 } from 'lucide-react';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import { cn } from '@/lib/utils';
+import type { TodoTag } from '@/types';
+
+interface TodoSidebarProps {
+  tags: TodoTag[];
+  total: number;
+  selectedTagId: number | null;
+  onSelectTag: (tagId: number | null) => void;
+  onRenameTag: (tag: TodoTag) => void;
+  onDeleteTag: (tag: TodoTag) => void;
+}
+
+const tagButtonClass = (selected: boolean) =>
+  cn(
+    'flex w-full items-center justify-between rounded-xl px-3 py-2 text-left',
+    selected ? 'bg-muted font-medium' : 'hover:bg-muted/60',
+  );
+
+export default function TodoSidebar({
+  tags,
+  total,
+  selectedTagId,
+  onSelectTag,
+  onRenameTag,
+  onDeleteTag,
+}: TodoSidebarProps) {
+  return (
+    <aside className="thin-scrollbar w-64 shrink-0 overflow-y-auto border-r border-border bg-sidebar/50 p-4">
+      <h2 className="mb-3 px-2 text-sm font-semibold text-muted-foreground">分类</h2>
+      <button onClick={() => onSelectTag(null)} className={tagButtonClass(selectedTagId === null)}>
+        <span>所有任务</span>
+        <span className="text-xs text-muted-foreground">{total}</span>
+      </button>
+      <div className="mt-2 flex flex-col gap-1">
+        {tags.map((tag) => (
+          <ContextMenu key={tag.id}>
+            <ContextMenuTrigger
+              className={tagButtonClass(selectedTagId === tag.id)}
+              onClick={() => onSelectTag(tag.id)}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <TagIcon className="size-4 shrink-0" />
+                <span className="truncate">{tag.name}</span>
+              </span>
+              <span className="text-xs text-muted-foreground">{tag.count}</span>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onClick={() => onRenameTag(tag)}>
+                <Pencil />
+                重命名
+              </ContextMenuItem>
+              <ContextMenuItem variant="destructive" onClick={() => onDeleteTag(tag)}>
+                <Trash2 />
+                删除
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        ))}
+      </div>
+    </aside>
+  );
+}

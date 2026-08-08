@@ -1,47 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Circle,
-  CircleCheck,
-  CirclePause,
-  CircleX,
-  Pencil,
-  Play,
-  Plus,
-  Tag as TagIcon,
-  Trash2,
-} from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { toast } from '@/components/ui/toast';
 import type { CreateTodo, Todo, TodoStatus, TodoTag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { tagColor } from '@/lib/tagColor';
 import {
   createTodoApi,
   deleteTodoApi,
@@ -56,8 +21,13 @@ import {
   updateTodoApi,
 } from './todos.api';
 import TodoDialog from './TodoDialog';
+import TodoListItem from './TodoListItem';
+import TodoSidebar from './TodoSidebar';
+import TodoTagDialogs from './TodoTagDialogs';
 
-const STATUS_TABS: Array<{ value: TodoStatus | 'all'; label: string }> = [
+type StatusFilter = TodoStatus | 'all';
+
+const STATUS_TABS: Array<{ value: StatusFilter; label: string }> = [
   { value: 'all', label: '全部' },
   { value: 'in_progress', label: '进行中' },
   { value: 'completed', label: '已完成' },
@@ -65,27 +35,9 @@ const STATUS_TABS: Array<{ value: TodoStatus | 'all'; label: string }> = [
   { value: 'canceled', label: '已取消' },
 ];
 
-function statusIcon(todo: Todo, onToggle: () => void, disabled: boolean) {
-  if (todo.status === 'completed')
-    return (
-      <button aria-label="标记为进行中" disabled={disabled} onClick={onToggle}>
-        <CircleCheck className="size-6 text-emerald-500" />
-      </button>
-    );
-  if (todo.status === 'in_progress')
-    return (
-      <button aria-label="标记为已完成" disabled={disabled} onClick={onToggle}>
-        <Circle className="size-6 text-violet-500" />
-      </button>
-    );
-  if (todo.status === 'suspended')
-    return <CirclePause aria-label="已挂起" className="size-6 text-amber-500" />;
-  return <CircleX aria-label="已取消" className="size-6 text-rose-500" />;
-}
-
 export default function TodoPage() {
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<TodoStatus | 'all'>('all');
+  const [status, setStatus] = useState<StatusFilter>('all');
   const [tagId, setTagId] = useState<number | null>(null);
   const [quickTitle, setQuickTitle] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -113,16 +65,21 @@ export default function TodoPage() {
   }, [queryClient]);
 
   useEffect(() => {
+    let cancelled = false;
     let unlisten: (() => void) | undefined;
     listen('todos-changed', invalidate)
       .then((value) => {
-        unlisten = value;
+        if (cancelled) value();
+        else unlisten = value;
       })
       .catch(() => {
         // Browser previews do not expose the Tauri event bridge.
       });
-    return () => unlisten?.();
-  }, [queryClient]);
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [invalidate]);
 
   const reportError = (error: unknown) => {
     const message =
@@ -155,16 +112,16 @@ export default function TodoPage() {
   });
   const renameMutation = useMutation({
     mutationFn: ({ id, name }: { id: number; name: string }) => renameTodoTagApi(id, name),
-    onSuccess: async (tag) => {
-      setTagId((current) => (current === renaming?.id ? tag.id : current));
+    onSuccess: async (tag, variables) => {
+      setTagId((current) => (current === variables.id ? tag.id : current));
       await invalidate();
     },
     onError: reportError,
   });
   const deleteTagMutation = useMutation({
     mutationFn: deleteTodoTagApi,
-    onSuccess: async () => {
-      if (tagId === deletingTag?.id) setTagId(null);
+    onSuccess: async (_result, deletedId) => {
+      setTagId((current) => (current === deletedId ? null : current));
       await invalidate();
     },
     onError: reportError,
@@ -188,47 +145,17 @@ export default function TodoPage() {
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
-      <aside className="thin-scrollbar w-64 shrink-0 overflow-y-auto border-r border-border bg-sidebar/50 p-4">
-        <h2 className="mb-3 px-2 text-sm font-semibold text-muted-foreground">分类</h2>
-        <button
-          onClick={() => setTagId(null)}
-          className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left ${tagId === null ? 'bg-muted font-medium' : 'hover:bg-muted/60'}`}
-        >
-          <span>所有任务</span>
-          <span className="text-xs text-muted-foreground">{overview.data?.total ?? 0}</span>
-        </button>
-        <div className="mt-2 space-y-1">
-          {tags.data?.map((tag) => (
-            <ContextMenu key={tag.id}>
-              <ContextMenuTrigger
-                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left ${tagId === tag.id ? 'bg-muted font-medium' : 'hover:bg-muted/60'}`}
-                onClick={() => setTagId(tag.id)}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <TagIcon className="size-4 shrink-0" />
-                  <span className="truncate">{tag.name}</span>
-                </span>
-                <span className="text-xs text-muted-foreground">{tag.count}</span>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem
-                  onClick={() => {
-                    setRenaming(tag);
-                    setRenameValue(tag.name);
-                  }}
-                >
-                  <Pencil />
-                  重命名
-                </ContextMenuItem>
-                <ContextMenuItem variant="destructive" onClick={() => setDeletingTag(tag)}>
-                  <Trash2 />
-                  删除
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          ))}
-        </div>
-      </aside>
+      <TodoSidebar
+        tags={tags.data ?? []}
+        total={overview.data?.total ?? 0}
+        selectedTagId={tagId}
+        onSelectTag={setTagId}
+        onRenameTag={(tag) => {
+          setRenaming(tag);
+          setRenameValue(tag.name);
+        }}
+        onDeleteTag={setDeletingTag}
+      />
 
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between px-8 py-5">
@@ -239,7 +166,7 @@ export default function TodoPage() {
               setDialogOpen(true);
             }}
           >
-            <Plus />
+            <Plus data-icon="inline-start" />
             新建任务
           </Button>
         </header>
@@ -268,7 +195,7 @@ export default function TodoPage() {
         </div>
         <Tabs
           value={status}
-          onValueChange={(value) => setStatus(value as TodoStatus | 'all')}
+          onValueChange={(value) => setStatus(value as StatusFilter)}
           className="border-b border-border px-8 pb-3"
         >
           <TabsList variant="line">
@@ -290,112 +217,21 @@ export default function TodoPage() {
           ) : todos.data?.items.length === 0 ? (
             <p className="py-10 text-center text-muted-foreground">{emptyText}</p>
           ) : (
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1">
               {todos.data?.items.map((todo) => (
-                <ContextMenu key={todo.id}>
-                  <ContextMenuTrigger className="flex w-full items-start gap-3 rounded-2xl px-3 py-3 hover:bg-muted/60">
-                    <span className="mt-0.5 shrink-0" onClick={(event) => event.stopPropagation()}>
-                      {statusIcon(
-                        todo,
-                        () =>
-                          statusMutation.mutate({
-                            id: todo.id,
-                            next: todo.status === 'completed' ? 'in_progress' : 'completed',
-                          }),
-                        statusMutation.isPending,
-                      )}
-                    </span>
-                    <button
-                      className="min-w-0 flex-1 text-left"
-                      onClick={() => {
-                        setEditing(todo);
-                        setDialogOpen(true);
-                      }}
-                    >
-                      <div
-                        className={`font-medium ${todo.status === 'completed' ? 'text-muted-foreground line-through' : ''}`}
-                      >
-                        {todo.title}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        {todo.tags.map((name) => {
-                          const tag = tags.data?.find(
-                            (item) => item.name.toLowerCase() === name.toLowerCase(),
-                          );
-                          return (
-                            <span
-                              key={name}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (tag) setTagId(tag.id);
-                              }}
-                              className="rounded-md px-2 py-0.5 text-xs"
-                              style={tagColor(name)}
-                            >
-                              {name}
-                            </span>
-                          );
-                        })}
-                        {todo.is_high_priority && (
-                          <span className="rounded-md bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-500">
-                            高
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  </ContextMenuTrigger>
-                  <ContextMenuContent>
-                    <ContextMenuItem
-                      onClick={() => {
-                        setEditing(todo);
-                        setDialogOpen(true);
-                      }}
-                    >
-                      <Pencil />
-                      编辑
-                    </ContextMenuItem>
-                    {todo.status === 'in_progress' && (
-                      <ContextMenuItem
-                        onClick={() => statusMutation.mutate({ id: todo.id, next: 'suspended' })}
-                      >
-                        <CirclePause />
-                        挂起
-                      </ContextMenuItem>
-                    )}
-                    {todo.status === 'suspended' && (
-                      <ContextMenuItem
-                        onClick={() => statusMutation.mutate({ id: todo.id, next: 'in_progress' })}
-                      >
-                        <Play />
-                        取消挂起
-                      </ContextMenuItem>
-                    )}
-                    {(todo.status === 'completed' || todo.status === 'canceled') && (
-                      <ContextMenuItem
-                        onClick={() => statusMutation.mutate({ id: todo.id, next: 'in_progress' })}
-                      >
-                        <Play />
-                        重新打开
-                      </ContextMenuItem>
-                    )}
-                    {(todo.status === 'in_progress' || todo.status === 'suspended') && (
-                      <ContextMenuItem
-                        onClick={() => statusMutation.mutate({ id: todo.id, next: 'canceled' })}
-                      >
-                        <CircleX />
-                        取消任务
-                      </ContextMenuItem>
-                    )}
-                    <ContextMenuSeparator />
-                    <ContextMenuItem
-                      variant="destructive"
-                      onClick={() => deleteMutation.mutate(todo.id)}
-                    >
-                      <Trash2 />
-                      删除
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                </ContextMenu>
+                <TodoListItem
+                  key={todo.id}
+                  todo={todo}
+                  tags={tags.data ?? []}
+                  statusPending={statusMutation.isPending}
+                  onEdit={(item) => {
+                    setEditing(item);
+                    setDialogOpen(true);
+                  }}
+                  onSelectTag={setTagId}
+                  onSetStatus={(id, next) => statusMutation.mutate({ id, next })}
+                  onDelete={(id) => deleteMutation.mutate(id)}
+                />
               ))}
             </div>
           )}
@@ -414,71 +250,34 @@ export default function TodoPage() {
         onSave={saveDialog}
       />
 
-      <Dialog open={Boolean(renaming)} onOpenChange={(open) => !open && setRenaming(null)}>
-        <DialogContent>
-          <form
-            onSubmit={async (event) => {
-              event.preventDefault();
-              if (!renaming || !renameValue.trim()) return;
-              try {
-                await renameMutation.mutateAsync({ id: renaming.id, name: renameValue });
-                setRenaming(null);
-              } catch {
-                /* toast handled */
-              }
-            }}
-            className="grid gap-5"
-          >
-            <DialogHeader>
-              <DialogTitle>重命名标签</DialogTitle>
-            </DialogHeader>
-            <Input
-              value={renameValue}
-              onChange={(event) => setRenameValue(event.target.value)}
-              autoFocus
-            />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setRenaming(null)}>
-                取消
-              </Button>
-              <Button type="submit" disabled={!renameValue.trim() || renameMutation.isPending}>
-                保存
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog
-        open={Boolean(deletingTag)}
-        onOpenChange={(open) => !open && setDeletingTag(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>删除标签“{deletingTag?.name}”？</AlertDialogTitle>
-            <AlertDialogDescription>
-              只会删除标签及其任务关联，不会删除任何任务。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel render={<Button variant="outline" />}>取消</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleteTagMutation.isPending}
-              onClick={async () => {
-                if (!deletingTag) return;
-                try {
-                  await deleteTagMutation.mutateAsync(deletingTag.id);
-                  setDeletingTag(null);
-                } catch {
-                  /* toast handled */
-                }
-              }}
-            >
-              删除标签
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <TodoTagDialogs
+        renaming={renaming}
+        renameValue={renameValue}
+        renamePending={renameMutation.isPending}
+        deleting={deletingTag}
+        deletePending={deleteTagMutation.isPending}
+        onRenameValueChange={setRenameValue}
+        onCloseRename={() => setRenaming(null)}
+        onRename={async () => {
+          if (!renaming) return;
+          try {
+            await renameMutation.mutateAsync({ id: renaming.id, name: renameValue });
+            setRenaming(null);
+          } catch {
+            /* toast handled */
+          }
+        }}
+        onCloseDelete={() => setDeletingTag(null)}
+        onDelete={async () => {
+          if (!deletingTag) return;
+          try {
+            await deleteTagMutation.mutateAsync(deletingTag.id);
+            setDeletingTag(null);
+          } catch {
+            /* toast handled */
+          }
+        }}
+      />
     </div>
   );
 }
