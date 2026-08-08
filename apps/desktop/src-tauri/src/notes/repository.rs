@@ -15,10 +15,13 @@ pub fn scan_notes(dir: &str) -> io::Result<Vec<NoteFile>> {
 
 fn scan_dir(root: &Path, current: &Path, notes: &mut Vec<NoteFile>) -> io::Result<()> {
     for entry in fs::read_dir(current)? {
-        let path = entry?.path();
-        if path.is_dir() {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let path = entry.path();
+        if file_type.is_dir() {
             scan_dir(root, &path, notes)?;
-        } else if path.extension().is_some_and(|extension| extension == "md") {
+        } else if file_type.is_file() && path.extension().is_some_and(|extension| extension == "md")
+        {
             if let Some(note) = scan_note(root, &path) {
                 notes.push(note);
             }
@@ -50,6 +53,9 @@ pub fn delete(path: &str) -> io::Result<()> {
 }
 
 pub fn rename(old_path: &str, new_path: &str) -> io::Result<()> {
+    if Path::new(new_path).exists() {
+        return Err(io::Error::new(io::ErrorKind::AlreadyExists, "文件已存在"));
+    }
     fs::rename(old_path, new_path)
 }
 

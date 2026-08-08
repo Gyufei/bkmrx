@@ -1,12 +1,18 @@
+// @ts-nocheck
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import muteWarningsPlugin from './mute-warnings-plugin'
 
 const host = process.env.TAURI_DEV_HOST;
+const warningsToIgnore = [
+  ['SOURCEMAP_ERROR', "Can't resolve original location of error"],
+  ['INVALID_ANNOTATION', 'contains an annotation that Rollup cannot interpret'],
+]
 
 export default defineConfig(async () => ({
-  plugins: [tailwindcss(), react()],
+  plugins: [tailwindcss(), react(), muteWarningsPlugin(warningsToIgnore)],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

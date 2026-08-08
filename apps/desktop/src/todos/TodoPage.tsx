@@ -187,8 +187,8 @@ export default function TodoPage() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <aside className="w-64 shrink-0 overflow-y-auto border-r border-border bg-sidebar/50 p-4">
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      <aside className="thin-scrollbar w-64 shrink-0 overflow-y-auto border-r border-border bg-sidebar/50 p-4">
         <h2 className="mb-3 px-2 text-sm font-semibold text-muted-foreground">分类</h2>
         <button
           onClick={() => setTagId(null)}
@@ -230,7 +230,7 @@ export default function TodoPage() {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between px-8 py-5">
           <h1 className="text-2xl font-semibold">{selectedTag?.name ?? '所有任务'}</h1>
           <Button
@@ -280,7 +280,7 @@ export default function TodoPage() {
           </TabsList>
         </Tabs>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-8 py-4">
+        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-8 py-4">
           {todos.isLoading ? (
             <p className="py-10 text-center text-muted-foreground">正在加载任务…</p>
           ) : todos.isError ? (
@@ -400,7 +400,7 @@ export default function TodoPage() {
             </div>
           )}
         </div>
-        <footer className="shrink-0 px-8 py-4 text-sm text-muted-foreground">
+        <footer className="mt-auto shrink-0 border-t border-border bg-background px-8 py-2 text-sm text-muted-foreground">
           {todos.data?.total ?? 0} 个任务 · {todos.data?.completed ?? 0} 个已完成
         </footer>
       </main>

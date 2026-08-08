@@ -86,6 +86,16 @@ describe('TodoPage', () => {
     expect(toggle.querySelector('.lucide-circle-dot')).toBeNull();
   });
 
+  it('keeps the status panel at the bottom and uses the shared scrollbar style', async () => {
+    const { container } = renderPage();
+
+    const statusPanel = await screen.findByText('1 个任务 · 0 个已完成');
+    expect(statusPanel.tagName).toBe('FOOTER');
+    expect(statusPanel.classList.contains('mt-auto')).toBe(true);
+    expect(statusPanel.classList.contains('border-t')).toBe(true);
+    expect(container.querySelectorAll('.thin-scrollbar')).toHaveLength(2);
+  });
+
   it('quick creates on Enter with the documented defaults', async () => {
     renderPage();
     const input = await screen.findByPlaceholderText('快速添加任务，按 Enter 提交…');
