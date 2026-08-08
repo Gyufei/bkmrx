@@ -241,13 +241,14 @@ function BookmarkRow({
 
   return (
     <div className="group relative">
-      <div
-        onClick={handleClick}
-        className="block px-4 py-3 rounded-md hover:bg-accent dark:hover:bg-accent cursor-pointer transition-colors"
-      >
-        <div className="text-base font-medium text-foreground group-hover:text-primary transition-colors truncate pr-6">
+      <div className="block px-4 py-3 rounded-md hover:bg-accent dark:hover:bg-accent transition-colors">
+        <button
+          type="button"
+          onClick={handleClick}
+          className="block max-w-full text-left text-base font-medium text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors truncate pr-6 cursor-pointer"
+        >
           {bookmark.title || bookmark.url}
-        </div>
+        </button>
         <div className="text-xs text-muted-foreground truncate mt-0.5">{bookmark.url}</div>
         {bookmark.description && (
           <div className="text-xs text-muted-foreground mt-1 line-clamp-2">

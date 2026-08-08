@@ -113,6 +113,29 @@ function renderList({
   );
 }
 
+it('opens a bookmark only when its title is clicked', () => {
+  const bookmark: Bookmark = {
+    id: 1,
+    url: 'https://example.com',
+    title: 'Example',
+    description: '',
+    tags: [],
+    access_count: 0,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    accessed_at: null,
+    starred_at: null,
+  };
+  renderList({ bookmark, starredView: false, onToggleStarred: vi.fn() });
+
+  fireEvent.click(screen.getByText(bookmark.url));
+  expect(openMock).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: bookmark.title }));
+  expect(openMock).toHaveBeenCalledOnce();
+  expect(openMock).toHaveBeenCalledWith(bookmark.url);
+});
+
 it('stars a bookmark from an independent accessible card button', () => {
   const onToggleStarred = vi.fn();
   const bookmark: Bookmark = {

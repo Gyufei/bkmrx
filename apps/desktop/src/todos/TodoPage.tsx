@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Circle,
   CircleCheck,
-  CircleDot,
   CirclePause,
   CircleX,
   Pencil,
@@ -75,7 +75,7 @@ function statusIcon(todo: Todo, onToggle: () => void, disabled: boolean) {
   if (todo.status === 'in_progress')
     return (
       <button aria-label="标记为已完成" disabled={disabled} onClick={onToggle}>
-        <CircleDot className="size-6 text-violet-500" />
+        <Circle className="size-6 text-violet-500" />
       </button>
     );
   if (todo.status === 'suspended')
@@ -254,7 +254,7 @@ export default function TodoPage() {
                 await createMutation.mutateAsync({
                   title: quickTitle,
                   description: '',
-                  tags: [],
+                  tags: selectedTag ? [selectedTag.name] : [],
                   is_high_priority: false,
                 });
                 setQuickTitle('');
@@ -409,6 +409,7 @@ export default function TodoPage() {
         open={dialogOpen}
         todo={editing}
         availableTags={tags.data ?? []}
+        defaultTag={selectedTag?.name}
         onOpenChange={setDialogOpen}
         onSave={saveDialog}
       />

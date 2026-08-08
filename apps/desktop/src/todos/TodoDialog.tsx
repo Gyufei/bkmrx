@@ -18,6 +18,7 @@ interface TodoDialogProps {
   open: boolean;
   todo: Todo | null;
   availableTags: TodoTag[];
+  defaultTag?: string;
   onOpenChange: (open: boolean) => void;
   onSave: (input: CreateTodo) => Promise<void>;
 }
@@ -26,6 +27,7 @@ export default function TodoDialog({
   open,
   todo,
   availableTags,
+  defaultTag,
   onOpenChange,
   onSave,
 }: TodoDialogProps) {
@@ -40,10 +42,10 @@ export default function TodoDialog({
     if (!open) return;
     setTitle(todo?.title ?? '');
     setDescription(todo?.description ?? '');
-    setTags(todo?.tags ?? []);
+    setTags(todo?.tags ?? (defaultTag ? [defaultTag] : []));
     setHigh(todo?.is_high_priority ?? false);
     setTagInput('');
-  }, [open, todo]);
+  }, [open, todo, defaultTag]);
 
   const addTag = (value: string) => {
     const next = value.trim();

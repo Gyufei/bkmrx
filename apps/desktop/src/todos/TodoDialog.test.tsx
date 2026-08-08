@@ -7,6 +7,21 @@ import TodoDialog from './TodoDialog';
 afterEach(cleanup);
 
 describe('TodoDialog', () => {
+  it('prefills the selected tag for a new task', () => {
+    render(
+      <TodoDialog
+        open
+        todo={null}
+        availableTags={[]}
+        defaultTag="工作"
+        onOpenChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('工作')).toBeTruthy();
+  });
+
   it('includes a pending tag when saving without pressing Enter', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(

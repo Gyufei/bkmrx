@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   setStatus: vi.fn(),
   toastAdd: vi.fn(),
+  dialog: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
@@ -25,7 +26,12 @@ vi.mock('./todos.api', async (importOriginal) => {
     setTodoStatusApi: mocks.setStatus,
   };
 });
-vi.mock('./TodoDialog', () => ({ default: () => null }));
+vi.mock('./TodoDialog', () => ({
+  default: (props: unknown) => {
+    mocks.dialog(props);
+    return null;
+  },
+}));
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -72,6 +78,14 @@ describe('TodoPage', () => {
     );
   });
 
+  it('renders an empty circle for an in-progress task', async () => {
+    renderPage();
+
+    const toggle = await screen.findByRole('button', { name: '标记为已完成' });
+    expect(toggle.querySelector('.lucide-circle')).toBeTruthy();
+    expect(toggle.querySelector('.lucide-circle-dot')).toBeNull();
+  });
+
   it('quick creates on Enter with the documented defaults', async () => {
     renderPage();
     const input = await screen.findByPlaceholderText('快速添加任务，按 Enter 提交…');
@@ -82,6 +96,31 @@ describe('TodoPage', () => {
         title: '新任务',
         description: '',
         tags: [],
+        is_high_priority: false,
+      }),
+    );
+  });
+
+  it('uses the selected tag for dialog and quick creation', async () => {
+    renderPage();
+    await screen.findByText('写测试');
+    fireEvent.click(screen.getByText('工作', { selector: 'span.truncate' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '新建任务' }));
+    await waitFor(() =>
+      expect(mocks.dialog.mock.calls[mocks.dialog.mock.calls.length - 1]?.[0]).toEqual(
+        expect.objectContaining({ open: true, todo: null, defaultTag: '工作' }),
+      ),
+    );
+
+    const input = screen.getByPlaceholderText('快速添加任务，按 Enter 提交…');
+    fireEvent.change(input, { target: { value: '标签任务' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() =>
+      expect(mocks.create.mock.calls[0]?.[0]).toEqual({
+        title: '标签任务',
+        description: '',
+        tags: ['工作'],
         is_high_priority: false,
       }),
     );
