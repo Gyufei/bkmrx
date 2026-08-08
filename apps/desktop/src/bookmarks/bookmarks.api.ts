@@ -11,6 +11,7 @@ import type {
   BookmarkPage,
   BookmarkPageRequest,
   CreateBookmark,
+  TagQueryRequest,
   UpdateBookmark,
 } from '../types';
 
@@ -36,8 +37,12 @@ export function queryBookmarksApi(request: BookmarkPageRequest) {
   return invokeQueryBookmarks(request);
 }
 
-export function getAllTagsApi() {
-  return invokeGetTags();
+export function tagQueryKey(query: string, limit: number | null) {
+  return [BkQueryApiKey.TAGS, query.trim(), limit] as const;
+}
+
+export function getTagsApi(request: TagQueryRequest) {
+  return invokeGetTags({ ...request, query: request.query.trim() });
 }
 
 export function addBookmarkApi(input: CreateBookmark) {
@@ -52,13 +57,7 @@ export function checkBookmarkApi(url: string) {
   return invokeGetBookmarkByUrl(url);
 }
 
-export function updateBookmarkApi({
-  id,
-  input,
-}: {
-  id: number;
-  input: UpdateBookmark;
-}) {
+export function updateBookmarkApi({ id, input }: { id: number; input: UpdateBookmark }) {
   return invokeUpdateBookmark(id, input);
 }
 

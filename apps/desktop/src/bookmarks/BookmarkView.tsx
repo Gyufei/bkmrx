@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { Plus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import type { BookmarkBaseView } from '@/types';
 import AddBookmarkDialog from './AddBookmarkDialog';
 import {
   BkQueryApiKey,
@@ -14,7 +15,7 @@ import {
 } from './bookmarks.api';
 import ResultList from './ResultList';
 import SearchBar from './SearchBar';
-import TagPanel from './TagPanel';
+import BookmarkSidebar from './BookmarkSidebar';
 
 const PAGE_SIZE = 50;
 
@@ -22,8 +23,10 @@ export default function BookmarkView() {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [baseView, setBaseView] = useState<BookmarkBaseView>('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const starredView = query.length === 0 && selectedTags.length === 0;
+  const isSearchMode = query.length > 0 || selectedTags.length > 0;
+  const starredView = !isSearchMode && baseView === 'starred';
 
   const bookmarksQuery = useInfiniteQuery({
     queryKey: bookmarkQueryKey(query, selectedTags, PAGE_SIZE, starredView),
@@ -85,7 +88,12 @@ export default function BookmarkView() {
       </div>
       <div className="flex-1 flex overflow-hidden">
         <aside className="w-56 shrink-0 border-r border-border bg-sidebar p-3 flex flex-col">
-          <TagPanel selectedTags={selectedTags} onTagsChange={handleTagsChange} />
+          <BookmarkSidebar
+            selectedTags={selectedTags}
+            onTagsChange={handleTagsChange}
+            baseView={baseView}
+            onBaseViewChange={setBaseView}
+          />
         </aside>
         <main className="flex-1 flex flex-col overflow-hidden">
           {starMutation.isError && (
@@ -101,16 +109,12 @@ export default function BookmarkView() {
               bookmarks={bookmarks}
               initialLoading={bookmarksQuery.isLoading}
               initialError={
-                bookmarksQuery.isError && !bookmarksQuery.data
-                  ? bookmarksQuery.error.message
-                  : null
+                bookmarksQuery.isError && !bookmarksQuery.data ? bookmarksQuery.error.message : null
               }
               hasMore={bookmarksQuery.hasNextPage}
               isFetchingNextPage={bookmarksQuery.isFetchingNextPage}
               nextPageError={
-                bookmarksQuery.isFetchNextPageError
-                  ? bookmarksQuery.error.message
-                  : null
+                bookmarksQuery.isFetchNextPageError ? bookmarksQuery.error.message : null
               }
               onLoadMore={() => bookmarksQuery.fetchNextPage()}
               onRetryNextPage={() => bookmarksQuery.fetchNextPage()}
@@ -118,11 +122,11 @@ export default function BookmarkView() {
               emptyMessage={
                 starredView
                   ? '暂无星标书签。在搜索结果中点击星形按钮，即可将常用书签显示在这里。'
-                  : '暂无匹配的书签'
+                  : isSearchMode
+                    ? '暂无匹配的书签'
+                    : '暂无书签'
               }
-              starPendingId={
-                starMutation.isPending ? (starMutation.variables?.id ?? null) : null
-              }
+              starPendingId={starMutation.isPending ? (starMutation.variables?.id ?? null) : null}
               onToggleStarred={(bookmark, starred) =>
                 starMutation.mutate({ id: bookmark.id, starred })
               }

@@ -6,7 +6,9 @@ use rusqlite::{params, params_from_iter, OptionalExtension, Transaction};
 
 use crate::database::Database;
 
-use super::{AppError, AppResult, Bookmark, CreateBookmark, TagSummary, UpdateBookmark};
+use super::{
+    AppError, AppResult, Bookmark, CreateBookmark, TagQueryRequest, TagSummary, UpdateBookmark,
+};
 
 pub trait BookmarkRepository: Send + Sync {
     /// Creates a bookmark after normalizing its URL, title, and tags.
@@ -21,8 +23,8 @@ pub trait BookmarkRepository: Send + Sync {
     fn get_by_url(&self, url: &str) -> AppResult<Option<Bookmark>>;
     /// Returns existing bookmarks in first-occurrence input order, omitting duplicate IDs.
     fn get_by_ids_ordered(&self, ids: &[i64]) -> AppResult<Vec<Bookmark>>;
-    /// Returns tags ordered by bookmark count descending, then name ascending.
-    fn get_tags(&self) -> AppResult<Vec<TagSummary>>;
+    /// Returns matching tags ordered by bookmark count descending, then name ascending.
+    fn get_tags(&self, request: &TagQueryRequest) -> AppResult<Vec<TagSummary>>;
     /// Increments a bookmark's access count and records its latest access time.
     fn record_access(&self, id: i64) -> AppResult<Bookmark>;
     /// Adds or removes a bookmark star without changing content updated_at.
@@ -202,19 +204,32 @@ impl BookmarkRepository for SqliteBookmarkRepository {
         Ok(ids.iter().filter_map(|id| bookmarks.remove(id)).collect())
     }
 
-    fn get_tags(&self) -> AppResult<Vec<TagSummary>> {
+    fn get_tags(&self, request: &TagQueryRequest) -> AppResult<Vec<TagSummary>> {
+        if request
+            .limit
+            .is_some_and(|limit| !(1..=100).contains(&limit))
+        {
+            return Err(AppError::validation_error(
+                "Tag query limit must be between 1 and 100",
+            ));
+        }
+
+        let query = request.query.trim();
+        let pattern = format!("%{}%", escape_like(query));
         let connection = self.database.connection()?;
         let mut statement = connection
             .prepare(
-                "SELECT t.name, count(bt.bookmark_id)
+                "SELECT t.name, count(bt.bookmark_id) AS bookmark_count
                  FROM tags t
                  JOIN bookmark_tags bt ON bt.tag_id = t.id
+                 WHERE ?1 = '' OR t.name LIKE ?2 ESCAPE '\\' COLLATE NOCASE
                  GROUP BY t.id, t.name
-                 ORDER BY count(bt.bookmark_id) DESC, t.name ASC",
+                 ORDER BY bookmark_count DESC, t.name ASC
+                 LIMIT COALESCE(?3, -1)",
             )
             .map_err(database_error)?;
         let rows = statement
-            .query_map([], |row| {
+            .query_map(params![query, pattern, request.limit], |row| {
                 Ok(TagSummary {
                     name: row.get(0)?,
                     count: row.get(1)?,
@@ -447,6 +462,13 @@ fn placeholders(count: usize) -> String {
     std::iter::repeat_n("?", count)
         .collect::<Vec<_>>()
         .join(",")
+}
+
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 fn write_error(error: rusqlite::Error, url: &str) -> AppError {

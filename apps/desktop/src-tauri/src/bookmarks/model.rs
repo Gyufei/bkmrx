@@ -21,6 +21,13 @@ pub struct TagSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TagQueryRequest {
+    #[serde(default)]
+    pub query: String,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BookmarkPageRequest {
     pub query: String,
     pub tags: Vec<String>,

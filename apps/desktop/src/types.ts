@@ -16,6 +16,13 @@ export interface Tag {
   count: number;
 }
 
+export interface TagQueryRequest {
+  query: string;
+  limit: number | null;
+}
+
+export type BookmarkBaseView = 'all' | 'starred';
+
 export interface BookmarkPageRequest {
   query: string;
   tags: string[];

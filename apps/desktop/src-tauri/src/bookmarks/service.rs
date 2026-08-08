@@ -5,8 +5,8 @@ use std::{
 
 use super::{
     AppResult, Bookmark, BookmarkPage, BookmarkPageRequest, BookmarkRepository, BookmarkSearch,
-    CreateBookmark, ImportPreview, SqliteBookmarkRepository, SqliteFtsSearch, TagSummary,
-    UpdateBookmark,
+    CreateBookmark, ImportPreview, SqliteBookmarkRepository, SqliteFtsSearch, TagQueryRequest,
+    TagSummary, UpdateBookmark,
 };
 
 type ChangeNotifier = Arc<dyn Fn() + Send + Sync>;
@@ -72,8 +72,8 @@ impl<R: BookmarkRepository, S: BookmarkSearch> BookmarkService<R, S> {
         self.repository.get_by_url(url.trim())
     }
 
-    pub fn get_tags(&self) -> AppResult<Vec<TagSummary>> {
-        self.repository.get_tags()
+    pub fn get_tags(&self, request: TagQueryRequest) -> AppResult<Vec<TagSummary>> {
+        self.repository.get_tags(&request)
     }
 
     pub fn record_access(&self, id: i64) -> AppResult<Bookmark> {

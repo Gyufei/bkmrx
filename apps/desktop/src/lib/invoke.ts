@@ -7,6 +7,7 @@ import type {
   ImportPreview,
   NoteFile,
   Tag,
+  TagQueryRequest,
   UpdateBookmark,
 } from '../types';
 
@@ -16,8 +17,8 @@ export function invokeQueryBookmarks(request: BookmarkPageRequest): Promise<Book
   return invoke<BookmarkPage>('query_bookmarks', { request });
 }
 
-export function invokeGetTags(): Promise<Tag[]> {
-  return invoke<Tag[]>('get_tags');
+export function invokeGetTags(request: TagQueryRequest): Promise<Tag[]> {
+  return invoke<Tag[]>('get_tags', { request });
 }
 
 export function invokeCreateBookmark(input: CreateBookmark): Promise<Bookmark> {
@@ -52,10 +53,7 @@ export function invokePreviewBookmarkImport(path: string): Promise<ImportPreview
   return invoke<ImportPreview>('preview_bookmark_import', { path });
 }
 
-export function invokeApplyBookmarkImport(
-  path: string,
-  fileHash: string,
-): Promise<ImportPreview> {
+export function invokeApplyBookmarkImport(path: string, fileHash: string): Promise<ImportPreview> {
   return invoke<ImportPreview>('apply_bookmark_import', { path, fileHash });
 }
 

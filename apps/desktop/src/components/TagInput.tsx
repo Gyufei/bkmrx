@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { tagColor } from '../lib/tagColor';
 import { useQuery } from '@tanstack/react-query';
-import { getAllTagsApi, BkQueryApiKey } from '@/bookmarks/bookmarks.api';
+import { getTagsApi, tagQueryKey } from '@/bookmarks/bookmarks.api';
 
 interface TagInputProps {
   value: string[];
@@ -28,8 +28,8 @@ export default function TagInput({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data: allTags } = useQuery({
-    queryKey: [BkQueryApiKey.TAGS],
-    queryFn: getAllTagsApi,
+    queryKey: tagQueryKey('', null),
+    queryFn: () => getTagsApi({ query: '', limit: null }),
   });
 
 

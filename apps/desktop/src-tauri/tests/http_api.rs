@@ -204,3 +204,28 @@ async fn list_route_defaults_to_fifty_and_maps_cursor_errors() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(invalid["error"]["code"], "invalid_cursor");
 }
+
+#[tokio::test]
+async fn tag_route_remains_unlimited() {
+    let service = service();
+    for index in 0..55 {
+        service
+            .create(CreateBookmark {
+                url: format!("https://example.com/tag/{index}"),
+                title: format!("Bookmark {index}"),
+                description: String::new(),
+                tags: vec![format!("tag{index:02}")],
+            })
+            .unwrap();
+    }
+    let app = http_server::router(service);
+
+    let response = app
+        .oneshot(Request::get("/api/tags").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let (status, tags) = json_response(response).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(tags.as_array().unwrap().len(), 55);
+}

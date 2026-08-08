@@ -1,5 +1,5 @@
 use bkmrx_lib::bookmarks::{
-    BookmarkRepository, CreateBookmark, SqliteBookmarkRepository, UpdateBookmark,
+    BookmarkRepository, CreateBookmark, SqliteBookmarkRepository, TagQueryRequest, UpdateBookmark,
 };
 use bkmrx_lib::database::Database;
 use std::sync::Arc;
@@ -82,6 +82,13 @@ fn bookmark(url: &str, tags: &[&str]) -> CreateBookmark {
     }
 }
 
+fn tag_query(query: &str, limit: Option<u32>) -> TagQueryRequest {
+    TagQueryRequest {
+        query: query.to_owned(),
+        limit,
+    }
+}
+
 #[test]
 fn repository_create_round_trips_bookmark_and_tags() {
     let (_, repository) = repository();
@@ -148,13 +155,95 @@ fn repository_get_tags_orders_by_count_descending_then_name_ascending() {
         .create(bookmark("https://example.com/three", &["gamma"]))
         .unwrap();
 
-    let tags = repository.get_tags().unwrap();
+    let tags = repository.get_tags(&tag_query("", None)).unwrap();
     let ordered = tags
         .iter()
         .map(|tag| (tag.name.as_str(), tag.count))
         .collect::<Vec<_>>();
 
     assert_eq!(ordered, vec![("gamma", 3), ("alpha", 1), ("beta", 1)]);
+}
+
+#[test]
+fn repository_get_tags_distinguishes_unlimited_popular_and_searched_results() {
+    let (_, repository) = repository();
+    for index in 0..55 {
+        let tag = format!("tag{index:02}");
+        repository
+            .create(CreateBookmark {
+                url: format!("https://example.com/{index}"),
+                title: format!("Bookmark {index}"),
+                description: String::new(),
+                tags: vec![tag],
+            })
+            .unwrap();
+    }
+
+    let all = repository.get_tags(&tag_query("", None)).unwrap();
+    assert_eq!(all.len(), 55);
+
+    let popular = repository.get_tags(&tag_query("", Some(50))).unwrap();
+    assert_eq!(popular.len(), 50);
+    assert_eq!(popular.first().unwrap().name, "tag00");
+    assert_eq!(popular.last().unwrap().name, "tag49");
+
+    let searched = repository.get_tags(&tag_query("tag54", Some(50))).unwrap();
+    assert_eq!(searched.len(), 1);
+    assert_eq!(searched[0].name, "tag54");
+}
+
+#[test]
+fn repository_get_tags_uses_stable_count_order() {
+    let (_, repository) = repository();
+    repository
+        .create(bookmark("https://example.com/one", &["beta", "gamma"]))
+        .unwrap();
+    repository
+        .create(bookmark("https://example.com/two", &["alpha", "gamma"]))
+        .unwrap();
+
+    let tags = repository.get_tags(&tag_query("", Some(3))).unwrap();
+    let ordered = tags
+        .iter()
+        .map(|tag| (tag.name.as_str(), tag.count))
+        .collect::<Vec<_>>();
+
+    assert_eq!(ordered, vec![("gamma", 2), ("alpha", 1), ("beta", 1)]);
+}
+
+#[test]
+fn repository_get_tags_treats_like_characters_as_literals() {
+    let (_, repository) = repository();
+    repository
+        .create(bookmark("https://example.com/percent", &["100%"]))
+        .unwrap();
+    repository
+        .create(bookmark("https://example.com/underscore", &["under_score"]))
+        .unwrap();
+    repository
+        .create(bookmark("https://example.com/slash", &["back\\slash"]))
+        .unwrap();
+    repository
+        .create(bookmark("https://example.com/plain", &["plain"]))
+        .unwrap();
+
+    for (query, expected) in [("%", "100%"), ("_", "under_score"), ("\\", "back\\slash")] {
+        let tags = repository.get_tags(&tag_query(query, Some(50))).unwrap();
+        assert_eq!(tags.len(), 1);
+        assert_eq!(tags[0].name, expected);
+    }
+}
+
+#[test]
+fn repository_get_tags_validates_limit() {
+    let (_, repository) = repository();
+
+    for limit in [0, 101] {
+        let error = repository
+            .get_tags(&tag_query("", Some(limit)))
+            .unwrap_err();
+        assert_eq!(error.code(), "validation_error");
+    }
 }
 
 #[test]
@@ -203,7 +292,7 @@ fn repository_update_replaces_complete_tag_set() {
     assert_eq!(updated.title, "Updated");
     assert_eq!(updated.tags, vec!["new", "shared"]);
     assert_eq!(
-        repository.get_tags().unwrap(),
+        repository.get_tags(&tag_query("", None)).unwrap(),
         vec![
             bkmrx_lib::bookmarks::TagSummary {
                 name: "new".to_owned(),
@@ -312,7 +401,7 @@ fn repository_failed_write_rolls_back_bookmark_tags_and_fts() {
         Some(created.clone())
     );
     assert_eq!(
-        repository.get_tags().unwrap(),
+        repository.get_tags(&tag_query("", None)).unwrap(),
         vec![bkmrx_lib::bookmarks::TagSummary {
             name: "original".to_owned(),
             count: 1,

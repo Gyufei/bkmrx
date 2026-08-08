@@ -2,7 +2,7 @@ use tauri::State;
 
 use crate::bookmarks::{
     AppResult, Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, ImportPreview,
-    SharedBookmarkService, TagSummary, UpdateBookmark,
+    SharedBookmarkService, TagQueryRequest, TagSummary, UpdateBookmark,
 };
 use crate::notes::SharedNoteService;
 
@@ -48,8 +48,11 @@ pub fn get_bookmark_by_url(
 }
 
 #[tauri::command]
-pub fn get_tags(service: State<'_, SharedBookmarkService>) -> AppResult<Vec<TagSummary>> {
-    service.get_tags()
+pub fn get_tags(
+    service: State<'_, SharedBookmarkService>,
+    request: TagQueryRequest,
+) -> AppResult<Vec<TagSummary>> {
+    service.get_tags(request)
 }
 
 #[tauri::command]

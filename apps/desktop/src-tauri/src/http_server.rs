@@ -13,7 +13,7 @@ use tower_http::cors::CorsLayer;
 
 use crate::bookmarks::{
     AppError, Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, SharedBookmarkService,
-    TagSummary, UpdateBookmark,
+    TagQueryRequest, TagSummary, UpdateBookmark,
 };
 
 static SERVER_URL: OnceLock<String> = OnceLock::new();
@@ -175,7 +175,13 @@ async fn delete_bookmark_handler(
 async fn get_tags_handler(
     State(service): State<SharedBookmarkService>,
 ) -> Result<Json<Vec<TagSummary>>, ApiError> {
-    service.get_tags().map(Json).map_err(ApiError)
+    service
+        .get_tags(TagQueryRequest {
+            query: String::new(),
+            limit: None,
+        })
+        .map(Json)
+        .map_err(ApiError)
 }
 
 async fn docs_handler() -> Html<&'static str> {
