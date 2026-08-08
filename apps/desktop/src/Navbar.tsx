@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invokeGetServerStatus } from './lib/invoke';
 import { Button } from './components/ui/button';
 import { Bookmark, ListTodo, Notebook, Settings } from 'lucide-react';
@@ -27,6 +27,9 @@ export default function NavBar({
 }) {
   const [isMac, setIsMac] = useState(false);
   const [serverRunning, setServerRunning] = useState(false);
+  const [serverUrl, setServerUrl] = useState('http://127.0.0.1:8733');
+  const [showServerUrl, setShowServerUrl] = useState(false);
+  const serverUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -45,6 +48,7 @@ export default function NavBar({
       try {
         const s = await invokeGetServerStatus();
         setServerRunning(s.running);
+        setServerUrl(s.url);
       } catch {
         setServerRunning(false);
       }
@@ -52,6 +56,22 @@ export default function NavBar({
 
     checkServerStatus();
   }, []);
+
+  useEffect(
+    () => () => {
+      if (serverUrlTimer.current) clearTimeout(serverUrlTimer.current);
+    },
+    [],
+  );
+
+  const revealServerUrl = () => {
+    if (serverUrlTimer.current) clearTimeout(serverUrlTimer.current);
+    setShowServerUrl(true);
+    serverUrlTimer.current = setTimeout(() => {
+      setShowServerUrl(false);
+      serverUrlTimer.current = null;
+    }, 3_000);
+  };
 
   return (
     <div
@@ -85,13 +105,19 @@ export default function NavBar({
         </div>
 
         {currentPath === PATHS.BOOKMARKS && (
-          <div className="flex items-center flex-1 gap-1.5 text-xs text-muted-foreground">
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="h-auto gap-1.5 px-1 py-0.5 text-xs text-muted-foreground"
+            onClick={revealServerUrl}
+            aria-label="显示服务器地址"
+          >
             <span
-              className={`w-2 h-2 rounded-full ${serverRunning ? 'bg-green-500' : 'bg-red-500'}`}
+              className={`size-2 rounded-full ${serverRunning ? 'bg-green-500' : 'bg-red-500'}`}
             />
-            <span className="hidden sm:inline">http://127.0.0.1:8733</span>
-            <span className="sm:hidden">API</span>
-          </div>
+            <span>{showServerUrl ? serverUrl : 'Server Running'}</span>
+          </Button>
         )}
       </div>
 
