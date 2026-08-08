@@ -30,7 +30,7 @@ export default function DeleteBkDialog({ deleteTarget, setDeleteTarget }: { dele
             <div>
               确定要删除书签
               <span className="font-bold text-chart-4">
-                {deleteTarget?.title || deleteTarget?.url}
+                {` ${deleteTarget?.title || deleteTarget?.url} `}
               </span>
               吗？此操作不可撤销。
             </div>

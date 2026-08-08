@@ -108,7 +108,7 @@ export default function BookmarkSidebar({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1 thin-scrollbar">
+      <div className="hidden-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
         {visibleTags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {visibleTags.map((tag) => {

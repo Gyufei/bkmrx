@@ -7,8 +7,13 @@ import type { Bookmark } from '@/types';
 import ResultList from './ResultList';
 
 const openMock = vi.hoisted(() => vi.fn());
+const toastAddMock = vi.hoisted(() => vi.fn());
+const toastCloseMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@tauri-apps/plugin-shell', () => ({ open: openMock }));
+vi.mock('@/components/ui/toast', () => ({
+  toast: { add: toastAddMock, close: toastCloseMock },
+}));
 vi.mock('../lib/invoke', () => ({ invokeRecordBookmarkAccess: vi.fn() }));
 vi.mock('./DeleteBkDialog', () => ({ default: () => null }));
 vi.mock('./EditBookmarkDialog', () => ({ default: () => null }));
@@ -32,6 +37,8 @@ class IntersectionObserverMock {
 
 beforeEach(() => {
   openMock.mockReset();
+  toastAddMock.mockReset();
+  toastCloseMock.mockReset();
   vi.stubGlobal('IntersectionObserver', IntersectionObserverMock);
 });
 
@@ -128,9 +135,9 @@ it('stars a bookmark from an independent accessible card button', () => {
   expect(openMock).not.toHaveBeenCalled();
 });
 
-it('confirms before unstar in the default starred view', () => {
+it('immediately unstars in the default starred view and offers undo', () => {
   const onToggleStarred = vi.fn();
-  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  toastAddMock.mockReturnValue('toast-1');
   const bookmark: Bookmark = {
     id: 1,
     url: 'https://example.com',
@@ -146,17 +153,25 @@ it('confirms before unstar in the default starred view', () => {
   renderList({ bookmark, starredView: true, onToggleStarred });
 
   fireEvent.click(screen.getByRole('button', { name: '取消星标' }));
-  expect(confirm).toHaveBeenCalledWith('取消星标后，该书签将不再显示在默认列表中。');
-  expect(onToggleStarred).not.toHaveBeenCalled();
-
-  confirm.mockReturnValue(true);
-  fireEvent.click(screen.getByRole('button', { name: '取消星标' }));
   expect(onToggleStarred).toHaveBeenCalledWith(bookmark, false);
+  expect(openMock).not.toHaveBeenCalled();
+  expect(toastAddMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      title: '已取消星标',
+      description: '“Example”已从星标列表移除',
+      actionProps: expect.objectContaining({ children: '撤销' }),
+    }),
+  );
+
+  const { actionProps } = toastAddMock.mock.calls[0][0];
+  actionProps.onClick();
+
+  expect(onToggleStarred).toHaveBeenLastCalledWith(bookmark, true);
+  expect(toastCloseMock).toHaveBeenCalledWith('toast-1');
 });
 
-it('does not confirm before unstar in search or tag results', () => {
+it('unstars without an undo toast in search or tag results', () => {
   const onToggleStarred = vi.fn();
-  const confirm = vi.spyOn(window, 'confirm');
   const bookmark: Bookmark = {
     id: 1,
     url: 'https://example.com',
@@ -173,8 +188,8 @@ it('does not confirm before unstar in search or tag results', () => {
 
   fireEvent.click(screen.getByRole('button', { name: '取消星标' }));
 
-  expect(confirm).not.toHaveBeenCalled();
   expect(onToggleStarred).toHaveBeenCalledWith(bookmark, false);
+  expect(toastAddMock).not.toHaveBeenCalled();
 });
 
 it('disables the star button while that bookmark is updating', () => {

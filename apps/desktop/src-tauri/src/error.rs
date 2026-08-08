@@ -47,6 +47,22 @@ impl AppError {
         )
     }
 
+    pub fn todo_not_found(id: i64) -> Self {
+        Self::new(
+            "todo_not_found",
+            "Todo not found",
+            Some(serde_json::json!({ "id": id })),
+        )
+    }
+
+    pub fn todo_tag_not_found(id: i64) -> Self {
+        Self::new(
+            "todo_tag_not_found",
+            "Todo tag not found",
+            Some(serde_json::json!({ "id": id })),
+        )
+    }
+
     pub fn unsupported_import_format(version: u64) -> Self {
         Self::new(
             "unsupported_import_format",

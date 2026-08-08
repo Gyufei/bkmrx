@@ -5,6 +5,9 @@ use crate::bookmarks::{
     SharedBookmarkService, TagQueryRequest, TagSummary, UpdateBookmark,
 };
 use crate::notes::SharedNoteService;
+use crate::todos::{
+    CreateTodo, SharedTodoService, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
+};
 
 #[tauri::command]
 pub fn query_bookmarks(
@@ -70,6 +73,61 @@ pub fn set_bookmark_starred(
     starred: bool,
 ) -> AppResult<Bookmark> {
     service.set_starred(id, starred)
+}
+
+#[tauri::command]
+pub fn query_todos(
+    service: State<'_, SharedTodoService>,
+    request: TodoQuery,
+) -> AppResult<TodoList> {
+    service.query(request)
+}
+
+#[tauri::command]
+pub fn get_todo_tags(service: State<'_, SharedTodoService>) -> AppResult<Vec<TodoTag>> {
+    service.tags()
+}
+
+#[tauri::command]
+pub fn create_todo(service: State<'_, SharedTodoService>, input: CreateTodo) -> AppResult<Todo> {
+    service.create(input)
+}
+
+#[tauri::command]
+pub fn update_todo(
+    service: State<'_, SharedTodoService>,
+    id: i64,
+    input: UpdateTodo,
+) -> AppResult<Todo> {
+    service.update(id, input)
+}
+
+#[tauri::command]
+pub fn set_todo_status(
+    service: State<'_, SharedTodoService>,
+    id: i64,
+    status: TodoStatus,
+) -> AppResult<Todo> {
+    service.set_status(id, status)
+}
+
+#[tauri::command]
+pub fn delete_todo(service: State<'_, SharedTodoService>, id: i64) -> AppResult<()> {
+    service.delete(id)
+}
+
+#[tauri::command]
+pub fn rename_todo_tag(
+    service: State<'_, SharedTodoService>,
+    id: i64,
+    name: String,
+) -> AppResult<TodoTag> {
+    service.rename_tag(id, name)
+}
+
+#[tauri::command]
+pub fn delete_todo_tag(service: State<'_, SharedTodoService>, id: i64) -> AppResult<()> {
+    service.delete_tag(id)
 }
 
 #[tauri::command]

@@ -72,3 +72,43 @@ export interface NoteFile {
   modified: number;
   size: number;
 }
+
+export type TodoStatus = 'in_progress' | 'completed' | 'suspended' | 'canceled';
+
+export interface Todo {
+  id: number;
+  title: string;
+  description: string;
+  status: TodoStatus;
+  is_high_priority: boolean;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface TodoTag {
+  id: number;
+  name: string;
+  count: number;
+}
+
+export interface TodoQuery {
+  status: TodoStatus | null;
+  tag_id: number | null;
+}
+
+export interface TodoList {
+  items: Todo[];
+  total: number;
+  completed: number;
+}
+
+export interface CreateTodo {
+  title: string;
+  description: string;
+  is_high_priority: boolean;
+  tags: string[];
+}
+
+export type UpdateTodo = CreateTodo;

@@ -5,7 +5,7 @@ use rusqlite::Connection;
 
 use crate::bookmarks::{AppError, AppResult};
 
-const SUPPORTED_SCHEMA_VERSION: i64 = 2;
+const SUPPORTED_SCHEMA_VERSION: i64 = 3;
 
 const CREATE_V2_SCHEMA: &str = r#"
 BEGIN IMMEDIATE;
@@ -49,6 +49,45 @@ CREATE INDEX idx_bookmarks_starred
     WHERE starred_at IS NOT NULL;
 
 PRAGMA user_version = 2;
+COMMIT;
+"#;
+
+const ADD_TODO_SCHEMA: &str = r#"
+CREATE TABLE todos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+    description TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'in_progress'
+        CHECK (status IN ('in_progress', 'completed', 'suspended', 'canceled')),
+    is_high_priority INTEGER NOT NULL DEFAULT 0 CHECK (is_high_priority IN (0, 1)),
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    completed_at INTEGER NULL
+);
+
+CREATE TABLE todo_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK (length(trim(name)) > 0)
+);
+
+CREATE TABLE todo_tag_relations (
+    todo_id INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+    tag_id INTEGER NOT NULL REFERENCES todo_tags(id) ON DELETE CASCADE,
+    PRIMARY KEY (todo_id, tag_id)
+);
+
+CREATE INDEX idx_todos_status_sort
+    ON todos(status, is_high_priority DESC, updated_at DESC, id DESC);
+CREATE INDEX idx_todo_tag_relations_tag_todo
+    ON todo_tag_relations(tag_id, todo_id);
+"#;
+
+const MIGRATE_V2_TO_V3: &str = r#"
+BEGIN IMMEDIATE;
+"#;
+
+const FINISH_V3_SCHEMA: &str = r#"
+PRAGMA user_version = 3;
 COMMIT;
 "#;
 
@@ -175,14 +214,48 @@ impl Database {
         };
         database.verify_supported_version()?;
         match database.schema_version()? {
-            0 => database
-                .connection()?
-                .execute_batch(CREATE_V2_SCHEMA)
-                .map_err(database_error)?,
-            1 => database
-                .connection()?
-                .execute_batch(MIGRATE_V1_TO_V2)
-                .map_err(database_error)?,
+            0 => {
+                let connection = database.connection()?;
+                connection
+                    .execute_batch(CREATE_V2_SCHEMA)
+                    .map_err(database_error)?;
+                connection
+                    .execute_batch("BEGIN IMMEDIATE;")
+                    .map_err(database_error)?;
+                connection
+                    .execute_batch(ADD_TODO_SCHEMA)
+                    .map_err(database_error)?;
+                connection
+                    .execute_batch(FINISH_V3_SCHEMA)
+                    .map_err(database_error)?;
+            }
+            1 => {
+                let connection = database.connection()?;
+                connection
+                    .execute_batch(MIGRATE_V1_TO_V2)
+                    .map_err(database_error)?;
+                connection
+                    .execute_batch(MIGRATE_V2_TO_V3)
+                    .map_err(database_error)?;
+                connection
+                    .execute_batch(ADD_TODO_SCHEMA)
+                    .map_err(database_error)?;
+                connection
+                    .execute_batch(FINISH_V3_SCHEMA)
+                    .map_err(database_error)?;
+            }
+            2 => {
+                let connection = database.connection()?;
+                connection
+                    .execute_batch(MIGRATE_V2_TO_V3)
+                    .map_err(database_error)?;
+                connection
+                    .execute_batch(ADD_TODO_SCHEMA)
+                    .map_err(database_error)?;
+                connection
+                    .execute_batch(FINISH_V3_SCHEMA)
+                    .map_err(database_error)?;
+            }
             _ => {}
         }
         Ok(database)

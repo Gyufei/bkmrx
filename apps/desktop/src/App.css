@@ -156,6 +156,15 @@
   background-color: rgba(255, 255, 255, 0.28);
 }
 
+.hidden-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hidden-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .markdown-viewer {
   max-width: 72ch;
   --tw-prose-body: var(--foreground);

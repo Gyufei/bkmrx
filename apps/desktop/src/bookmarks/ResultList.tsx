@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, Fragment } from 'react';
 import { ExternalLink, Link, Code, Pencil, Star, Trash2 } from 'lucide-react';
 import {
   ContextMenu,
@@ -13,6 +13,7 @@ import { open } from '@tauri-apps/plugin-shell';
 import { invokeRecordBookmarkAccess } from '../lib/invoke';
 import type { Bookmark } from '../types';
 import DeleteBkDialog from './DeleteBkDialog';
+import { toast } from '@/components/ui/toast';
 
 interface Props {
   bookmarks: Bookmark[];
@@ -99,8 +100,9 @@ export default function ResultList({
 
   return (
     <div className="space-y-1">
+    <ContextMenu>
       {bookmarks.map((bm) => (
-        <ContextMenu key={bm.id}>
+        <Fragment key={bm.id}>
           <ContextMenuTrigger>
             <BookmarkRow
               bookmark={bm}
@@ -151,8 +153,9 @@ export default function ResultList({
               <span className="text-destructive">删除</span>
             </ContextMenuItem>
           </ContextMenuContent>
-        </ContextMenu>
+        </Fragment>
       ))}
+    </ContextMenu>
 
       <DeleteBkDialog
         deleteTarget={deleteTarget}
@@ -216,6 +219,28 @@ function BookmarkRow({
     }
   };
 
+  const handleClickStar = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    const nextStarred = bookmark.starred_at === null;
+    onToggleStarred(bookmark, nextStarred);
+
+    if (!starredView || nextStarred) return;
+
+    const titleText = bookmark.title || bookmark.url;
+    const cancleTipText = titleText.length > 10 ? titleText.substring(0, 10) + '...' : titleText;
+    const id = toast.add({
+      title: '已取消星标',
+      description: `“${cancleTipText}”已从星标列表移除`,
+      actionProps: {
+        children: '撤销',
+        onClick() {
+          onToggleStarred(bookmark, true);
+          toast.close(id);
+        },
+      },
+    });
+  };
+
   return (
     <div className="group relative">
       <div
@@ -254,18 +279,7 @@ function BookmarkRow({
         type="button"
         disabled={starPending}
         aria-busy={starPending}
-        onClick={(event) => {
-          event.stopPropagation();
-          const nextStarred = bookmark.starred_at === null;
-          if (
-            !nextStarred &&
-            starredView &&
-            !window.confirm('取消星标后，该书签将不再显示在默认列表中。')
-          ) {
-            return;
-          }
-          onToggleStarred(bookmark, nextStarred);
-        }}
+        onClick={handleClickStar}
         className={`absolute right-2 top-2 p-1.5 rounded-md transition-colors disabled:cursor-wait disabled:opacity-50 ${
           bookmark.starred_at
             ? 'text-amber-500 hover:bg-amber-500/10'

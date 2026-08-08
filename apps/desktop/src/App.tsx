@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import Layout from './Layout';
 import QueryProvider from '@/lib/query-provider';
+import { Toaster } from '@/components/ui/toast';
 
 export default function App() {
   useEffect(() => {
@@ -17,6 +18,7 @@ export default function App() {
   return (
     <QueryProvider>
       <Layout />
+      <Toaster />
     </QueryProvider>
   );
 }

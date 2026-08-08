@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use bkmrx_lib::{
     bookmarks::{BookmarkService, SqliteBookmarkRepository, SqliteFtsSearch},
     database::Database,
+    todos::{SqliteTodoRepository, TodoService},
 };
 use tauri::{Emitter, Manager};
 
@@ -25,7 +26,7 @@ fn main() {
             let service = Arc::new(
                 BookmarkService::new(
                     SqliteBookmarkRepository::new(Arc::clone(&database)),
-                    SqliteFtsSearch::new(database),
+                    SqliteFtsSearch::new(Arc::clone(&database)),
                 )
                 .with_change_notifier(Arc::new(move || {
                     let _ = notify_handle.emit("bookmarks-changed", ());
@@ -33,6 +34,14 @@ fn main() {
             );
 
             app.manage(Arc::clone(&service));
+            let todo_handle = handle.clone();
+            let todo_service = Arc::new(
+                TodoService::new(SqliteTodoRepository::new(Arc::clone(&database)))
+                    .with_change_notifier(Arc::new(move || {
+                        let _ = todo_handle.emit("todos-changed", ());
+                    })),
+            );
+            app.manage(todo_service);
             app.manage(runtime_paths);
             let note_handle = handle.clone();
             let note_service = Arc::new(bkmrx_lib::notes::NoteService::new(Arc::new(
@@ -58,6 +67,14 @@ fn main() {
             bkmrx_lib::commands::get_tags,
             bkmrx_lib::commands::record_bookmark_access,
             bkmrx_lib::commands::set_bookmark_starred,
+            bkmrx_lib::commands::query_todos,
+            bkmrx_lib::commands::get_todo_tags,
+            bkmrx_lib::commands::create_todo,
+            bkmrx_lib::commands::update_todo,
+            bkmrx_lib::commands::set_todo_status,
+            bkmrx_lib::commands::delete_todo,
+            bkmrx_lib::commands::rename_todo_tag,
+            bkmrx_lib::commands::delete_todo_tag,
             bkmrx_lib::commands::export_bookmarks,
             bkmrx_lib::commands::preview_bookmark_import,
             bkmrx_lib::commands::apply_bookmark_import,

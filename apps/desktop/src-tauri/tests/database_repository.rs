@@ -5,19 +5,22 @@ use bkmrx_lib::database::Database;
 use std::sync::Arc;
 
 #[test]
-fn creates_v2_schema_and_enables_fts5_trigram() {
+fn creates_v3_schema_and_enables_fts5_trigram() {
     let db = Database::open_in_memory().unwrap();
 
-    assert_eq!(db.schema_version().unwrap(), 2);
+    assert_eq!(db.schema_version().unwrap(), 3);
     assert!(db.has_table("bookmarks").unwrap());
     assert!(db.has_table("tags").unwrap());
     assert!(db.has_table("bookmark_tags").unwrap());
     assert!(db.has_table("bookmarks_fts").unwrap());
+    assert!(db.has_table("todos").unwrap());
+    assert!(db.has_table("todo_tags").unwrap());
+    assert!(db.has_table("todo_tag_relations").unwrap());
     db.assert_fts5_trigram().unwrap();
 }
 
 #[test]
-fn migrates_v1_bookmarks_to_v2_as_unstarred() {
+fn migrates_v1_bookmarks_to_v3_as_unstarred() {
     let directory = tempfile::TempDir::new().unwrap();
     let path = directory.path().join("bookmarks.db");
     let connection = rusqlite::Connection::open(&path).unwrap();
@@ -48,7 +51,8 @@ fn migrates_v1_bookmarks_to_v2_as_unstarred() {
 
     let database = Database::open(&path).unwrap();
 
-    assert_eq!(database.schema_version().unwrap(), 2);
+    assert_eq!(database.schema_version().unwrap(), 3);
+    assert!(database.has_table("todos").unwrap());
     assert_eq!(
         database
             .query_i64_for_test("SELECT count(*) FROM bookmarks WHERE starred_at IS NOT NULL",)
@@ -58,9 +62,40 @@ fn migrates_v1_bookmarks_to_v2_as_unstarred() {
 }
 
 #[test]
+fn migrates_v2_database_to_v3_without_changing_bookmarks() {
+    let directory = tempfile::TempDir::new().unwrap();
+    let path = directory.path().join("bookmarks.db");
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE bookmarks (
+                id INTEGER PRIMARY KEY,
+                url TEXT NOT NULL,
+                title TEXT NOT NULL
+             );
+             INSERT INTO bookmarks(id, url, title)
+             VALUES (7, 'https://example.com', 'Existing');
+             PRAGMA user_version = 2;",
+        )
+        .unwrap();
+    drop(connection);
+
+    let database = Database::open(&path).unwrap();
+
+    assert_eq!(database.schema_version().unwrap(), 3);
+    assert_eq!(
+        database
+            .query_i64_for_test("SELECT count(*) FROM bookmarks WHERE id = 7")
+            .unwrap(),
+        1
+    );
+    assert!(database.has_table("todos").unwrap());
+}
+
+#[test]
 fn rejects_database_newer_than_supported_schema() {
     let db = Database::open_in_memory().unwrap();
-    db.set_user_version_for_test(3).unwrap();
+    db.set_user_version_for_test(4).unwrap();
 
     let error = db.verify_supported_version().unwrap_err();
 

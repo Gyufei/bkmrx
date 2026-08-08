@@ -9,6 +9,13 @@ import type {
   Tag,
   TagQueryRequest,
   UpdateBookmark,
+  CreateTodo,
+  Todo,
+  TodoList,
+  TodoQuery,
+  TodoStatus,
+  TodoTag,
+  UpdateTodo,
 } from '../types';
 
 /* ───── Bookmarks ───── */
@@ -55,6 +62,40 @@ export function invokePreviewBookmarkImport(path: string): Promise<ImportPreview
 
 export function invokeApplyBookmarkImport(path: string, fileHash: string): Promise<ImportPreview> {
   return invoke<ImportPreview>('apply_bookmark_import', { path, fileHash });
+}
+
+/* ───── Todos ───── */
+
+export function invokeQueryTodos(request: TodoQuery): Promise<TodoList> {
+  return invoke<TodoList>('query_todos', { request });
+}
+
+export function invokeGetTodoTags(): Promise<TodoTag[]> {
+  return invoke<TodoTag[]>('get_todo_tags');
+}
+
+export function invokeCreateTodo(input: CreateTodo): Promise<Todo> {
+  return invoke<Todo>('create_todo', { input });
+}
+
+export function invokeUpdateTodo(id: number, input: UpdateTodo): Promise<Todo> {
+  return invoke<Todo>('update_todo', { id, input });
+}
+
+export function invokeSetTodoStatus(id: number, status: TodoStatus): Promise<Todo> {
+  return invoke<Todo>('set_todo_status', { id, status });
+}
+
+export function invokeDeleteTodo(id: number): Promise<void> {
+  return invoke('delete_todo', { id });
+}
+
+export function invokeRenameTodoTag(id: number, name: string): Promise<TodoTag> {
+  return invoke<TodoTag>('rename_todo_tag', { id, name });
+}
+
+export function invokeDeleteTodoTag(id: number): Promise<void> {
+  return invoke('delete_todo_tag', { id });
 }
 
 /* ───── Server ───── */

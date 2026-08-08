@@ -2,6 +2,7 @@ import { useState } from 'react';
 import NotesPanel from './notes/NotesPanel';
 import SettingsPage from './settings/SettingsPage';
 import BookmarkView from './bookmarks/BookmarkView';
+import TodoPage from './todos/TodoPage';
 
 import NavBar, { PATHS } from './Navbar';
 
@@ -16,8 +17,10 @@ export default function AppHome() {
         <SettingsPage />
       ) : currentPath === PATHS.BOOKMARKS ? (
         <BookmarkView />
-      ) : (
+      ) : currentPath === PATHS.NOTES ? (
         <NotesPanel />
+      ) : (
+        <TodoPage />
       )}
     </div>
   );

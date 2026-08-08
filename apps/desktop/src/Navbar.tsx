@@ -1,19 +1,21 @@
 import { useState, useEffect } from 'react';
 import { invokeGetServerStatus } from './lib/invoke';
 import { Button } from './components/ui/button';
-import { Bookmark, Notebook, Settings } from 'lucide-react';
+import { Bookmark, ListTodo, Notebook, Settings } from 'lucide-react';
 
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
 
 export enum PATHS {
   BOOKMARKS = 'bookmarks',
   NOTES = 'notes',
+  TODOS = 'todos',
   SETTINGS = 'settings',
 }
 
 const TABS = [
   { id: PATHS.BOOKMARKS, label: '书签', icon: <Bookmark /> },
   { id: PATHS.NOTES, label: '笔记', icon: <Notebook /> },
+  { id: PATHS.TODOS, label: 'Todo', icon: <ListTodo /> },
 ] as const;
 
 export default function NavBar({
@@ -46,7 +48,7 @@ export default function NavBar({
       } catch {
         setServerRunning(false);
       }
-    };
+    }
 
     checkServerStatus();
   }, []);
