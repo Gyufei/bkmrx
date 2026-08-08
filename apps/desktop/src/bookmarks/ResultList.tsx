@@ -100,9 +100,8 @@ export default function ResultList({
 
   return (
     <div className="space-y-1">
-    <ContextMenu>
       {bookmarks.map((bm) => (
-        <Fragment key={bm.id}>
+        <ContextMenu key={bm.id}>
           <ContextMenuTrigger>
             <BookmarkRow
               bookmark={bm}
@@ -153,9 +152,8 @@ export default function ResultList({
               <span className="text-destructive">删除</span>
             </ContextMenuItem>
           </ContextMenuContent>
-        </Fragment>
+        </ContextMenu>
       ))}
-    </ContextMenu>
 
       <DeleteBkDialog
         deleteTarget={deleteTarget}
