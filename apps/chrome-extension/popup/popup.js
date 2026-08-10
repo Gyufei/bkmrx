@@ -155,10 +155,9 @@ document.addEventListener('alpine:init', () => {
 
           // Populate tags into Tagify
           this.setTags(bookmark.tags);
-          // Populate description into form
-          if (bookmark.description) {
-            this.form.description = bookmark.description;
-          }
+          // The saved value must override the description extracted from the page,
+          // including when the user intentionally cleared it.
+          this.form.description = bookmark.description || '';
         }
       } catch {}
     },
@@ -197,6 +196,7 @@ document.addEventListener('alpine:init', () => {
       const bookmark = await parseApiResponse(response);
       this.successMessage = `\u4e66\u7b7e\u5df2\u6dfb\u52a0 (ID: ${bookmark.id})`;
       this.existingBookmark = bookmark;
+      this.form.description = bookmark.description || '';
       this.bannerText = '\u5df2\u6536\u85cf';
       this.showBanner = true;
       this.mode = 'update';
@@ -211,6 +211,7 @@ document.addEventListener('alpine:init', () => {
       const bookmark = await parseApiResponse(response);
       this.successMessage = `\u4e66\u7b7e\u5df2\u66f4\u65b0 (ID: ${bookmark.id})`;
       this.existingBookmark = bookmark;
+      this.form.description = bookmark.description || '';
       this.bannerText = '\u5df2\u6536\u85cf';
     },
   }));
