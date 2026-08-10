@@ -24,19 +24,25 @@ interface Props {
 export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props) {
   const queryClient = useQueryClient();
 
+  const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [description, setDescription] = useState('');
 
   useEffect(() => {
     if (editTarget) {
+      setUrl(editTarget.url);
       setTitle(editTarget.title || '');
       setTags(editTarget.tags);
       setDescription(editTarget.description || '');
     }
   }, [editTarget]);
 
-  const { mutate: handleUpdate, isPending: isUpdating, error: updateError } = useMutation({
+  const {
+    mutate: handleUpdate,
+    isPending: isUpdating,
+    error: updateError,
+  } = useMutation({
     mutationFn: updateBookmarkApi,
     onSuccess: () => {
       setEditTarget(null);
@@ -46,11 +52,12 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
   });
 
   function handleSubmit() {
-    if (!editTarget || isUpdating) return;
+    if (!editTarget || !url.trim() || isUpdating) return;
 
     handleUpdate({
       id: editTarget.id,
       input: {
+        url: url.trim(),
         title: title.trim(),
         tags,
         description: description.trim(),
@@ -68,9 +75,19 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
       <DialogContent>
         <DialogHeader>
           <DialogTitle>编辑书签</DialogTitle>
-          <DialogDescription>修改标题、标签或描述。</DialogDescription>
+          <DialogDescription>修改 URL、标题、标签或描述。</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="edit-url">URL</Label>
+            <Input
+              id="edit-url"
+              placeholder="https://example.com"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              autoFocus
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="edit-title">标题</Label>
             <Input
@@ -78,7 +95,6 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
               placeholder="书签标题"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              autoFocus
             />
           </div>
           <div className="space-y-2">
@@ -94,17 +110,13 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
-          {updateError && (
-            <div className="text-destructive">
-              更新失败：{updateError.message}
-            </div>
-          )}
+          {updateError && <div className="text-destructive">更新失败：{updateError.message}</div>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setEditTarget(null)} disabled={isUpdating}>
             取消
           </Button>
-          <Button onClick={handleSubmit} disabled={isUpdating}>
+          <Button onClick={handleSubmit} disabled={!url.trim() || isUpdating}>
             {isUpdating ? '保存中...' : '保存'}
           </Button>
         </DialogFooter>
