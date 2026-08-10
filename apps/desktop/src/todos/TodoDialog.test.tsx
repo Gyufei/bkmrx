@@ -1,32 +1,44 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import TodoDialog from './TodoDialog';
+
+function renderDialog(props: React.ComponentProps<typeof TodoDialog>) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <TodoDialog {...props} />
+    </QueryClientProvider>,
+  );
+}
 
 afterEach(cleanup);
 
 describe('TodoDialog', () => {
   it('prefills the selected tag for a new task', () => {
-    render(
-      <TodoDialog
-        open
-        todo={null}
-        availableTags={[]}
-        defaultTag="工作"
-        onOpenChange={vi.fn()}
-        onSave={vi.fn()}
-      />,
-    );
+    renderDialog({
+      open: true,
+      todo: null,
+      availableTags: [],
+      defaultTag: '工作',
+      onOpenChange: vi.fn(),
+      onSave: vi.fn(),
+    });
 
     expect(screen.getByText('工作')).toBeTruthy();
   });
 
   it('includes a pending tag when saving without pressing Enter', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(
-      <TodoDialog open todo={null} availableTags={[]} onOpenChange={vi.fn()} onSave={onSave} />,
-    );
+    renderDialog({
+      open: true,
+      todo: null,
+      availableTags: [],
+      onOpenChange: vi.fn(),
+      onSave,
+    });
 
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '任务' } });
     fireEvent.change(screen.getByLabelText('标签'), { target: { value: '工作' } });

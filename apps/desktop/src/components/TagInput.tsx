@@ -8,6 +8,9 @@ import { getTagsApi, tagQueryKey } from '@/bookmarks/bookmarks.api';
 interface TagInputProps {
   value: string[];
   onChange: (tags: string[]) => void;
+  suggestions?: string[];
+  inputId?: string;
+  onPendingChange?: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
   autoFocus?: boolean;
@@ -16,6 +19,9 @@ interface TagInputProps {
 export default function TagInput({
   value,
   onChange,
+  suggestions,
+  inputId,
+  onPendingChange,
   placeholder = '输入标签，回车添加',
   disabled = false,
   autoFocus = false,
@@ -27,20 +33,23 @@ export default function TagInput({
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { data: allTags } = useQuery({
+  const { data: queriedTags } = useQuery({
     queryKey: tagQueryKey('', null),
     queryFn: () => getTagsApi({ query: '', limit: null }),
+    enabled: suggestions === undefined,
   });
-
 
   // Filter suggestions: match input (case-insensitive), exclude already selected
   const filteredSuggestions = useMemo(() => {
+    const allTags = suggestions?.map((name) => ({ name })) ?? queriedTags;
     if (!inputValue.trim()) {
       return allTags?.filter((t) => !value.includes(t.name)) || [];
     }
     const q = inputValue.toLowerCase();
-    return allTags?.filter((t) => t.name.toLowerCase().includes(q) && !value.includes(t.name)) || [];
-  }, [allTags, inputValue, value]);
+    return (
+      allTags?.filter((t) => t.name.toLowerCase().includes(q) && !value.includes(t.name)) || []
+    );
+  }, [queriedTags, suggestions, inputValue, value]);
 
   const addTag = useCallback(
     (tag: string) => {
@@ -48,11 +57,12 @@ export default function TagInput({
       if (!trimmed || value.includes(trimmed)) return;
       onChange([...value, trimmed]);
       setInputValue('');
+      onPendingChange?.('');
       setActiveIdx(-1);
       // Keep dropdown open (closeOnSelect: false behavior)
       inputRef.current?.focus();
     },
-    [value, onChange],
+    [value, onChange, onPendingChange],
   );
 
   const removeTag = useCallback(
@@ -62,11 +72,15 @@ export default function TagInput({
     [value, onChange],
   );
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
-    setShowDropdown(true);
-    setActiveIdx(-1);
-  }, []);
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setInputValue(e.target.value);
+      onPendingChange?.(e.target.value);
+      setShowDropdown(true);
+      setActiveIdx(-1);
+    },
+    [onPendingChange],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -140,6 +154,7 @@ export default function TagInput({
             <span className="truncate">{tag}</span>
             <button
               type="button"
+              aria-label={`移除标签 ${tag}`}
               onClick={() => removeTag(tag)}
               disabled={disabled}
               className="p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors shrink-0"
@@ -151,6 +166,7 @@ export default function TagInput({
         ))}
         <input
           ref={inputRef}
+          id={inputId}
           type="text"
           value={inputValue}
           onChange={handleInputChange}

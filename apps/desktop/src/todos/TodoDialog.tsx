@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
 import type { CreateTodo, Todo, TodoTag } from '@/types';
+import TagInput from '@/components/TagInput';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,7 +12,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { tagColor } from '@/lib/tagColor';
 
 interface TodoDialogProps {
   open: boolean;
@@ -46,13 +45,6 @@ export default function TodoDialog({
     setHigh(todo?.is_high_priority ?? false);
     setTagInput('');
   }, [open, todo, defaultTag]);
-
-  const addTag = (value: string) => {
-    const next = value.trim();
-    if (!next || tags.some((tag) => tag.toLowerCase() === next.toLowerCase())) return;
-    setTags([...tags, next]);
-    setTagInput('');
-  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -100,44 +92,13 @@ export default function TodoDialog({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="todo-tags">标签</Label>
-            <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-xl border border-border px-2 py-1.5 focus-within:ring-2 focus-within:ring-primary/30">
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs"
-                  style={tagColor(tag)}
-                >
-                  {tag}
-                  <button
-                    type="button"
-                    aria-label={`移除标签 ${tag}`}
-                    onClick={() => setTags(tags.filter((item) => item !== tag))}
-                  >
-                    <X className="size-3" />
-                  </button>
-                </span>
-              ))}
-              <input
-                id="todo-tags"
-                value={tagInput}
-                list="todo-tag-options"
-                onChange={(event) => setTagInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ',' || event.key === '，') {
-                    event.preventDefault();
-                    addTag(tagInput);
-                  }
-                }}
-                onBlur={() => addTag(tagInput)}
-                placeholder={tags.length ? '' : '输入标签，回车添加'}
-                className="min-w-28 flex-1 bg-transparent text-sm outline-none"
-              />
-              <datalist id="todo-tag-options">
-                {availableTags.map((tag) => (
-                  <option key={tag.id} value={tag.name} />
-                ))}
-              </datalist>
-            </div>
+            <TagInput
+              inputId="todo-tags"
+              value={tags}
+              onChange={setTags}
+              onPendingChange={setTagInput}
+              suggestions={availableTags.map((tag) => tag.name)}
+            />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input

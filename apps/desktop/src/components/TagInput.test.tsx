@@ -27,6 +27,15 @@ function renderInput() {
   );
 }
 
+function renderWithSuggestions() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <TagInput value={[]} onChange={() => {}} suggestions={['待办', '稍后']} />
+    </QueryClientProvider>,
+  );
+}
+
 describe('TagInput', () => {
   beforeEach(() => {
     getTagsMock.mockReset();
@@ -44,5 +53,15 @@ describe('TagInput', () => {
 
     expect(await screen.findByText('tag50')).toBeTruthy();
     expect(getTagsMock).toHaveBeenCalledWith({ query: '', limit: null });
+  });
+
+  it('uses supplied suggestions without requesting bookmark tags', async () => {
+    renderWithSuggestions();
+
+    fireEvent.focus(screen.getByPlaceholderText('输入标签，回车添加'));
+
+    expect(await screen.findByText('待办')).toBeTruthy();
+    expect(screen.getByText('稍后')).toBeTruthy();
+    expect(getTagsMock).not.toHaveBeenCalled();
   });
 });
