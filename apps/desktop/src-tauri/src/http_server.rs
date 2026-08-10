@@ -1,6 +1,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
+use crate::bookmarks::{
+    AppError, Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, SharedBookmarkService,
+    TagQueryRequest, TagSummary, UpdateBookmark,
+};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -9,12 +13,6 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use tower_http::cors::CorsLayer;
-
-use crate::bookmarks::{
-    AppError, Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, SharedBookmarkService,
-    TagQueryRequest, TagSummary, UpdateBookmark,
-};
 
 static SERVER_URL: OnceLock<String> = OnceLock::new();
 static SERVER_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -51,7 +49,6 @@ pub fn router(service: SharedBookmarkService) -> Router {
         )
         .route("/api/tags", get(get_tags_handler))
         .route("/api/docs", get(docs_handler))
-        .layer(CorsLayer::permissive())
         .with_state(service)
 }
 
@@ -206,5 +203,96 @@ impl IntoResponse for ApiError {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         (status, Json(serde_json::json!({ "error": self.0 }))).into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use axum::{
+        body::Body,
+        http::{header, Method, Request, StatusCode},
+    };
+    use tower::ServiceExt;
+
+    use super::router;
+    use crate::{
+        bookmarks::{BookmarkService, SqliteBookmarkRepository, SqliteFtsSearch},
+        database::Database,
+    };
+
+    fn test_router() -> axum::Router {
+        let database = Arc::new(Database::open_in_memory().expect("open test database"));
+        let service = Arc::new(BookmarkService::new(
+            SqliteBookmarkRepository::new(Arc::clone(&database)),
+            SqliteFtsSearch::new(database),
+        ));
+        router(service)
+    }
+
+    #[tokio::test]
+    async fn serves_api_requests_without_cross_origin_headers() {
+        let response = test_router()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/health")
+                    .header(header::ORIGIN, "https://malicious.example")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("serve request");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn rejects_browser_cors_preflight_requests() {
+        let response = test_router()
+            .oneshot(
+                Request::builder()
+                    .method(Method::OPTIONS)
+                    .uri("/api/bookmarks/1")
+                    .header(header::ORIGIN, "https://malicious.example")
+                    .header(
+                        header::ACCESS_CONTROL_REQUEST_METHOD,
+                        Method::PATCH.as_str(),
+                    )
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("serve request");
+
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert!(response
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn rejects_simple_cross_origin_write_content_types() {
+        let response = test_router()
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/bookmarks")
+                    .header(header::ORIGIN, "https://malicious.example")
+                    .header(header::CONTENT_TYPE, "text/plain")
+                    .body(Body::from(
+                        r#"{"url":"https://example.com","title":"Example","description":"","tags":[]}"#,
+                    ))
+                    .expect("build request"),
+            )
+            .await
+            .expect("serve request");
+
+        assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 }

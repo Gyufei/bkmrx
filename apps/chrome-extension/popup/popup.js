@@ -9,8 +9,8 @@ async function parseApiResponse(response) {
   return body;
 }
 
-document.addEventListener('alpine:init', () => {
-  Alpine.data('popupApp', () => ({
+function createPopupApp({ fetchImpl, chromeApi, TagifyCtor }) {
+  return {
     checkingConnection: true,
     connected: false,
 
@@ -60,7 +60,7 @@ document.addEventListener('alpine:init', () => {
 
     async checkConnection() {
       try {
-        const response = await fetch(`${BKMRX_API}/api/health`);
+        const response = await fetchImpl(`${BKMRX_API}/api/health`);
         await parseApiResponse(response);
         this.connected = true;
       } catch {
@@ -70,7 +70,7 @@ document.addEventListener('alpine:init', () => {
 
     async fillFromCurrentTab() {
       try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const [tab] = await chromeApi.tabs.query({ active: true, currentWindow: true });
         if (!tab || !tab.url) return;
         this.currentTab = tab;
         this.form.url = tab.url;
@@ -81,7 +81,7 @@ document.addEventListener('alpine:init', () => {
     async fillDescriptionFromPage() {
       if (!this.currentTab?.id) return;
       try {
-        const [result] = await chrome.scripting.executeScript({
+        const [result] = await chromeApi.scripting.executeScript({
           target: { tabId: this.currentTab.id },
           func: () => {
             const meta =
@@ -99,7 +99,7 @@ document.addEventListener('alpine:init', () => {
     initTagify() {
       const input = this.$refs.tagsInput;
       if (!input || this.tagify) return;
-      this.tagify = new Tagify(input, {
+      this.tagify = new TagifyCtor(input, {
         whitelist: [],
         enforceWhitelist: false,
         delimiters: ',',
@@ -114,7 +114,7 @@ document.addEventListener('alpine:init', () => {
 
     async loadTagWhitelist() {
       try {
-        const response = await fetch(`${BKMRX_API}/api/tags`);
+        const response = await fetchImpl(`${BKMRX_API}/api/tags`);
         const tags = await parseApiResponse(response);
         if (Array.isArray(tags)) {
           this.tagify.settings.whitelist = tags.map(t => t.name);
@@ -135,6 +135,17 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
+    setExistingBookmark(bookmark) {
+      this.existingBookmark = bookmark;
+      this.mode = 'update';
+      this.bannerText = '\u5df2\u6536\u85cf';
+      this.showBanner = true;
+      this.form.url = bookmark.url;
+      this.form.title = bookmark.title;
+      this.form.description = bookmark.description || '';
+      this.setTags(bookmark.tags);
+    },
+
     async checkExistingBookmark() {
       const url = this.form.url;
       if (!url) return;
@@ -142,22 +153,13 @@ document.addEventListener('alpine:init', () => {
       this.existingBookmark = null;
       this.mode = 'create';
       try {
-        const response = await fetch(
+        const response = await fetchImpl(
           `${BKMRX_API}/api/bookmarks/by-url?url=${encodeURIComponent(url)}`
         );
         if (response.status === 404) return;
         const bookmark = await parseApiResponse(response);
         if (bookmark) {
-          this.existingBookmark = bookmark;
-          this.mode = 'update';
-          this.bannerText = '\u5df2\u6536\u85cf';
-          this.showBanner = true;
-
-          // Populate tags into Tagify
-          this.setTags(bookmark.tags);
-          // The saved value must override the description extracted from the page,
-          // including when the user intentionally cleared it.
-          this.form.description = bookmark.description || '';
+          this.setExistingBookmark(bookmark);
         }
       } catch {}
     },
@@ -171,10 +173,12 @@ document.addEventListener('alpine:init', () => {
       this.successMessage = '';
       const title = this.form.title.trim() || url;
       const tags = this.getTags();
-      const description = this.form.description.trim();
+      // Read the live textarea value. With Alpine's CSP build, the nested
+      // x-model state can still contain the page's original description here.
+      const description = (this.$refs.descriptionInput?.value ?? this.form.description).trim();
       try {
         if (this.existingBookmark) {
-          await this._updateBookmark(title, tags, description);
+          await this._updateBookmark(url, title, tags, description);
         } else {
           await this._createBookmark(url, title, tags, description);
         }
@@ -188,31 +192,39 @@ document.addEventListener('alpine:init', () => {
     },
 
     async _createBookmark(url, title, tags, description) {
-      const response = await fetch(`${BKMRX_API}/api/bookmarks`, {
+      const response = await fetchImpl(`${BKMRX_API}/api/bookmarks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, title, tags, description }),
       });
       const bookmark = await parseApiResponse(response);
       this.successMessage = `\u4e66\u7b7e\u5df2\u6dfb\u52a0 (ID: ${bookmark.id})`;
-      this.existingBookmark = bookmark;
-      this.form.description = bookmark.description || '';
-      this.bannerText = '\u5df2\u6536\u85cf';
-      this.showBanner = true;
-      this.mode = 'update';
+      this.setExistingBookmark(bookmark);
       await this.loadTagWhitelist();
     },
 
-    async _updateBookmark(title, tags, description) {
-      const response = await fetch(
+    async _updateBookmark(url, title, tags, description) {
+      const response = await fetchImpl(
         `${BKMRX_API}/api/bookmarks/${this.existingBookmark.id}`,
-        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, tags, description }) }
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, title, tags, description }) }
       );
       const bookmark = await parseApiResponse(response);
       this.successMessage = `\u4e66\u7b7e\u5df2\u66f4\u65b0 (ID: ${bookmark.id})`;
-      this.existingBookmark = bookmark;
-      this.form.description = bookmark.description || '';
-      this.bannerText = '\u5df2\u6536\u85cf';
+      this.setExistingBookmark(bookmark);
     },
-  }));
-});
+  };
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('popupApp', () => createPopupApp({
+      fetchImpl: fetch,
+      chromeApi: chrome,
+      TagifyCtor: Tagify,
+    }));
+  });
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = { BKMRX_API, createPopupApp, parseApiResponse };
+}

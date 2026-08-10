@@ -154,6 +154,62 @@ async fn health_and_crud_routes_use_canonical_contracts() {
 }
 
 #[tokio::test]
+async fn update_uses_path_id_and_rejects_a_url_owned_by_another_bookmark() {
+    let service = service();
+    let first = service
+        .create(CreateBookmark {
+            url: "https://first.example".to_owned(),
+            title: "First".to_owned(),
+            description: String::new(),
+            tags: Vec::new(),
+        })
+        .unwrap();
+    let second = service
+        .create(CreateBookmark {
+            url: "https://second.example".to_owned(),
+            title: "Second".to_owned(),
+            description: String::new(),
+            tags: Vec::new(),
+        })
+        .unwrap();
+    let app = http_server::router(Arc::clone(&service));
+
+    let updated = app
+        .clone()
+        .oneshot(json_request(
+            "PATCH",
+            &format!("/api/bookmarks/{}", first.id),
+            json!({ "url": "https://updated.example" }),
+        ))
+        .await
+        .unwrap();
+    let (status, updated) = json_response(updated).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(updated["id"], first.id);
+    assert_eq!(updated["url"], "https://updated.example");
+
+    let conflict = app
+        .oneshot(json_request(
+            "PATCH",
+            &format!("/api/bookmarks/{}", first.id),
+            json!({ "url": second.url }),
+        ))
+        .await
+        .unwrap();
+    let (status, conflict) = json_response(conflict).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(conflict["error"]["code"], "bookmark_url_conflict");
+    assert_eq!(
+        service.get_by_id(first.id).unwrap().url,
+        "https://updated.example"
+    );
+    assert_eq!(
+        service.get_by_id(second.id).unwrap().url,
+        "https://second.example"
+    );
+}
+
+#[tokio::test]
 async fn list_route_defaults_to_fifty_and_maps_cursor_errors() {
     let service = service();
     for index in 0..51 {

@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "pnpm --filter bkmrx dev",
     "build": "pnpm --filter bkmrx build",
-    "test": "pnpm --filter bkmrx test",
+    "test": "node --test apps/chrome-extension/popup/popup.test.js && pnpm --filter bkmrx test",
     "tauri": "pnpm --filter bkmrx tauri"
   }
 }
