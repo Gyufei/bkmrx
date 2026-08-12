@@ -31,7 +31,7 @@ bkmrx Chrome Extension 是 bkmrx 的浏览器快捷入口，可以读取当前�
 4. 按需编辑标题，并输入或选择标签。
 5. 点击“添加书签”。
 
-标签支持用空格分隔，例如 `fe rust 前端`。扩展也会从桌面端获取已有标签，展示使用频率最高的 30 个供快速选择。
+输入标签后可按回车添加，也可用逗号分隔，例如 `fe,rust,前端`。扩展也会从桌面端获取已有标签，展示使用频率最高的 30 个供快速选择。
 
 ## 功能
 
@@ -67,13 +67,15 @@ apps/chrome-extension/
 │   ├── icon16.png
 │   ├── icon48.png
 │   └── icon128.png
+├── lib/
+│   └── README.md
 └── popup/
     ├── popup.html
     ├── popup.css
     └── popup.js
 ```
 
-扩展使用原生 HTML、CSS 和 JavaScript，没有 npm 依赖。修改源码后，在 `chrome://extensions/` 中点击扩展卡片的刷新按钮即可生效。
+扩展使用原生 HTML、CSS 和 JavaScript，没有 npm 构建依赖。运行时第三方库直接存放在 `lib/`，版本、来源和许可证见 [`lib/README.md`](lib/README.md)。修改源码后，在 `chrome://extensions/` 中点击扩展卡片的刷新按钮即可生效。
 
 ## 调试
 

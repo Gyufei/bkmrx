@@ -40,8 +40,8 @@ function createPopupApp({ fetchImpl, chromeApi, TagifyCtor }) {
     },
     get buttonText() {
       return this.submitting
-        ? '\u5904\u7406\u4e2d...'
-        : (this.mode === 'update' ? '\u66f4\u65b0\u4e66\u7b7e' : '\u6dfb\u52a0\u4e66\u7b7e');
+        ? '处理中...'
+        : (this.mode === 'update' ? '更新书签' : '添加书签');
     },
 
     async init() {
@@ -138,7 +138,7 @@ function createPopupApp({ fetchImpl, chromeApi, TagifyCtor }) {
     setExistingBookmark(bookmark) {
       this.existingBookmark = bookmark;
       this.mode = 'update';
-      this.bannerText = '\u5df2\u6536\u85cf';
+      this.bannerText = '已收藏';
       this.showBanner = true;
       this.form.url = bookmark.url;
       this.form.title = bookmark.title;
@@ -166,7 +166,7 @@ function createPopupApp({ fetchImpl, chromeApi, TagifyCtor }) {
 
     async submit() {
       const url = this.form.url.trim();
-      if (!url) { this.errorMessage = '\u8bf7\u8f93\u5165 URL'; return; }
+      if (!url) { this.errorMessage = '请输入 URL'; return; }
       if (this.submitting) return;
       this.submitting = true;
       this.errorMessage = '';
@@ -185,7 +185,7 @@ function createPopupApp({ fetchImpl, chromeApi, TagifyCtor }) {
       } catch (error) {
         this.errorMessage = error instanceof Error
           ? error.message
-          : '\u65e0\u6cd5\u8fde\u63a5\u5230 bkmrx\uff0c\u8bf7\u786e\u8ba4\u5e94\u7528\u5df2\u542f\u52a8';
+          : '无法连接到 bkmrx，请确认应用已启动';
       } finally {
         this.submitting = false;
       }
@@ -198,7 +198,7 @@ function createPopupApp({ fetchImpl, chromeApi, TagifyCtor }) {
         body: JSON.stringify({ url, title, tags, description }),
       });
       const bookmark = await parseApiResponse(response);
-      this.successMessage = `\u4e66\u7b7e\u5df2\u6dfb\u52a0 (ID: ${bookmark.id})`;
+      this.successMessage = `书签已添加 (ID: ${bookmark.id})`;
       this.setExistingBookmark(bookmark);
       await this.loadTagWhitelist();
     },
@@ -209,7 +209,7 @@ function createPopupApp({ fetchImpl, chromeApi, TagifyCtor }) {
         { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, title, tags, description }) }
       );
       const bookmark = await parseApiResponse(response);
-      this.successMessage = `\u4e66\u7b7e\u5df2\u66f4\u65b0 (ID: ${bookmark.id})`;
+      this.successMessage = `书签已更新 (ID: ${bookmark.id})`;
       this.setExistingBookmark(bookmark);
     },
   };
