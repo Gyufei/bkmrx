@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import { listen } from '@tauri-apps/api/event';
 import { Plus } from 'lucide-react';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
+import { useHotkeys } from '@tanstack/react-hotkeys';
 
 import { Button } from '@/components/ui/button';
 import type { Bookmark, BookmarkBaseView } from '@/types';
@@ -30,7 +31,11 @@ export default function BookmarkView() {
   const [baseView, setBaseView] = useState<BookmarkBaseView>('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [previewBookmark, setPreviewBookmark] = useState<Bookmark | null>(null);
+  const [activeBookmarkId, setActiveBookmarkId] = useState<number | null>(null);
+  const [resultListInteractionLocked, setResultListInteractionLocked] = useState(false);
   const [previewContainer, setPreviewContainer] = useState<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const bookmarkElementsRef = useRef(new Map<number, HTMLElement>());
   const previewTriggerRef = useRef<HTMLElement | null>(null);
   const isSearchMode = query.length > 0 || selectedTags.length > 0;
   const starredView = !isSearchMode && baseView === 'starred';
@@ -53,6 +58,9 @@ export default function BookmarkView() {
     () => bookmarksQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [bookmarksQuery.data],
   );
+  const activeBookmarkIndex = bookmarks.findIndex((bookmark) => bookmark.id === activeBookmarkId);
+  const activeBookmark = activeBookmarkIndex >= 0 ? bookmarks[activeBookmarkIndex] : null;
+  const singleKeyLocked = showAddDialog || resultListInteractionLocked;
   const starMutation = useMutation({
     mutationFn: setBookmarkStarredApi,
     onSuccess: () => {
@@ -67,6 +75,20 @@ export default function BookmarkView() {
   const handleTagsChange = useCallback((tags: string[]) => {
     setSelectedTags(tags);
   }, []);
+
+  useEffect(() => {
+    setActiveBookmarkId((currentId) => {
+      if (bookmarks.length === 0) return null;
+      return currentId !== null && bookmarks.some((bookmark) => bookmark.id === currentId)
+        ? currentId
+        : bookmarks[0].id;
+    });
+  }, [bookmarks]);
+
+  useEffect(() => {
+    if (activeBookmarkId === null) return;
+    bookmarkElementsRef.current.get(activeBookmarkId)?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeBookmarkId]);
 
   useEffect(() => {
     const unlisten = listen('bookmarks-changed', () => {
@@ -86,6 +108,22 @@ export default function BookmarkView() {
     }
   }, []);
 
+  const handleOpenBookmark = useCallback(
+    async (bookmark: Bookmark) => {
+      try {
+        await openExternal(bookmark.url);
+        void recordAccess(bookmark);
+      } catch {
+        toast.add({
+          type: 'error',
+          title: '无法打开链接',
+          description: bookmark.url,
+        });
+      }
+    },
+    [recordAccess],
+  );
+
   const handlePreviewBookmark = useCallback(
     async (bookmark: Bookmark, trigger: HTMLElement) => {
       let protocol = '';
@@ -102,26 +140,101 @@ export default function BookmarkView() {
         return;
       }
 
-      try {
-        await openExternal(bookmark.url);
-        void recordAccess(bookmark);
-      } catch {
-        toast.add({
-          type: 'error',
-          title: '无法打开链接',
-          description: bookmark.url,
-        });
-      }
+      await handleOpenBookmark(bookmark);
     },
-    [recordAccess],
+    [handleOpenBookmark, recordAccess],
   );
 
   const handlePreviewOpenChange = useCallback((open: boolean) => {
     if (open) return;
     setPreviewBookmark(null);
-    previewTriggerRef.current?.focus();
+    if (previewTriggerRef.current?.isConnected) previewTriggerRef.current.focus();
     previewTriggerRef.current = null;
   }, []);
+
+  const registerBookmarkElement = useCallback((id: number, element: HTMLElement | null) => {
+    if (element) bookmarkElementsRef.current.set(id, element);
+    else bookmarkElementsRef.current.delete(id);
+  }, []);
+
+  const moveActiveBookmark = useCallback(
+    (offset: -1 | 1) => {
+      if (bookmarks.length === 0) return;
+      const currentIndex = Math.max(activeBookmarkIndex, 0);
+      const nextIndex = Math.min(Math.max(currentIndex + offset, 0), bookmarks.length - 1);
+      setActiveBookmarkId(bookmarks[nextIndex].id);
+    },
+    [activeBookmarkIndex, bookmarks],
+  );
+
+  useHotkeys([
+    {
+      hotkey: '/',
+      callback: () => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      },
+      options: {
+        enabled: !singleKeyLocked && previewBookmark === null,
+        ignoreInputs: true,
+        meta: { name: '搜索书签', description: '聚焦书签搜索框' },
+      },
+    },
+    {
+      hotkey: 'J',
+      callback: () => moveActiveBookmark(1),
+      options: {
+        enabled: !singleKeyLocked && previewBookmark === null && bookmarks.length > 0,
+        ignoreInputs: true,
+        meta: { name: '下一条书签', description: '高亮下一条书签' },
+      },
+    },
+    {
+      hotkey: 'K',
+      callback: () => moveActiveBookmark(-1),
+      options: {
+        enabled: !singleKeyLocked && previewBookmark === null && bookmarks.length > 0,
+        ignoreInputs: true,
+        meta: { name: '上一条书签', description: '高亮上一条书签' },
+      },
+    },
+    {
+      hotkey: 'P',
+      callback: () => {
+        if (!activeBookmark) return;
+        const trigger = bookmarkElementsRef.current.get(activeBookmark.id);
+        if (trigger) void handlePreviewBookmark(activeBookmark, trigger);
+      },
+      options: {
+        enabled: !singleKeyLocked && previewBookmark === null && activeBookmark !== null,
+        ignoreInputs: true,
+        requireReset: true,
+        meta: { name: '预览书签', description: '预览当前书签' },
+      },
+    },
+    {
+      hotkey: 'X',
+      callback: () => handlePreviewOpenChange(false),
+      options: {
+        enabled: previewBookmark !== null,
+        ignoreInputs: true,
+        requireReset: true,
+        meta: { name: '关闭预览', description: '关闭当前书签预览' },
+      },
+    },
+    {
+      hotkey: 'O',
+      callback: () => {
+        if (activeBookmark) void handleOpenBookmark(activeBookmark);
+      },
+      options: {
+        enabled: !singleKeyLocked && previewBookmark === null && activeBookmark !== null,
+        ignoreInputs: true,
+        requireReset: true,
+        meta: { name: '打开书签', description: '在浏览器打开当前书签' },
+      },
+    },
+  ]);
 
   return (
     <div
@@ -130,7 +243,11 @@ export default function BookmarkView() {
     >
       <div className="shrink-0 px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <SearchBar onSearch={handleSearch} loading={bookmarksQuery.isLoading} />
+          <SearchBar
+            ref={searchInputRef}
+            onSearch={handleSearch}
+            loading={bookmarksQuery.isLoading}
+          />
           <Button
             variant="outline"
             className="h-10 w-10 shrink-0 !px-0 flex items-center justify-center"
@@ -186,6 +303,11 @@ export default function BookmarkView() {
                 starMutation.mutate({ id: bookmark.id, starred })
               }
               onPreviewBookmark={handlePreviewBookmark}
+              onOpenBookmark={handleOpenBookmark}
+              activeBookmarkId={activeBookmarkId}
+              onActiveBookmarkChange={setActiveBookmarkId}
+              onBookmarkElementChange={registerBookmarkElement}
+              onInteractionLockChange={setResultListInteractionLocked}
             />
           </div>
         </main>

@@ -6,15 +6,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Bookmark } from '@/types';
 import ResultList from './ResultList';
 
-const openMock = vi.hoisted(() => vi.fn());
 const toastAddMock = vi.hoisted(() => vi.fn());
 const toastCloseMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@tauri-apps/plugin-shell', () => ({ open: openMock }));
 vi.mock('@/components/ui/toast', () => ({
   toast: { add: toastAddMock, close: toastCloseMock },
 }));
-vi.mock('../lib/invoke', () => ({ invokeRecordBookmarkAccess: vi.fn() }));
 vi.mock('./DeleteBkDialog', () => ({ default: () => null }));
 vi.mock('./EditBookmarkDialog', () => ({ default: () => null }));
 
@@ -36,7 +33,6 @@ class IntersectionObserverMock {
 }
 
 beforeEach(() => {
-  openMock.mockReset();
   toastAddMock.mockReset();
   toastCloseMock.mockReset();
   vi.stubGlobal('IntersectionObserver', IntersectionObserverMock);
@@ -76,6 +72,11 @@ it('waits for explicit retry after a next-page failure', () => {
       starPendingId={null}
       onToggleStarred={vi.fn()}
       onPreviewBookmark={vi.fn()}
+      onOpenBookmark={vi.fn()}
+      activeBookmarkId={bookmark.id}
+      onActiveBookmarkChange={vi.fn()}
+      onBookmarkElementChange={vi.fn()}
+      onInteractionLockChange={vi.fn()}
     />,
   );
 
@@ -92,11 +93,19 @@ function renderList({
   starredView,
   onToggleStarred,
   onPreviewBookmark = vi.fn(),
+  onOpenBookmark = vi.fn(),
+  activeBookmarkId = null,
+  onActiveBookmarkChange = vi.fn(),
+  onInteractionLockChange = vi.fn(),
 }: {
   bookmark: Bookmark;
   starredView: boolean;
   onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
   onPreviewBookmark?: (bookmark: Bookmark, trigger: HTMLElement) => void;
+  onOpenBookmark?: (bookmark: Bookmark) => void;
+  activeBookmarkId?: number | null;
+  onActiveBookmarkChange?: (id: number) => void;
+  onInteractionLockChange?: (locked: boolean) => void;
 }) {
   return render(
     <ResultList
@@ -113,6 +122,11 @@ function renderList({
       starPendingId={null}
       onToggleStarred={onToggleStarred}
       onPreviewBookmark={onPreviewBookmark}
+      onOpenBookmark={onOpenBookmark}
+      activeBookmarkId={activeBookmarkId}
+      onActiveBookmarkChange={onActiveBookmarkChange}
+      onBookmarkElementChange={vi.fn()}
+      onInteractionLockChange={onInteractionLockChange}
     />,
   );
 }
@@ -131,20 +145,21 @@ it('previews a bookmark from card content but opens only the title externally', 
     starred_at: null,
   };
   const onPreviewBookmark = vi.fn();
+  const onOpenBookmark = vi.fn();
   renderList({
     bookmark,
     starredView: false,
     onToggleStarred: vi.fn(),
     onPreviewBookmark,
+    onOpenBookmark,
   });
 
   fireEvent.click(screen.getByText(bookmark.url));
-  expect(openMock).not.toHaveBeenCalled();
   expect(onPreviewBookmark).toHaveBeenCalledWith(bookmark, expect.any(HTMLElement));
 
   fireEvent.click(screen.getByRole('button', { name: bookmark.title }));
-  expect(openMock).toHaveBeenCalledOnce();
-  expect(openMock).toHaveBeenCalledWith(bookmark.url);
+  expect(onOpenBookmark).toHaveBeenCalledOnce();
+  expect(onOpenBookmark).toHaveBeenCalledWith(bookmark);
   expect(onPreviewBookmark).toHaveBeenCalledOnce();
 });
 
@@ -167,7 +182,6 @@ it('stars a bookmark from an independent accessible card button', () => {
   fireEvent.click(screen.getByRole('button', { name: '添加星标' }));
 
   expect(onToggleStarred).toHaveBeenCalledWith(bookmark, true);
-  expect(openMock).not.toHaveBeenCalled();
 });
 
 it('immediately unstars in the default starred view and offers undo', () => {
@@ -189,7 +203,6 @@ it('immediately unstars in the default starred view and offers undo', () => {
 
   fireEvent.click(screen.getByRole('button', { name: '取消星标' }));
   expect(onToggleStarred).toHaveBeenCalledWith(bookmark, false);
-  expect(openMock).not.toHaveBeenCalled();
   expect(toastAddMock).toHaveBeenCalledWith(
     expect.objectContaining({
       title: '已取消星标',
@@ -255,10 +268,99 @@ it('disables the star button while that bookmark is updating', () => {
       starPendingId={bookmark.id}
       onToggleStarred={vi.fn()}
       onPreviewBookmark={vi.fn()}
+      onOpenBookmark={vi.fn()}
+      activeBookmarkId={bookmark.id}
+      onActiveBookmarkChange={vi.fn()}
+      onBookmarkElementChange={vi.fn()}
+      onInteractionLockChange={vi.fn()}
     />,
   );
 
   expect((screen.getByRole('button', { name: '添加星标' }) as HTMLButtonElement).disabled).toBe(
     true,
   );
+});
+
+it('locks page shortcuts while a bookmark dialog target is active', () => {
+  const bookmark: Bookmark = {
+    id: 1,
+    url: 'https://example.com',
+    title: 'Example',
+    description: '',
+    tags: [],
+    access_count: 0,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    accessed_at: null,
+    starred_at: null,
+  };
+  const onInteractionLockChange = vi.fn();
+  renderList({
+    bookmark,
+    starredView: false,
+    onToggleStarred: vi.fn(),
+    onInteractionLockChange,
+  });
+
+  fireEvent.click(screen.getByTitle('删除书签'));
+
+  expect(onInteractionLockChange).toHaveBeenLastCalledWith(true);
+});
+
+it('distinguishes the active bookmark from the lighter hover state', () => {
+  const bookmark: Bookmark = {
+    id: 1,
+    url: 'https://example.com',
+    title: 'Example',
+    description: '',
+    tags: [],
+    access_count: 0,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    accessed_at: null,
+    starred_at: null,
+  };
+  const onActiveBookmarkChange = vi.fn();
+  const { rerender } = renderList({
+    bookmark,
+    starredView: false,
+    onToggleStarred: vi.fn(),
+    activeBookmarkId: null,
+    onActiveBookmarkChange,
+  });
+
+  const row = screen.getByText(bookmark.url).parentElement as HTMLElement;
+  expect(row.className).toContain('hover:bg-accent/40');
+  expect(row.getAttribute('aria-current')).toBeNull();
+
+  fireEvent.click(row);
+  expect(onActiveBookmarkChange).toHaveBeenCalledWith(bookmark.id);
+
+  rerender(
+    <ResultList
+      bookmarks={[bookmark]}
+      initialLoading={false}
+      initialError={null}
+      hasMore={false}
+      isFetchingNextPage={false}
+      nextPageError={null}
+      onLoadMore={vi.fn()}
+      onRetryNextPage={vi.fn()}
+      starredView={false}
+      emptyMessage="空"
+      starPendingId={null}
+      onToggleStarred={vi.fn()}
+      onPreviewBookmark={vi.fn()}
+      onOpenBookmark={vi.fn()}
+      activeBookmarkId={bookmark.id}
+      onActiveBookmarkChange={vi.fn()}
+      onBookmarkElementChange={vi.fn()}
+      onInteractionLockChange={vi.fn()}
+    />,
+  );
+
+  const activeRow = screen.getByText(bookmark.url).parentElement as HTMLElement;
+  expect(activeRow.className).toContain('bg-accent');
+  expect(activeRow.className).not.toContain('hover:bg-accent/40');
+  expect(activeRow.getAttribute('aria-current')).toBe('true');
 });

@@ -52,21 +52,65 @@ describe('SettingsPage', () => {
     vi.mocked(updateSettingsApi).mockClear();
   });
 
-  it.each([0, 1])('save button %i submits both current fields', async (buttonIndex) => {
+  it('shows complete path text until the user starts editing', async () => {
     renderPage();
-    const backupInput = await screen.findByPlaceholderText('/Users/me/CloudDrive/bookmarks');
-    const notesInput = await screen.findByPlaceholderText('输入 Obsidian 笔记目录路径');
-    await waitFor(() => expect((backupInput as HTMLInputElement).value).toBe('/old/backup'));
+    expect(await screen.findByText('/old/backup')).toBeTruthy();
+    expect(screen.getByText('/old/notes')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('/Users/me/CloudDrive/bookmarks')).toBeNull();
+    expect(screen.queryByPlaceholderText('输入 Obsidian 笔记目录路径')).toBeNull();
+    expect(screen.getAllByRole('button', { name: '编辑' })).toHaveLength(2);
+  });
 
-    fireEvent.change(backupInput, { target: { value: '/new/backup' } });
-    fireEvent.change(notesInput, { target: { value: '/new/notes' } });
-    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[buttonIndex]);
+  it('edits and saves the backup directory in place', async () => {
+    renderPage();
+    await screen.findByText('/old/backup');
+    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]);
+
+    const input = screen.getByPlaceholderText('/Users/me/CloudDrive/bookmarks');
+    expect((input as HTMLInputElement).value).toBe('/old/backup');
+    expect((screen.getByRole('button', { name: '编辑' }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(input, { target: { value: '/new/backup' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() =>
       expect(vi.mocked(updateSettingsApi).mock.calls[0]?.[0]).toEqual({
         backup_dir: '/new/backup',
+        notes_dir: '/old/notes',
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByPlaceholderText('/Users/me/CloudDrive/bookmarks')).toBeNull(),
+    );
+  });
+
+  it('edits and saves the notes directory in place', async () => {
+    renderPage();
+    await screen.findByText('/old/notes');
+    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[1]);
+
+    const input = screen.getByPlaceholderText('输入 Obsidian 笔记目录路径');
+    fireEvent.change(input, { target: { value: '/new/notes' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() =>
+      expect(vi.mocked(updateSettingsApi).mock.calls[0]?.[0]).toEqual({
+        backup_dir: '/old/backup',
         notes_dir: '/new/notes',
       }),
     );
+  });
+
+  it('cancels an in-place edit without saving the draft', async () => {
+    renderPage();
+    await screen.findByText('/old/backup');
+    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]);
+
+    const input = screen.getByPlaceholderText('/Users/me/CloudDrive/bookmarks');
+    fireEvent.change(input, { target: { value: '/discarded/backup' } });
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+
+    expect(screen.getByText('/old/backup')).toBeTruthy();
+    expect(vi.mocked(updateSettingsApi)).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useHotkeys } from '@tanstack/react-hotkeys';
 import NotesPanel from './notes/NotesPanel';
 import SettingsPage from './settings/SettingsPage';
 import BookmarkView from './bookmarks/BookmarkView';
@@ -8,6 +9,24 @@ import NavBar, { PATHS } from './Navbar';
 
 export default function AppHome() {
   const [currentPath, setCurrentPath] = useState<PATHS>(PATHS.BOOKMARKS);
+
+  useHotkeys([
+    {
+      hotkey: 'Mod+1',
+      callback: () => setCurrentPath(PATHS.BOOKMARKS),
+      options: { meta: { name: '打开书签', description: '切换到书签工作区' } },
+    },
+    {
+      hotkey: 'Mod+2',
+      callback: () => setCurrentPath(PATHS.NOTES),
+      options: { meta: { name: '打开笔记', description: '切换到笔记工作区' } },
+    },
+    {
+      hotkey: 'Mod+3',
+      callback: () => setCurrentPath(PATHS.TODOS),
+      options: { meta: { name: '打开 Todo', description: '切换到 Todo 工作区' } },
+    },
+  ]);
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">

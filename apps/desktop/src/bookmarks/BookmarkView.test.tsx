@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -31,16 +31,24 @@ vi.mock('@/components/ui/toast', () => ({
   toast: { add: toastAddMock },
 }));
 
-vi.mock('./SearchBar', () => ({
-  default: ({ onSearch }: { onSearch: (value: string) => void }) => (
-    <div>
-      <button data-testid="search-bar" onClick={() => onSearch('needle')}>
-        搜索
-      </button>
-      <button onClick={() => onSearch('')}>清空搜索</button>
-    </div>
-  ),
-}));
+vi.mock('./SearchBar', async () => {
+  const React = await import('react');
+  return {
+    default: React.forwardRef<HTMLInputElement, { onSearch: (value: string) => void }>(
+      function SearchBarMock({ onSearch }, ref) {
+        return (
+          <div>
+            <input ref={ref} aria-label="搜索书签" defaultValue="current query" />
+            <button data-testid="search-bar" onClick={() => onSearch('needle')}>
+              搜索
+            </button>
+            <button onClick={() => onSearch('')}>清空搜索</button>
+          </div>
+        );
+      },
+    ),
+  };
+});
 vi.mock('./BookmarkSidebar', () => ({
   default: ({
     onTagsChange,
@@ -73,12 +81,23 @@ vi.mock('./ResultList', () => ({
     starPendingId: number | null;
     onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
     onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
+    onOpenBookmark: (bookmark: Bookmark) => void;
+    activeBookmarkId: number | null;
+    onActiveBookmarkChange: (id: number) => void;
+    onBookmarkElementChange: (id: number, element: HTMLElement | null) => void;
   }) => (
     <div>
       <div>{props.starredView ? '星标模式' : '普通模式'}</div>
       {props.bookmarks.length === 0 && <div>{props.emptyMessage}</div>}
       {props.bookmarks.map((bookmark) => (
-        <div key={bookmark.id}>{bookmark.title}</div>
+        <div
+          key={bookmark.id}
+          ref={(element) => props.onBookmarkElementChange(bookmark.id, element)}
+          aria-current={props.activeBookmarkId === bookmark.id ? 'true' : undefined}
+          onClick={() => props.onActiveBookmarkChange(bookmark.id)}
+        >
+          {bookmark.title}
+        </div>
       ))}
       {props.bookmarks[0] && (
         <>
@@ -88,6 +107,7 @@ vi.mock('./ResultList', () => ({
           >
             预览书签
           </button>
+          <button onClick={() => props.onOpenBookmark(props.bookmarks[0])}>打开书签</button>
         </>
       )}
       {props.starPendingId !== null && <div>正在更新 {props.starPendingId}</div>}
@@ -143,6 +163,12 @@ function renderView() {
 function lastBookmarkRequest() {
   const calls = queryBookmarksMock.mock.calls;
   return calls[calls.length - 1]?.[0];
+}
+
+function dispatchKey(key: string, modifiers: KeyboardEventInit = {}) {
+  const event = new KeyboardEvent('keydown', { key, cancelable: true, ...modifiers });
+  act(() => document.dispatchEvent(event));
+  return event;
 }
 
 describe('BookmarkView infinite pagination', () => {
@@ -335,5 +361,123 @@ describe('BookmarkView infinite pagination', () => {
     fireEvent.click(screen.getByText('关闭预览'));
 
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('focuses and selects the bookmark search input with slash', async () => {
+    queryBookmarksMock.mockResolvedValue({ items: [], next_cursor: null });
+    renderView();
+    await screen.findByText('暂无书签');
+
+    const input = screen.getByRole('textbox', { name: '搜索书签' }) as HTMLInputElement;
+    input.blur();
+    const shortcut = dispatchKey('/');
+
+    expect(shortcut.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('moves the active bookmark with j and k without wrapping', async () => {
+    queryBookmarksMock.mockResolvedValue({
+      items: [bookmark(1, 'First'), bookmark(2, 'Second')],
+      next_cursor: null,
+    });
+    renderView();
+    await screen.findByText('First');
+    await waitFor(() =>
+      expect(screen.getByText('First').getAttribute('aria-current')).toBe('true'),
+    );
+
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(screen.getByText('Second'), 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    dispatchKey('j');
+    expect(screen.getByText('Second').getAttribute('aria-current')).toBe('true');
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+    dispatchKey('j');
+    expect(screen.getByText('Second').getAttribute('aria-current')).toBe('true');
+    dispatchKey('k');
+    expect(screen.getByText('First').getAttribute('aria-current')).toBe('true');
+    dispatchKey('k');
+    expect(screen.getByText('First').getAttribute('aria-current')).toBe('true');
+  });
+
+  it('keeps an available active bookmark and falls back when filtering removes it', async () => {
+    queryBookmarksMock.mockImplementation(({ query }: { query: string }): Promise<BookmarkPage> =>
+      Promise.resolve(
+        query
+          ? { items: [bookmark(2, 'Second'), bookmark(3, 'Third')], next_cursor: null }
+          : { items: [bookmark(1, 'First'), bookmark(2, 'Second')], next_cursor: null },
+      ),
+    );
+    renderView();
+    await screen.findByText('First');
+    await waitFor(() =>
+      expect(screen.getByText('First').getAttribute('aria-current')).toBe('true'),
+    );
+
+    dispatchKey('j');
+    expect(screen.getByText('Second').getAttribute('aria-current')).toBe('true');
+    fireEvent.click(screen.getByTestId('search-bar'));
+    await screen.findByText('Third');
+    await waitFor(() =>
+      expect(screen.getByText('Second').getAttribute('aria-current')).toBe('true'),
+    );
+
+    dispatchKey('j');
+    expect(screen.getByText('Third').getAttribute('aria-current')).toBe('true');
+    fireEvent.click(screen.getByText('清空搜索'));
+    await screen.findByText('First');
+    await waitFor(() =>
+      expect(screen.getByText('First').getAttribute('aria-current')).toBe('true'),
+    );
+  });
+
+  it('previews, closes, and opens the active bookmark from single-key shortcuts', async () => {
+    queryBookmarksMock.mockResolvedValue({
+      items: [bookmark(1, 'First'), bookmark(2, 'Second')],
+      next_cursor: null,
+    });
+    openMock.mockResolvedValue(undefined);
+    renderView();
+    await screen.findByText('First');
+    await waitFor(() =>
+      expect(screen.getByText('First').getAttribute('aria-current')).toBe('true'),
+    );
+
+    dispatchKey('j');
+    dispatchKey('p');
+    expect(screen.getByTestId('web-preview').textContent).toContain('https://example.com/2');
+    expect(recordAccessMock).toHaveBeenCalledWith(2);
+
+    dispatchKey('x');
+    expect(screen.queryByTestId('web-preview')).toBeNull();
+
+    dispatchKey('o');
+    await waitFor(() => expect(openMock).toHaveBeenCalledWith('https://example.com/2'));
+    expect(recordAccessMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores bookmark single-key shortcuts while a text input is focused', async () => {
+    queryBookmarksMock.mockResolvedValue({
+      items: [bookmark(1, 'First'), bookmark(2, 'Second')],
+      next_cursor: null,
+    });
+    renderView();
+    await screen.findByText('First');
+    await waitFor(() =>
+      expect(screen.getByText('First').getAttribute('aria-current')).toBe('true'),
+    );
+
+    const input = screen.getByRole('textbox', { name: '搜索书签' });
+    input.focus();
+    const shortcut = dispatchKey('j');
+
+    expect(shortcut.defaultPrevented).toBe(false);
+    expect(screen.getByText('First').getAttribute('aria-current')).toBe('true');
+    expect(screen.getByText('Second').getAttribute('aria-current')).toBeNull();
   });
 });

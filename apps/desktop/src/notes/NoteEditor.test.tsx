@@ -166,7 +166,7 @@ function dispatchShortcut(
     ctrlKey?: boolean;
     shiftKey?: boolean;
     altKey?: boolean;
-  } = { metaKey: true },
+  } = { ctrlKey: true },
 ) {
   const event = new KeyboardEvent('keydown', {
     key,
@@ -339,7 +339,7 @@ describe('NoteEditor', () => {
   });
 
   it.each([
-    ['Shift', { metaKey: true, shiftKey: true }],
+    ['Shift', { ctrlKey: true, shiftKey: true }],
     ['Alt', { ctrlKey: true, altKey: true }],
   ])('ignores %s-modified mode shortcuts', (_name, modifiers) => {
     renderEditor();
@@ -415,7 +415,7 @@ describe('NoteEditor', () => {
   });
 
   it.each([
-    ['Shift', { metaKey: true, shiftKey: true }],
+    ['Shift', { ctrlKey: true, shiftKey: true }],
     ['Alt', { ctrlKey: true, altKey: true }],
   ])('ignores %s-modified save shortcuts', async (_name, modifiers) => {
     renderEditor();

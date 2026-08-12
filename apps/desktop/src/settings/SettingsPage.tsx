@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, Copy } from 'lucide-react';
 
 import { BkQueryApiKey } from '@/bookmarks/bookmarks.api';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ function SettingsPage() {
   const queryClient = useQueryClient();
   const [backupDir, setBackupDir] = useState('');
   const [notesDir, setNotesDir] = useState('');
+  const [editingPath, setEditingPath] = useState<'backup' | 'notes' | null>(null);
   const [importCandidate, setImportCandidate] = useState<{
     path: string;
     preview: ImportPreview;
@@ -91,13 +92,29 @@ function SettingsPage() {
   }
 
   function saveBackupDirectory() {
-    if (!settings) return;
-    updateMutation.mutate(currentSettings(backupDir, notesDir));
+    if (!settings || updateMutation.isPending) return;
+    updateMutation.mutate(currentSettings(backupDir, notesDir), {
+      onSuccess: () => setEditingPath(null),
+    });
   }
 
   function saveNotesDirectory() {
-    if (!settings) return;
-    updateMutation.mutate(currentSettings(backupDir, notesDir));
+    if (!settings || updateMutation.isPending) return;
+    updateMutation.mutate(currentSettings(backupDir, notesDir), {
+      onSuccess: () => setEditingPath(null),
+    });
+  }
+
+  function startPathEdit(path: 'backup' | 'notes') {
+    updateMutation.reset();
+    setEditingPath(path);
+  }
+
+  function cancelPathEdit() {
+    updateMutation.reset();
+    setBackupDir(settings?.backup_dir ?? '');
+    setNotesDir(settings?.notes_dir ?? '');
+    setEditingPath(null);
   }
 
   return (
@@ -141,19 +158,67 @@ function SettingsPage() {
           <div className="space-y-4 p-4 rounded-lg bg-sidebar">
             <div>
               <Label className="block text-xs text-muted-foreground mb-1.5">默认备份目录</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={backupDir}
-                  onChange={(event) => setBackupDir(event.target.value)}
-                  placeholder="/Users/me/CloudDrive/bookmarks"
-                />
-                <Button
-                  onClick={saveBackupDirectory}
-                  disabled={updateMutation.isPending || !settings}
-                >
-                  保存
-                </Button>
-              </div>
+              {editingPath === 'backup' ? (
+                <div className="space-y-2">
+                  <Input
+                    autoFocus
+                    value={backupDir}
+                    onChange={(event) => setBackupDir(event.target.value)}
+                    placeholder="/Users/me/CloudDrive/bookmarks"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        saveBackupDirectory();
+                      }
+                      if (event.key === 'Escape' && !updateMutation.isPending) {
+                        event.preventDefault();
+                        cancelPathEdit();
+                      }
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={saveBackupDirectory}
+                      disabled={updateMutation.isPending || !settings}
+                    >
+                      {updateMutation.isPending ? '保存中...' : '保存'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={cancelPathEdit}
+                      disabled={updateMutation.isPending}
+                    >
+                      取消
+                    </Button>
+                  </div>
+                  {updateMutation.isError && (
+                    <p className="text-xs text-destructive">
+                      保存失败：{errorMessage(updateMutation.error)}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-start gap-3">
+                  <p
+                    className={`min-w-0 flex-1 select-text break-all text-sm ${
+                      backupDir ? 'text-foreground' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {backupDir || '未配置'}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => startPathEdit('backup')}
+                    disabled={editingPath !== null || updateMutation.isPending || !settings}
+                  >
+                    编辑
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Button
@@ -161,6 +226,7 @@ function SettingsPage() {
                 onClick={chooseExportPath}
                 disabled={exportMutation.isPending}
               >
+                <ArrowUpFromLine className="w-4 h-4" />
                 {exportMutation.isPending ? '导出中...' : '导出 JSON'}
               </Button>
               <Button
@@ -168,6 +234,7 @@ function SettingsPage() {
                 onClick={chooseImportPath}
                 disabled={previewMutation.isPending || applyMutation.isPending}
               >
+                <ArrowDownToLine className="w-4 h-4" />
                 {previewMutation.isPending ? '预检中...' : '导入 JSON'}
               </Button>
             </div>
@@ -225,16 +292,67 @@ function SettingsPage() {
           <h3 className="text-sm font-medium text-foreground mb-3">笔记目录</h3>
           <div className="space-y-3 p-4 rounded-lg bg-sidebar">
             <Label className="block text-xs text-muted-foreground">Obsidian vault 路径</Label>
-            <div className="flex gap-2">
-              <Input
-                value={notesDir}
-                onChange={(event) => setNotesDir(event.target.value)}
-                placeholder="输入 Obsidian 笔记目录路径"
-              />
-              <Button onClick={saveNotesDirectory} disabled={updateMutation.isPending || !settings}>
-                保存
-              </Button>
-            </div>
+            {editingPath === 'notes' ? (
+              <div className="space-y-2">
+                <Input
+                  autoFocus
+                  value={notesDir}
+                  onChange={(event) => setNotesDir(event.target.value)}
+                  placeholder="输入 Obsidian 笔记目录路径"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      saveNotesDirectory();
+                    }
+                    if (event.key === 'Escape' && !updateMutation.isPending) {
+                      event.preventDefault();
+                      cancelPathEdit();
+                    }
+                  }}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={saveNotesDirectory}
+                    disabled={updateMutation.isPending || !settings}
+                  >
+                    {updateMutation.isPending ? '保存中...' : '保存'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={cancelPathEdit}
+                    disabled={updateMutation.isPending}
+                  >
+                    取消
+                  </Button>
+                </div>
+                {updateMutation.isError && (
+                  <p className="text-xs text-destructive">
+                    保存失败：{errorMessage(updateMutation.error)}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-start gap-3">
+                <p
+                  className={`min-w-0 flex-1 select-text break-all text-sm ${
+                    notesDir ? 'text-foreground' : 'text-muted-foreground'
+                  }`}
+                >
+                  {notesDir || '未配置'}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => startPathEdit('notes')}
+                  disabled={editingPath !== null || updateMutation.isPending || !settings}
+                >
+                  编辑
+                </Button>
+              </div>
+            )}
           </div>
         </section>
       </div>

@@ -9,8 +9,6 @@ import {
 } from '@/components/ui/context-menu';
 import EditBookmarkDialog from './EditBookmarkDialog';
 import { tagColor } from '../lib/tagColor';
-import { open } from '@tauri-apps/plugin-shell';
-import { invokeRecordBookmarkAccess } from '../lib/invoke';
 import type { Bookmark } from '../types';
 import DeleteBkDialog from './DeleteBkDialog';
 import { toast } from '@/components/ui/toast';
@@ -29,6 +27,11 @@ interface Props {
   starPendingId: number | null;
   onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
   onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
+  onOpenBookmark: (bookmark: Bookmark) => void;
+  activeBookmarkId: number | null;
+  onActiveBookmarkChange: (id: number) => void;
+  onBookmarkElementChange: (id: number, element: HTMLElement | null) => void;
+  onInteractionLockChange: (locked: boolean) => void;
 }
 
 export default function ResultList({
@@ -45,20 +48,25 @@ export default function ResultList({
   starPendingId,
   onToggleStarred,
   onPreviewBookmark,
+  onOpenBookmark,
+  activeBookmarkId,
+  onActiveBookmarkChange,
+  onBookmarkElementChange,
+  onInteractionLockChange,
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<Bookmark | null>(null);
   const [editTarget, setEditTarget] = useState<Bookmark | null>(null);
 
+  useEffect(() => {
+    onInteractionLockChange(deleteTarget !== null || editTarget !== null);
+    return () => onInteractionLockChange(false);
+  }, [deleteTarget, editTarget, onInteractionLockChange]);
+
   const handleIntersect = useCallback(
     (entries: IntersectionObserverEntry[]) => {
-      if (
-        entries[0]?.isIntersecting &&
-        hasMore &&
-        !isFetchingNextPage &&
-        !nextPageError
-      ) {
+      if (entries[0]?.isIntersecting && hasMore && !isFetchingNextPage && !nextPageError) {
         onLoadMore();
       }
     },
@@ -112,19 +120,14 @@ export default function ResultList({
               onToggleStarred={onToggleStarred}
               onRequestDelete={setDeleteTarget}
               onPreviewBookmark={onPreviewBookmark}
+              onOpenBookmark={onOpenBookmark}
+              active={activeBookmarkId === bm.id}
+              onActiveBookmarkChange={onActiveBookmarkChange}
+              onElementChange={onBookmarkElementChange}
             />
           </ContextMenuTrigger>
           <ContextMenuContent>
-            <ContextMenuItem
-              onClick={async () => {
-                open(bm.url);
-                try {
-                  await invokeRecordBookmarkAccess(bm.id);
-                } catch {
-                  console.error('Failed to record bookmark access');
-                }
-              }}
-            >
+            <ContextMenuItem onClick={() => onOpenBookmark(bm)}>
               <ExternalLink className="h-4 w-4" />
               <span>打开链接</span>
             </ContextMenuItem>
@@ -158,15 +161,9 @@ export default function ResultList({
         </ContextMenu>
       ))}
 
-      <DeleteBkDialog
-        deleteTarget={deleteTarget}
-        setDeleteTarget={setDeleteTarget}
-      />
+      <DeleteBkDialog deleteTarget={deleteTarget} setDeleteTarget={setDeleteTarget} />
 
-      <EditBookmarkDialog
-        editTarget={editTarget}
-        setEditTarget={setEditTarget}
-      />
+      <EditBookmarkDialog editTarget={editTarget} setEditTarget={setEditTarget} />
 
       {/* Sentinel for infinite scroll */}
       <div ref={sentinelRef} className="h-4" />
@@ -205,6 +202,10 @@ function BookmarkRow({
   onToggleStarred,
   onRequestDelete,
   onPreviewBookmark,
+  onOpenBookmark,
+  active,
+  onActiveBookmarkChange,
+  onElementChange,
 }: {
   bookmark: Bookmark;
   starredView: boolean;
@@ -212,16 +213,11 @@ function BookmarkRow({
   onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
   onRequestDelete: (bm: Bookmark) => void;
   onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
+  onOpenBookmark: (bookmark: Bookmark) => void;
+  active: boolean;
+  onActiveBookmarkChange: (id: number) => void;
+  onElementChange: (id: number, element: HTMLElement | null) => void;
 }) {
-  const handleClick = async () => {
-    open(bookmark.url);
-    try {
-      await invokeRecordBookmarkAccess(bookmark.id);
-    } catch {
-      console.error('Failed to record bookmark access');
-    }
-  };
-
   const handleClickStar = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     const nextStarred = bookmark.starred_at === null;
@@ -247,15 +243,23 @@ function BookmarkRow({
   return (
     <div className="group relative">
       <div
+        ref={(element) => onElementChange(bookmark.id, element)}
         tabIndex={-1}
-        onClick={(event) => onPreviewBookmark(bookmark, event.currentTarget)}
-        className="block cursor-pointer rounded-md px-4 py-3 transition-colors hover:bg-accent dark:hover:bg-accent"
+        aria-current={active ? 'true' : undefined}
+        onClick={(event) => {
+          onActiveBookmarkChange(bookmark.id);
+          onPreviewBookmark(bookmark, event.currentTarget);
+        }}
+        className={`block cursor-pointer rounded-md px-4 py-3 transition-colors ${
+          active ? 'bg-accent' : 'hover:bg-accent/40 dark:hover:bg-accent/50'
+        }`}
       >
         <button
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            handleClick();
+            onActiveBookmarkChange(bookmark.id);
+            onOpenBookmark(bookmark);
           }}
           className="block max-w-full text-left text-base font-medium text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors truncate pr-6 cursor-pointer"
         >

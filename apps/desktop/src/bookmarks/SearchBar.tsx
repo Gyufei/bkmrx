@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { forwardRef, useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 
@@ -7,7 +7,10 @@ interface Props {
   loading: boolean;
 }
 
-export default function SearchBar({ onSearch, loading }: Props) {
+const SearchBar = forwardRef<HTMLInputElement, Props>(function SearchBar(
+  { onSearch, loading },
+  ref,
+) {
   const [value, setValue] = useState('');
 
   const handleSearch = useCallback(() => {
@@ -33,6 +36,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
   return (
     <div className="relative flex-1">
       <Input
+        ref={ref}
         type="text"
         autoComplete="one-time-code"
         autoCorrect="off"
@@ -45,7 +49,6 @@ export default function SearchBar({ onSearch, loading }: Props) {
         onBlur={handleBlur}
         placeholder="搜索书签..."
         className="h-10 pl-4 pr-10 text-[15px] font-medium"
-        autoFocus
       />
       <button
         type="button"
@@ -60,4 +63,6 @@ export default function SearchBar({ onSearch, loading }: Props) {
       </button>
     </div>
   );
-}
+});
+
+export default SearchBar;

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BookOpen, Pencil } from 'lucide-react';
+import { useHotkeys } from '@tanstack/react-hotkeys';
 
 import { Button } from '@/components/ui/button';
 
@@ -159,28 +160,27 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
     }
   }, []);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!event.metaKey && !event.ctrlKey) return;
-      if (event.shiftKey || event.altKey) return;
+  const canToggleMode =
+    session.loadState === 'ready' && !modeTransitionPending && (mode === 'view' || editorReady);
 
-      const key = event.key.toLowerCase();
-      const canToggleMode =
-        loadStateRef.current === 'ready' &&
-        !transitionPendingRef.current &&
-        (modeRef.current === 'view' || editorReadyRef.current);
-      if (key === 'e' && canToggleMode) {
-        event.preventDefault();
-        void toggleMode();
-      } else if (key === 's' && modeRef.current === 'edit') {
-        event.preventDefault();
-        void flushRef.current().catch(() => undefined);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [toggleMode]);
+  useHotkeys([
+    {
+      hotkey: 'Mod+E',
+      callback: () => void toggleMode(),
+      options: {
+        enabled: canToggleMode,
+        meta: { name: '切换笔记模式', description: '切换笔记的查看与编辑模式' },
+      },
+    },
+    {
+      hotkey: 'Mod+S',
+      callback: () => void flushRef.current().catch(() => undefined),
+      options: {
+        enabled: mode === 'edit',
+        meta: { name: '保存笔记', description: '立即保存当前笔记' },
+      },
+    },
+  ]);
 
   const handleViewScroll = useCallback(
     (scrollTop: number) => setViewPosition({ filePath, scrollTop }),

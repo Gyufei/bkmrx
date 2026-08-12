@@ -2,10 +2,19 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { createRef } from 'react';
 
 import SearchBar from './SearchBar';
 
 afterEach(cleanup);
+
+it('exposes its input without taking focus automatically', () => {
+  const ref = createRef<HTMLInputElement>();
+  render(<SearchBar ref={ref} onSearch={vi.fn()} loading={false} />);
+
+  expect(ref.current).toBe(screen.getByPlaceholderText('搜索书签...'));
+  expect(document.activeElement).not.toBe(ref.current);
+});
 
 it('submits an empty query when a cleared input loses focus', () => {
   const onSearch = vi.fn();
