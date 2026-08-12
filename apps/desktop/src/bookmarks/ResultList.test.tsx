@@ -75,6 +75,7 @@ it('waits for explicit retry after a next-page failure', () => {
       emptyMessage="暂无匹配的书签"
       starPendingId={null}
       onToggleStarred={vi.fn()}
+      onPreviewBookmark={vi.fn()}
     />,
   );
 
@@ -90,10 +91,12 @@ function renderList({
   bookmark,
   starredView,
   onToggleStarred,
+  onPreviewBookmark = vi.fn(),
 }: {
   bookmark: Bookmark;
   starredView: boolean;
   onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
+  onPreviewBookmark?: (bookmark: Bookmark, trigger: HTMLElement) => void;
 }) {
   return render(
     <ResultList
@@ -109,11 +112,12 @@ function renderList({
       emptyMessage="空"
       starPendingId={null}
       onToggleStarred={onToggleStarred}
+      onPreviewBookmark={onPreviewBookmark}
     />,
   );
 }
 
-it('opens a bookmark only when its title is clicked', () => {
+it('previews a bookmark from card content but opens only the title externally', () => {
   const bookmark: Bookmark = {
     id: 1,
     url: 'https://example.com',
@@ -126,14 +130,22 @@ it('opens a bookmark only when its title is clicked', () => {
     accessed_at: null,
     starred_at: null,
   };
-  renderList({ bookmark, starredView: false, onToggleStarred: vi.fn() });
+  const onPreviewBookmark = vi.fn();
+  renderList({
+    bookmark,
+    starredView: false,
+    onToggleStarred: vi.fn(),
+    onPreviewBookmark,
+  });
 
   fireEvent.click(screen.getByText(bookmark.url));
   expect(openMock).not.toHaveBeenCalled();
+  expect(onPreviewBookmark).toHaveBeenCalledWith(bookmark, expect.any(HTMLElement));
 
   fireEvent.click(screen.getByRole('button', { name: bookmark.title }));
   expect(openMock).toHaveBeenCalledOnce();
   expect(openMock).toHaveBeenCalledWith(bookmark.url);
+  expect(onPreviewBookmark).toHaveBeenCalledOnce();
 });
 
 it('stars a bookmark from an independent accessible card button', () => {
@@ -242,10 +254,11 @@ it('disables the star button while that bookmark is updating', () => {
       emptyMessage="空"
       starPendingId={bookmark.id}
       onToggleStarred={vi.fn()}
+      onPreviewBookmark={vi.fn()}
     />,
   );
 
-  expect(
-    (screen.getByRole('button', { name: '添加星标' }) as HTMLButtonElement).disabled,
-  ).toBe(true);
+  expect((screen.getByRole('button', { name: '添加星标' }) as HTMLButtonElement).disabled).toBe(
+    true,
+  );
 });

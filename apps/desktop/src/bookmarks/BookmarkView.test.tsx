@@ -9,6 +9,9 @@ import BookmarkView from './BookmarkView';
 
 const queryBookmarksMock = vi.hoisted(() => vi.fn());
 const setBookmarkStarredMock = vi.hoisted(() => vi.fn());
+const openMock = vi.hoisted(() => vi.fn());
+const recordAccessMock = vi.hoisted(() => vi.fn());
+const toastAddMock = vi.hoisted(() => vi.fn());
 
 vi.mock('./bookmarks.api', async (importOriginal) => {
   const original = await importOriginal<typeof import('./bookmarks.api')>();
@@ -21,6 +24,11 @@ vi.mock('./bookmarks.api', async (importOriginal) => {
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn().mockResolvedValue(() => {}),
+}));
+vi.mock('@tauri-apps/plugin-shell', () => ({ open: openMock }));
+vi.mock('../lib/invoke', () => ({ invokeRecordBookmarkAccess: recordAccessMock }));
+vi.mock('@/components/ui/toast', () => ({
+  toast: { add: toastAddMock },
 }));
 
 vi.mock('./SearchBar', () => ({
@@ -64,6 +72,7 @@ vi.mock('./ResultList', () => ({
     emptyMessage: string;
     starPendingId: number | null;
     onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
+    onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
   }) => (
     <div>
       <div>{props.starredView ? '星标模式' : '普通模式'}</div>
@@ -72,13 +81,37 @@ vi.mock('./ResultList', () => ({
         <div key={bookmark.id}>{bookmark.title}</div>
       ))}
       {props.bookmarks[0] && (
-        <button onClick={() => props.onToggleStarred(props.bookmarks[0], true)}>切换星标</button>
+        <>
+          <button onClick={() => props.onToggleStarred(props.bookmarks[0], true)}>切换星标</button>
+          <button
+            onClick={(event) => props.onPreviewBookmark(props.bookmarks[0], event.currentTarget)}
+          >
+            预览书签
+          </button>
+        </>
       )}
       {props.starPendingId !== null && <div>正在更新 {props.starPendingId}</div>}
       {props.hasMore && <button onClick={props.onLoadMore}>加载更多</button>}
       {props.nextPageError && <div>{props.nextPageError}</div>}
     </div>
   ),
+}));
+vi.mock('./BookmarkWebPreview', () => ({
+  default: ({
+    bookmark,
+    open,
+    onOpenChange,
+  }: {
+    bookmark: Bookmark | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open && bookmark ? (
+      <div data-testid="web-preview">
+        {bookmark.url}
+        <button onClick={() => onOpenChange(false)}>关闭预览</button>
+      </div>
+    ) : null,
 }));
 
 function bookmark(id: number, title: string): Bookmark {
@@ -116,6 +149,10 @@ describe('BookmarkView infinite pagination', () => {
   beforeEach(() => {
     queryBookmarksMock.mockReset();
     setBookmarkStarredMock.mockReset();
+    openMock.mockReset();
+    recordAccessMock.mockReset();
+    recordAccessMock.mockResolvedValue(undefined);
+    toastAddMock.mockReset();
   });
 
   afterEach(cleanup);
@@ -243,5 +280,60 @@ describe('BookmarkView infinite pagination', () => {
     fireEvent.click(screen.getByText('切换星标'));
 
     expect((await screen.findByRole('alert')).textContent).toContain('写入失败');
+  });
+
+  it('opens an HTTP bookmark preview and records one access', async () => {
+    queryBookmarksMock.mockResolvedValue({
+      items: [bookmark(1, 'Preview me')],
+      next_cursor: null,
+    });
+    renderView();
+
+    fireEvent.click(await screen.findByText('预览书签'));
+
+    expect(screen.getByTestId('web-preview').textContent).toContain('https://example.com/1');
+    expect(recordAccessMock).toHaveBeenCalledOnce();
+    expect(recordAccessMock).toHaveBeenCalledWith(1);
+    expect(openMock).not.toHaveBeenCalled();
+  });
+
+  it('routes non-HTTP protocols externally without opening the preview', async () => {
+    const customBookmark = { ...bookmark(1, 'Custom'), url: 'obsidian://open?vault=notes' };
+    queryBookmarksMock.mockResolvedValue({ items: [customBookmark], next_cursor: null });
+    openMock.mockResolvedValue(undefined);
+    renderView();
+
+    fireEvent.click(await screen.findByText('预览书签'));
+
+    await waitFor(() => expect(openMock).toHaveBeenCalledWith(customBookmark.url));
+    expect(screen.queryByTestId('web-preview')).toBeNull();
+    expect(recordAccessMock).toHaveBeenCalledWith(customBookmark.id);
+  });
+
+  it('fails a non-HTTP protocol safely without recording access', async () => {
+    const customBookmark = { ...bookmark(1, 'Custom'), url: 'unknown://resource' };
+    queryBookmarksMock.mockResolvedValue({ items: [customBookmark], next_cursor: null });
+    openMock.mockRejectedValue(new Error('no handler'));
+    renderView();
+
+    fireEvent.click(await screen.findByText('预览书签'));
+
+    await waitFor(() => expect(toastAddMock).toHaveBeenCalled());
+    expect(screen.queryByTestId('web-preview')).toBeNull();
+    expect(recordAccessMock).not.toHaveBeenCalled();
+  });
+
+  it('restores focus to the preview trigger after closing', async () => {
+    queryBookmarksMock.mockResolvedValue({
+      items: [bookmark(1, 'Preview me')],
+      next_cursor: null,
+    });
+    renderView();
+
+    const trigger = await screen.findByText('预览书签');
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByText('关闭预览'));
+
+    expect(document.activeElement).toBe(trigger);
   });
 });

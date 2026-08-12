@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
 import { Plus } from 'lucide-react';
+import { open as openExternal } from '@tauri-apps/plugin-shell';
 
 import { Button } from '@/components/ui/button';
-import type { BookmarkBaseView } from '@/types';
+import type { Bookmark, BookmarkBaseView } from '@/types';
 import AddBookmarkDialog from './AddBookmarkDialog';
 import {
   BkQueryApiKey,
@@ -16,6 +17,9 @@ import {
 import ResultList from './ResultList';
 import SearchBar from './SearchBar';
 import BookmarkSidebar from './BookmarkSidebar';
+import BookmarkWebPreview from './BookmarkWebPreview';
+import { invokeRecordBookmarkAccess } from '@/lib/invoke';
+import { toast } from '@/components/ui/toast';
 
 const PAGE_SIZE = 50;
 
@@ -25,6 +29,9 @@ export default function BookmarkView() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [baseView, setBaseView] = useState<BookmarkBaseView>('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [previewBookmark, setPreviewBookmark] = useState<Bookmark | null>(null);
+  const [previewContainer, setPreviewContainer] = useState<HTMLDivElement | null>(null);
+  const previewTriggerRef = useRef<HTMLElement | null>(null);
   const isSearchMode = query.length > 0 || selectedTags.length > 0;
   const starredView = !isSearchMode && baseView === 'starred';
 
@@ -71,8 +78,56 @@ export default function BookmarkView() {
     };
   }, [queryClient]);
 
+  const recordAccess = useCallback(async (bookmark: Bookmark) => {
+    try {
+      await invokeRecordBookmarkAccess(bookmark.id);
+    } catch {
+      console.error('Failed to record bookmark access');
+    }
+  }, []);
+
+  const handlePreviewBookmark = useCallback(
+    async (bookmark: Bookmark, trigger: HTMLElement) => {
+      let protocol = '';
+      try {
+        protocol = new URL(bookmark.url).protocol;
+      } catch {
+        protocol = '';
+      }
+
+      if (protocol === 'http:' || protocol === 'https:') {
+        previewTriggerRef.current = trigger;
+        setPreviewBookmark(bookmark);
+        void recordAccess(bookmark);
+        return;
+      }
+
+      try {
+        await openExternal(bookmark.url);
+        void recordAccess(bookmark);
+      } catch {
+        toast.add({
+          type: 'error',
+          title: '无法打开链接',
+          description: bookmark.url,
+        });
+      }
+    },
+    [recordAccess],
+  );
+
+  const handlePreviewOpenChange = useCallback((open: boolean) => {
+    if (open) return;
+    setPreviewBookmark(null);
+    previewTriggerRef.current?.focus();
+    previewTriggerRef.current = null;
+  }, []);
+
   return (
-    <>
+    <div
+      ref={setPreviewContainer}
+      className="relative flex w-full min-h-0 flex-1 flex-col overflow-hidden"
+    >
       <div className="shrink-0 px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <SearchBar onSearch={handleSearch} loading={bookmarksQuery.isLoading} />
@@ -130,12 +185,19 @@ export default function BookmarkView() {
               onToggleStarred={(bookmark, starred) =>
                 starMutation.mutate({ id: bookmark.id, starred })
               }
+              onPreviewBookmark={handlePreviewBookmark}
             />
           </div>
         </main>
       </div>
 
       <AddBookmarkDialog open={showAddDialog} onOpenChange={setShowAddDialog} />
-    </>
+      <BookmarkWebPreview
+        bookmark={previewBookmark}
+        open={previewBookmark !== null}
+        onOpenChange={handlePreviewOpenChange}
+        container={previewContainer}
+      />
+    </div>
   );
 }

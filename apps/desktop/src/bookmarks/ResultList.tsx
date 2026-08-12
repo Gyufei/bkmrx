@@ -28,6 +28,7 @@ interface Props {
   emptyMessage: string;
   starPendingId: number | null;
   onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
+  onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
 }
 
 export default function ResultList({
@@ -43,6 +44,7 @@ export default function ResultList({
   emptyMessage,
   starPendingId,
   onToggleStarred,
+  onPreviewBookmark,
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -109,6 +111,7 @@ export default function ResultList({
               starPending={starPendingId === bm.id}
               onToggleStarred={onToggleStarred}
               onRequestDelete={setDeleteTarget}
+              onPreviewBookmark={onPreviewBookmark}
             />
           </ContextMenuTrigger>
           <ContextMenuContent>
@@ -201,12 +204,14 @@ function BookmarkRow({
   starPending,
   onToggleStarred,
   onRequestDelete,
+  onPreviewBookmark,
 }: {
   bookmark: Bookmark;
   starredView: boolean;
   starPending: boolean;
   onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
   onRequestDelete: (bm: Bookmark) => void;
+  onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
 }) {
   const handleClick = async () => {
     open(bookmark.url);
@@ -241,10 +246,17 @@ function BookmarkRow({
 
   return (
     <div className="group relative">
-      <div className="block px-4 py-3 rounded-md hover:bg-accent dark:hover:bg-accent transition-colors">
+      <div
+        tabIndex={-1}
+        onClick={(event) => onPreviewBookmark(bookmark, event.currentTarget)}
+        className="block cursor-pointer rounded-md px-4 py-3 transition-colors hover:bg-accent dark:hover:bg-accent"
+      >
         <button
           type="button"
-          onClick={handleClick}
+          onClick={(event) => {
+            event.stopPropagation();
+            handleClick();
+          }}
           className="block max-w-full text-left text-base font-medium text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors truncate pr-6 cursor-pointer"
         >
           {bookmark.title || bookmark.url}
