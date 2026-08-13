@@ -2,7 +2,7 @@
 
 bkmrx Chrome Extension 是 bkmrx 的浏览器快捷入口，可以读取当前页面的 URL 和标题、添加标签，并通过本机 HTTP API 保存到桌面应用。
 
-[返回项目首页](../../README.md) · [桌面端](../desktop/README.md) · [HTTP API](../../docs/http-api.md)
+[返回项目首页](../../README.md) · [桌面端](../desktop/README.md) · [HTTP API](../../docs/reference/http-api.md)
 
 ```text
 当前网页 ── Chrome 扩展 ── HTTP API ── bkmrx Desktop ── SQLite
@@ -55,7 +55,7 @@ bkmrx Chrome Extension 是 bkmrx 的浏览器快捷入口，可以读取当前�
 | PATCH | `/api/bookmarks/:id` | 更新书签 |
 | GET | `/api/tags` | 获取标签建议 |
 
-扩展使用服务端统一的 REST 响应和错误结构，向用户展示 `error.message`。完整契约见 [HTTP API 文档](../../docs/http-api.md)。
+扩展使用服务端统一的 REST 响应和错误结构，向用户展示 `error.message`。完整契约见 [HTTP API 文档](../../docs/reference/http-api.md)。
 
 ## 目录结构
 

@@ -6,7 +6,7 @@
 
 ## 1. 背景与目标
 
-当前桌面端使用 Milkdown Crepe 作为常驻 WYSIWYG Markdown 编辑器。每次打开笔记都会初始化完整编辑器、绑定内容更新监听并维护自动保存状态。现有架构及笔记模块位置见 [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md)。
+当前桌面端使用 Milkdown Crepe 作为常驻 WYSIWYG Markdown 编辑器。每次打开笔记都会初始化完整编辑器、绑定内容更新监听并维护自动保存状态。现有架构及笔记模块位置见 [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md)。
 
 用户是熟练 Markdown 使用者，能够直接阅读源码，且使用模式明显偏向“阅读多、编辑少”。因此本次重构的目标不是继续优化 WYSIWYG，而是改成：
 
@@ -25,7 +25,7 @@
 - 桌面端已使用 Tailwind CSS 4。
 - 项目已直接声明 CodeMirror 6 及 `@codemirror/lang-markdown`。
 - 当前自动保存由共享保存队列与 400ms 防抖实现，重构时应复用已有语义。
-- 现有 Notes 后端命令、绝对路径契约及 frontmatter 行为不在本次范围内；相关约束见 [`docs/superpowers/specs/2026-07-24-notes-settings-refactor-design.md`](./superpowers/specs/2026-07-24-notes-settings-refactor-design.md)。
+- 现有 Notes 后端命令、绝对路径契约及 frontmatter 行为不在本次范围内；相关约束见 [`docs/specs/2026-07-24-notes-settings-refactor-design.md`](./2026-07-24-notes-settings-refactor-design.md)。
 - 当前 `remark-gfm`、`micromark` 仅由 Milkdown 间接引入。若新查看态采用它们，必须声明为直接依赖，不能依赖临时的传递依赖。
 
 ## 3. 解析与展示路线对比
@@ -357,7 +357,7 @@ Prism、highlight.js 等可作为未来替代方案，但仍会增加语言包�
 - 外部链接和本地相对链接/图片遵循桌面应用现有打开策略；
 - 移除 Milkdown 前确认没有其他导入；
 - 删除 Milkdown 后同步清理其样式、主题变量及只为它存在的依赖；
-- 更新 [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) 中过时的编辑器说明。
+- 更新 [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) 中过时的编辑器说明。
 
 ### 暂不处理
 

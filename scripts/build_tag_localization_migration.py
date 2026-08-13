@@ -9,9 +9,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-REVIEW = ROOT / "docs/bookmark-tags-localization-review.md"
+REVIEW = ROOT / "docs/reviews/bookmark-tags-localization-review-20260813.md"
 DATABASE = Path.home() / "Library/Application Support/com.bkmrx/bookmarks.db"
-OUTPUT = ROOT / "docs/migrations/bookmark-tag-localization-20260810.sql"
+OUTPUT = ROOT / "docs/migrations/bookmark-tag-localization-20260813.sql"
 ROW_PATTERN = re.compile(
     r"- `([^`]+)` \| 关联：(\d+) \| 推荐：(.+?) \| 最终标签：(.*)$"
 )
@@ -57,6 +57,7 @@ def main() -> None:
         )
     )
     current_tag_count = connection.execute("SELECT count(*) FROM tags").fetchone()[0]
+    current_bookmark_count = connection.execute("SELECT count(*) FROM bookmarks").fetchone()[0]
     current_relation_count = connection.execute(
         "SELECT count(*) FROM bookmark_tags"
     ).fetchone()[0]
@@ -167,7 +168,7 @@ SELECT b.id, b.url, b.title, b.description,
        ), '')
 FROM bookmarks b;
 
-INSERT INTO migration_assert SELECT count(*) = 2173 FROM bookmarks;
+INSERT INTO migration_assert SELECT count(*) = {current_bookmark_count} FROM bookmarks;
 INSERT INTO migration_assert SELECT count(*) = {expected_tag_count} FROM tags;
 INSERT INTO migration_assert SELECT count(*) = {expected_relation_count} FROM bookmark_tags;
 INSERT INTO migration_assert
@@ -183,7 +184,7 @@ WHERE NOT EXISTS (
     SELECT 1 FROM bookmark_tags bt WHERE bt.tag_id = t.id
 );
 INSERT INTO migration_assert SELECT count(*) = 0 FROM pragma_foreign_key_check;
-INSERT INTO migration_assert SELECT count(*) = 2173 FROM bookmarks_fts;
+INSERT INTO migration_assert SELECT count(*) = {current_bookmark_count} FROM bookmarks_fts;
 INSERT INTO migration_assert
 SELECT count(*) = 0
 FROM tags
@@ -193,6 +194,7 @@ COMMIT;
 """
     OUTPUT.write_text(sql, encoding="utf-8")
     print(f"operations={len(operations)}")
+    print(f"bookmarks={current_bookmark_count}")
     print(f"source_tags={current_tag_count}")
     print(f"target_tags={expected_tag_count}")
     print(f"source_relations={current_relation_count}")

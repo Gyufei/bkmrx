@@ -6,11 +6,12 @@ from __future__ import annotations
 import re
 import sqlite3
 from collections import Counter
+from datetime import date
 from pathlib import Path
 
 
 DATABASE = Path.home() / "Library/Application Support/com.bkmrx/bookmarks.db"
-OUTPUT = Path(__file__).resolve().parents[1] / "docs/bookmark-tags-localization-review.md"
+OUTPUT = Path(__file__).resolve().parents[1] / "docs/reviews/bookmark-tags-localization-review-20260813.md"
 
 
 WORDS = {
@@ -282,9 +283,6 @@ def normalize_ai(value: str) -> str:
 
 def recommendation(tag: str) -> tuple[str, str]:
     lowered = tag.lower()
-    if lowered in PHRASES:
-        return "建议汉化", PHRASES[lowered]
-
     tokens = [token for token in re.split(r"[-_/.@ ]+", lowered) if token]
     if lowered in PRESERVE_WORDS:
         return "保留原文", "短且常用的英文表达，比中文更简洁清晰"
@@ -295,6 +293,12 @@ def recommendation(tag: str) -> tuple[str, str]:
     ):
         return "保留原文", "专业名词、品牌、协议、标准缩写或版本标识"
 
+    if lowered in PHRASES:
+        suggestion = PHRASES[lowered]
+        if suggestion.lower().replace("-", " ") == lowered.replace("-", " "):
+            return "保留原文", "专业名词或业界常用英文表达"
+        return "建议汉化", suggestion
+
     if tokens and all(token in WORDS or token in PRESERVE_WORDS for token in tokens):
         parts = [token if token in PRESERVE_WORDS else WORDS[token] for token in tokens]
         translated = ""
@@ -302,6 +306,8 @@ def recommendation(tag: str) -> tuple[str, str]:
             if translated and (translated[-1].isascii() or part[0].isascii()):
                 translated += " "
             translated += part
+        if translated.lower().replace("-", " ") == lowered.replace("-", " "):
+            return "保留原文", "专业名词或业界常用英文表达"
         return "建议汉化", translated
 
     return "待确认", "含义、产品属性或常用中文译法不够明确"
@@ -327,27 +333,29 @@ def main() -> None:
     lines = [
         "# 当前书签标签汉化审阅清单",
         "",
-        "> 生成日期：2026-08-10  ",
+        f"> 生成日期：{date.today().isoformat()}  ",
         "> 数据源：当前 bkmrx SQLite 数据库（只读）  ",
-        f"> 当前标签：{len(rows):,}；已含中文：{len(rows) - len(untranslated):,}；本次审阅：{len(untranslated):,}",
+        f"> 当前标签：{len(rows):,}；已含中文：{len(rows) - len(untranslated):,}；英文标签：{len(untranslated):,}；本次审阅：{len(untranslated) - totals['保留原文']:,}",
         "",
         "## 使用说明",
         "",
         "- `建议汉化`：通用概念已有较稳定中文表达。",
-        "- `保留原文`：专业名词、品牌、框架、语言、协议、标准缩写或版本标识。",
+        "- 专业名词、品牌、框架、语言、协议、标准缩写或版本标识已排除。",
         "- `待确认`：无法可靠判断含义或没有稳定中文译法，不做强行翻译。",
-        "- 请直接修改每行的 `最终标签：`。接受建议时可原样填入推荐值；保留原文时填原标签；不处理则留空。",
+        "- 请直接在每行末尾的 `最终标签：` 后填写你确认的译名；接受建议时可原样填入推荐值，不处理则留空。",
         "- 后续执行只读取你填写的 `最终标签`，空白项不会修改。",
         "",
         "## 统计",
         "",
         f"- 建议汉化：{totals['建议汉化']:,}",
-        f"- 保留原文：{totals['保留原文']:,}",
+        f"- 已排除专业名词：{totals['保留原文']:,}",
         f"- 待确认：{totals['待确认']:,}",
         "",
     ]
 
-    for status in ("建议汉化", "保留原文", "待确认"):
+    for status in ("建议汉化", "待确认"):
+        if not totals[status]:
+            continue
         lines.extend([f"## {status}", ""])
         for name, count, item_status, suggestion in classified:
             if item_status != status:
@@ -364,7 +372,7 @@ def main() -> None:
     OUTPUT.write_text("\n".join(lines), encoding="utf-8")
     print(f"generated={OUTPUT}")
     print(f"reviewed={len(untranslated)}")
-    for status in ("建议汉化", "保留原文", "待确认"):
+    for status in ("建议汉化", "待确认"):
         print(f"{status}={totals[status]}")
 
 

@@ -255,7 +255,7 @@ interface BookmarkSidebarProps {
 | `apps/desktop/src-tauri/src/commands.rs` | 将 `get_tags` 改为接收 `TagQueryRequest` |
 | `apps/desktop/src-tauri/tests/database_repository.rs` | 覆盖 top 50、稳定排序、包含搜索、特殊字符和 limit 校验 |
 
-可选：若同时扩展 HTTP 标签搜索，再修改 `http_server.rs`、`tests/http_api.rs` 与 `docs/http-api.md`。推荐本期不扩展，以保持改动最小。
+可选：若同时扩展 HTTP 标签搜索，再修改 `http_server.rs`、`tests/http_api.rs` 与 `docs/reference/http-api.md`。推荐本期不扩展，以保持改动最小。
 
 ## 8. 测试与验收标准
 

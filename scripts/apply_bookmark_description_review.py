@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCUMENT = ROOT / "docs/bookmark-description-translation-review.md"
+DOCUMENT = ROOT / "docs/reviews/bookmark-description-translation-review-20260810.md"
 DATABASE = Path.home() / "Library/Application Support/com.bkmrx/bookmarks.db"
 BACKUP = ROOT / "backups/bookmark-description-20260810-reviewed/bookmarks.db"
 BLOCK_RE = re.compile(

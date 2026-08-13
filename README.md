@@ -65,8 +65,9 @@ pnpm tauri dev
 ## 项目文档
 
 - [系统架构](docs/ARCHITECTURE.md)
-- [HTTP API](docs/http-api.md)
-- [设计与实施记录](docs/superpowers/)
+- [文档索引](docs/README.md)
+- [HTTP API](docs/reference/http-api.md)
+- [设计规范](docs/specs/)
 
 ## 许可证
 

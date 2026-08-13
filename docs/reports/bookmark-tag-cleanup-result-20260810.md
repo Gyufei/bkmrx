@@ -60,7 +60,7 @@
 
 ## 执行文件
 
-- 审核清单：`docs/bookmark-tags-review.md`
+- 审核清单：`docs/reviews/bookmark-tags-review-20260810.md`
 - 事务化迁移脚本：`docs/migrations/bookmark-tag-cleanup-20260810.sql`
 - 原始数据库备份：`backups/tag-cleanup-20260810-first-pass/bookmarks.db`
 - 备份 SHA-256：`716274420b282353e83f869bb56ed0c8d618a257f365cf4350978cf802235043`

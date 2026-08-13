@@ -2,7 +2,7 @@
 
 > 执行日期：2026-08-10  
 > 状态：已完成  
-> 来源：`docs/bookmark-description-translation-review.md`
+> 来源：`docs/reviews/bookmark-description-translation-review-20260810.md`
 
 ## 执行口径
 

@@ -1,0 +1,702 @@
+# 当前书签标签汉化审阅清单
+
+> 生成日期：2026-08-12  
+> 数据源：当前 bkmrx SQLite 数据库（只读）  
+> 当前标签：2,177；已含中文：998；英文标签：1,179；本次审阅：680
+
+## 使用说明
+
+- `建议汉化`：通用概念已有较稳定中文表达。
+- 专业名词、品牌、框架、语言、协议、标准缩写或版本标识已排除。
+- `待确认`：无法可靠判断含义或没有稳定中文译法，不做强行翻译。
+- 请直接在每行末尾的 `最终标签：` 后填写你确认的译名；接受建议时可原样填入推荐值，不处理则留空。
+- 后续执行只读取你填写的 `最终标签`，空白项不会修改。
+
+## 统计
+
+- 建议汉化：0
+- 已排除专业名词：499
+- 待确认：680
+
+## 待确认
+
+- `accounting-js` | 关联：1 | 推荐：accounting-js（含义、产品属性或常用中文译法不够明确） | 最终标签：会计 JS
+- `anime-js` | 关联：1 | 推荐：anime-js（含义、产品属性或常用中文译法不够明确） | 最终标签：动漫 JS
+- `app-creator` | 关联：1 | 推荐：app-creator（含义、产品属性或常用中文译法不够明确） | 最终标签：应用创建工具
+- `app-deeplink` | 关联：2 | 推荐：app-deeplink（含义、产品属性或常用中文译法不够明确） | 最终标签：app唤起
+- `arakawa-yui` | 关联：1 | 推荐：arakawa-yui（含义、产品属性或常用中文译法不够明确） | 最终标签：arakawa yui
+- `asset-swap` | 关联：1 | 推荐：asset-swap（含义、产品属性或常用中文译法不够明确） | 最终标签：资产兑换
+- `australia` | 关联：1 | 推荐：australia（含义、产品属性或常用中文译法不够明确） | 最终标签：澳大利亚
+- `authkit` | 关联：1 | 推荐：authkit（含义、产品属性或常用中文译法不够明确） | 最终标签：鉴权
+- `auto-restart` | 关联：1 | 推荐：auto-restart（含义、产品属性或常用中文译法不够明确） | 最终标签：自动重启
+- `auto-save` | 关联：1 | 推荐：auto-save（含义、产品属性或常用中文译法不够明确） | 最终标签：自动保存
+- `autocomplete` | 关联：4 | 推荐：autocomplete（含义、产品属性或常用中文译法不够明确） | 最终标签：自动补全
+- `autofill` | 关联：1 | 推荐：autofill（含义、产品属性或常用中文译法不够明确） | 最终标签：自动填充
+- `automated-eda` | 关联：1 | 推荐：automated-eda（含义、产品属性或常用中文译法不够明确） | 最终标签：EDA 自动化
+- `background-removal` | 关联：5 | 推荐：background-removal（含义、产品属性或常用中文译法不够明确） | 最终标签：抠图
+- `baidu-template` | 关联：1 | 推荐：baidu-template（含义、产品属性或常用中文译法不够明确） | 最终标签：百度模板引擎
+- `bean-validation` | 关联：1 | 推荐：bean-validation（含义、产品属性或常用中文译法不够明确） | 最终标签：Bean 校验
+- `beforeunload` | 关联：3 | 推荐：beforeunload（含义、产品属性或常用中文译法不够明确） | 最终标签：beforeunload
+- `beginner-friendly` | 关联：1 | 推荐：beginner-friendly（含义、产品属性或常用中文译法不够明确） | 最终标签：新手友好
+- `benchmark` | 关联：1 | 推荐：benchmark（含义、产品属性或常用中文译法不够明确） | 最终标签：基准测试
+- `bezier` | 关联：2 | 推荐：bezier（含义、产品属性或常用中文译法不够明确） | 最终标签：贝塞尔
+- `big-integer` | 关联：1 | 推荐：big-integer（含义、产品属性或常用中文译法不够明确） | 最终标签：大整数
+- `big-screen` | 关联：1 | 推荐：big-screen（含义、产品属性或常用中文译法不够明确） | 最终标签：大屏
+- `blending` | 关联：1 | 推荐：blending（含义、产品属性或常用中文译法不够明确） | 最终标签：混合
+- `blissjs` | 关联：1 | 推荐：blissjs（含义、产品属性或常用中文译法不够明确） | 最终标签：blissjs
+- `blob` | 关联：2 | 推荐：blob（含义、产品属性或常用中文译法不够明确） | 最终标签：blob
+- `blockchain-basics` | 关联：1 | 推荐：blockchain-basics（含义、产品属性或常用中文译法不够明确） | 最终标签：区块链基础
+- `blockchain-bridge` | 关联：1 | 推荐：blockchain-bridge（含义、产品属性或常用中文译法不够明确） | 最终标签：跨链桥
+- `blockchain-community` | 关联：1 | 推荐：blockchain-community（含义、产品属性或常用中文译法不够明确） | 最终标签：区块链社区
+- `blockchain-data` | 关联：1 | 推荐：blockchain-data（含义、产品属性或常用中文译法不够明确） | 最终标签：区块链数据
+- `blockchain-demo` | 关联：1 | 推荐：blockchain-demo（含义、产品属性或常用中文译法不够明确） | 最终标签：区块链演示
+- `blockchain-explorer` | 关联：3 | 推荐：blockchain-explorer（含义、产品属性或常用中文译法不够明确） | 最终标签：区块链浏览器
+- `blockchain-infrastructure` | 关联：2 | 推荐：blockchain-infrastructure（含义、产品属性或常用中文译法不够明确） | 最终标签：区块链基础设施
+- `blockchain-media` | 关联：2 | 推荐：blockchain-media（含义、产品属性或常用中文译法不够明确） | 最终标签：区块链媒体
+- `blockchain-news` | 关联：4 | 推荐：blockchain-news（含义、产品属性或常用中文译法不够明确） | 最终标签：区块链新闻
+- `blockchain-security` | 关联：2 | 推荐：blockchain-security（含义、产品属性或常用中文译法不够明确） | 最终标签：区块链安全
+- `blockchain-tools` | 关联：1 | 推荐：blockchain-tools（含义、产品属性或常用中文译法不够明确） | 最终标签：区块链工具
+- `blocking-queue` | 关联：1 | 推荐：blocking-queue（含义、产品属性或常用中文译法不够明确） | 最终标签：阻塞队列
+- `bn-js` | 关联：1 | 推荐：bn-js（含义、产品属性或常用中文译法不够明确） | 最终标签：bn.js
+- `book-collection` | 关联：3 | 推荐：book-collection（含义、产品属性或常用中文译法不够明确） | 最终标签：书籍合集
+- `bookmark-collection` | 关联：1 | 推荐：bookmark-collection（含义、产品属性或常用中文译法不够明确） | 最终标签：书签合集
+- `boolean-expression` | 关联：1 | 推荐：boolean-expression（含义、产品属性或常用中文译法不够明确） | 最终标签：布尔表达式
+- `box-shadow` | 关联：1 | 推荐：box-shadow（含义、产品属性或常用中文译法不够明确） | 最终标签：CSS 阴影
+- `brave-search` | 关联：1 | 推荐：brave-search（含义、产品属性或常用中文译法不够明确） | 最终标签：Brave Search
+- `brightdata` | 关联：1 | 推荐：brightdata（含义、产品属性或常用中文译法不够明确） | 最终标签：brightdata
+- `broadcast-channel` | 关联：2 | 推荐：broadcast-channel（含义、产品属性或常用中文译法不够明确） | 最终标签：Broadcast Channel
+- `browser-based` | 关联：2 | 推荐：browser-based（含义、产品属性或常用中文译法不够明确） | 最终标签：浏览器端
+- `browser-events` | 关联：1 | 推荐：browser-events（含义、产品属性或常用中文译法不够明确） | 最终标签：浏览器事件
+- `browser-internals` | 关联：1 | 推荐：browser-internals（含义、产品属性或常用中文译法不够明确） | 最终标签：浏览器原理
+- `browser-properties` | 关联：1 | 推荐：browser-properties（含义、产品属性或常用中文译法不够明确） | 最终标签：浏览器属性
+- `bug-prevention` | 关联：1 | 推荐：bug-prevention（含义、产品属性或常用中文译法不够明确） | 最终标签：bug预防
+- `build-warning` | 关联：1 | 推荐：build-warning（含义、产品属性或常用中文译法不够明确） | 最终标签：构建警告
+- `building-blocks` | 关联：1 | 推荐：building-blocks（含义、产品属性或常用中文译法不够明确） | 最终标签：构建块
+- `bundle-size` | 关联：3 | 推荐：bundle-size（含义、产品属性或常用中文译法不够明确） | 最终标签：打包体积
+- `business-plan` | 关联：1 | 推荐：business-plan（含义、产品属性或常用中文译法不够明确） | 最终标签：商业计划
+- `business-rules` | 关联：1 | 推荐：business-rules（含义、产品属性或常用中文译法不够明确） | 最终标签：商业规则
+- `canvas` | 关联：15 | 推荐：canvas（含义、产品属性或常用中文译法不够明确） | 最终标签：Canvas
+- `canvas-fingerprint` | 关联：1 | 推荐：canvas-fingerprint（含义、产品属性或常用中文译法不够明确） | 最终标签：Canvas 指纹
+- `carbon-design-system` | 关联：1 | 推荐：carbon-design-system（含义、产品属性或常用中文译法不够明确） | 最终标签：Carbon Design System
+- `casino` | 关联：1 | 推荐：casino（含义、产品属性或常用中文译法不够明确） | 最终标签：赌场
+- `cdk` | 关联：2 | 推荐：cdk（含义、产品属性或常用中文译法不够明确） | 最终标签：cdk
+- `cell-edit` | 关联：1 | 推荐：cell-edit（含义、产品属性或常用中文译法不够明确） | 最终标签：单元格编辑
+- `censorship-circumvention` | 关联：3 | 推荐：censorship-circumvention（含义、产品属性或常用中文译法不够明确） | 最终标签：审查规避
+- `certbot` | 关联：2 | 推荐：certbot（含义、产品属性或常用中文译法不够明确） | 最终标签：certbot
+- `chain-id` | 关联：1 | 推荐：chain-id（含义、产品属性或常用中文译法不够明确） | 最终标签：链 ID
+- `chainlist` | 关联：4 | 推荐：chainlist（含义、产品属性或常用中文译法不够明确） | 最终标签：chainlist
+- `chinese-calligraphy` | 关联：1 | 推荐：chinese-calligraphy（含义、产品属性或常用中文译法不够明确） | 最终标签：书法
+- `chinese-classical-texts` | 关联：1 | 推荐：chinese-classical-texts（含义、产品属性或常用中文译法不够明确） | 最终标签：中国古籍
+- `chinese-colors` | 关联：1 | 推荐：chinese-colors（含义、产品属性或常用中文译法不够明确） | 最终标签：中国传统色
+- `chinese-entertainment` | 关联：1 | 推荐：chinese-entertainment（含义、产品属性或常用中文译法不够明确） | 最终标签：国内影视
+- `chinese-journalism` | 关联：1 | 推荐：chinese-journalism（含义、产品属性或常用中文译法不够明确） | 最终标签：中国新闻
+- `chinese-literature` | 关联：1 | 推荐：chinese-literature（含义、产品属性或常用中文译法不够明确） | 最终标签：中国文学
+- `chunked-upload` | 关联：1 | 推荐：chunked-upload（含义、产品属性或常用中文译法不够明确） | 最终标签：分片上传
+- `claims` | 关联：1 | 推荐：claims（含义、产品属性或常用中文译法不够明确） | 最终标签：薅
+- `class-variance-authority` | 关联：1 | 推荐：class-variance-authority（含义、产品属性或常用中文译法不够明确） | 最终标签：样式变体管理
+- `cleavejs` | 关联：2 | 推荐：cleavejs（含义、产品属性或常用中文译法不够明确） | 最终标签：cleavejs
+- `clef` | 关联：1 | 推荐：clef（含义、产品属性或常用中文译法不够明确） | 最终标签：clef
+- `client-side` | 关联：2 | 推荐：client-side（含义、产品属性或常用中文译法不够明确） | 最终标签：客户端
+- `client-side-routing` | 关联：1 | 推荐：client-side-routing（含义、产品属性或常用中文译法不够明确） | 最终标签：客户端路由
+- `client-side-storage` | 关联：1 | 推荐：client-side-storage（含义、产品属性或常用中文译法不够明确） | 最终标签：客户端存储
+- `clipboard-manager` | 关联：1 | 推荐：clipboard-manager（含义、产品属性或常用中文译法不够明确） | 最终标签：剪贴板管理器
+- `cloud-acceleration` | 关联：1 | 推荐：cloud-acceleration（含义、产品属性或常用中文译法不够明确） | 最终标签：云加速
+- `cloud-drive` | 关联：1 | 推荐：cloud-drive（含义、产品属性或常用中文译法不够明确） | 最终标签：网盘搜索
+- `code-exploration` | 关联：1 | 推荐：code-exploration（含义、产品属性或常用中文译法不够明确） | 最终标签：代码探索
+- `code-importance` | 关联：1 | 推荐：code-importance（含义、产品属性或常用中文译法不够明确） | 最终标签：代码重要性
+- `code-intelligence` | 关联：2 | 推荐：code-intelligence（含义、产品属性或常用中文译法不够明确） | 最终标签：智能编程
+- `code-lines` | 关联：1 | 推荐：code-lines（含义、产品属性或常用中文译法不够明确） | 最终标签：代码行
+- `code-protection` | 关联：2 | 推荐：code-protection（含义、产品属性或常用中文译法不够明确） | 最终标签：代码保护
+- `code-snippet` | 关联：1 | 推荐：code-snippet（含义、产品属性或常用中文译法不够明确） | 最终标签：代码片段
+- `code-splitting` | 关联：1 | 推荐：code-splitting（含义、产品属性或常用中文译法不够明确） | 最终标签：代码分割
+- `code-statistics` | 关联：1 | 推荐：code-statistics（含义、产品属性或常用中文译法不够明确） | 最终标签：代码统计
+- `codebase-indexing` | 关联：1 | 推荐：codebase-indexing（含义、产品属性或常用中文译法不够明确） | 最终标签：代码库索引
+- `codec` | 关联：1 | 推荐：codec（含义、产品属性或常用中文译法不够明确） | 最终标签：编解码器
+- `codesandbox` | 关联：2 | 推荐：codesandbox（含义、产品属性或常用中文译法不够明确） | 最终标签：codesandbox
+- `color-manipulation` | 关联：2 | 推荐：color-manipulation（含义、产品属性或常用中文译法不够明确） | 最终标签：颜色操作
+- `color-palette` | 关联：7 | 推荐：color-palette（含义、产品属性或常用中文译法不够明确） | 最终标签：颜色调色板
+- `color-palette-generator` | 关联：1 | 推荐：color-palette-generator（含义、产品属性或常用中文译法不够明确） | 最终标签：颜色调色板生成器
+- `color-scheme` | 关联：2 | 推荐：color-scheme（含义、产品属性或常用中文译法不够明确） | 最终标签：颜色方案
+- `color-scheme-generator` | 关联：1 | 推荐：color-scheme-generator（含义、产品属性或常用中文译法不够明确） | 最终标签：颜色方案生成
+- `command-menu` | 关联：1 | 推荐：command-menu（含义、产品属性或常用中文译法不够明确） | 最终标签：命令菜单
+- `commercial-use` | 关联：1 | 推荐：commercial-use（含义、产品属性或常用中文译法不够明确） | 最终标签：商业用途
+- `commit-message` | 关联：1 | 推荐：commit-message（含义、产品属性或常用中文译法不够明确） | 最终标签：commit-message
+- `commitizen` | 关联：1 | 推荐：commitizen（含义、产品属性或常用中文译法不够明确） | 最终标签：commitizen
+- `competitor-research` | 关联：1 | 推荐：competitor-research（含义、产品属性或常用中文译法不够明确） | 最终标签：竞品研究
+- `component-creation` | 关联：1 | 推荐：component-creation（含义、产品属性或常用中文译法不够明确） | 最终标签：组件创作
+- `component-generation` | 关联：1 | 推荐：component-generation（含义、产品属性或常用中文译法不够明确） | 最终标签：组件生成
+- `component-lifecycle` | 关联：1 | 推荐：component-lifecycle（含义、产品属性或常用中文译法不够明确） | 最终标签：组件生命周期
+- `component-loader` | 关联：4 | 推荐：component-loader（含义、产品属性或常用中文译法不够明确） | 最终标签：组件加载
+- `composables` | 关联：3 | 推荐：composables（含义、产品属性或常用中文译法不够明确） | 最终标签：组合式函数
+- `computer-vision` | 关联：1 | 推荐：computer-vision（含义、产品属性或常用中文译法不够明确） | 最终标签：计算机视觉
+- `concurrent-execution` | 关联：1 | 推荐：concurrent-execution（含义、产品属性或常用中文译法不够明确） | 最终标签：并发执行
+- `consulting` | 关联：1 | 推荐：consulting（含义、产品属性或常用中文译法不够明确） | 最终标签：咨询
+- `container-queries` | 关联：2 | 推荐：container-queries（含义、产品属性或常用中文译法不够明确） | 最终标签：容器查询
+- `content-aware` | 关联：2 | 推荐：content-aware（含义、产品属性或常用中文译法不够明确） | 最终标签：内容感知
+- `content-driven` | 关联：1 | 推荐：content-driven（含义、产品属性或常用中文译法不够明确） | 最终标签：内容驱动
+- `contract-addresses` | 关联：1 | 推荐：contract-addresses（含义、产品属性或常用中文译法不够明确） | 最终标签：合约地址
+- `control-value-accessor` | 关联：1 | 推荐：control-value-accessor（含义、产品属性或常用中文译法不够明确） | 最终标签：control-value-accessor
+- `conventional-commits` | 关联：2 | 推荐：conventional-commits（含义、产品属性或常用中文译法不够明确） | 最终标签：约定式commits
+- `copy-protection` | 关联：1 | 推荐：copy-protection（含义、产品属性或常用中文译法不够明确） | 最终标签：拷贝保护
+- `crack` | 关联：1 | 推荐：crack（含义、产品属性或常用中文译法不够明确） | 最终标签：破解
+- `cracked-software` | 关联：1 | 推荐：cracked-software（含义、产品属性或常用中文译法不够明确） | 最终标签：破解软件
+- `crash-dump` | 关联：1 | 推荐：crash-dump（含义、产品属性或常用中文译法不够明确） | 最终标签：崩溃转储
+- `credit-card-generator` | 关联：1 | 推荐：credit-card-generator（含义、产品属性或常用中文译法不够明确） | 最终标签：信用卡生成器
+- `cross-border-ecommerce` | 关联：1 | 推荐：cross-border-ecommerce（含义、产品属性或常用中文译法不够明确） | 最终标签：跨境电商
+- `cross-chain` | 关联：8 | 推荐：cross-chain（含义、产品属性或常用中文译法不够明确） | 最终标签：跨链
+- `cross-origin` | 关联：2 | 推荐：cross-origin（含义、产品属性或常用中文译法不够明确） | 最终标签：跨域
+- `cross-origin-image` | 关联：2 | 推荐：cross-origin-image（含义、产品属性或常用中文译法不够明确） | 最终标签：跨域图片
+- `cross-tab-communication` | 关联：2 | 推荐：cross-tab-communication（含义、产品属性或常用中文译法不够明确） | 最终标签：跨标签页通信
+- `crypto-airdrops` | 关联：1 | 推荐：crypto-airdrops（含义、产品属性或常用中文译法不够明确） | 最终标签：加密空投
+- `crypto-community` | 关联：2 | 推荐：crypto-community（含义、产品属性或常用中文译法不够明确） | 最终标签：加密社区
+- `crypto-data` | 关联：1 | 推荐：crypto-data（含义、产品属性或常用中文译法不够明确） | 最终标签：加密数据
+- `crypto-exchange` | 关联：3 | 推荐：crypto-exchange（含义、产品属性或常用中文译法不够明确） | 最终标签：加密交易所
+- `crypto-history` | 关联：1 | 推荐：crypto-history（含义、产品属性或常用中文译法不够明确） | 最终标签：加密历史
+- `crypto-media` | 关联：1 | 推荐：crypto-media（含义、产品属性或常用中文译法不够明确） | 最终标签：加密媒体
+- `crypto-timeline` | 关联：1 | 推荐：crypto-timeline（含义、产品属性或常用中文译法不够明确） | 最终标签：加密时间线
+- `crypto-tools` | 关联：3 | 推荐：crypto-tools（含义、产品属性或常用中文译法不够明确） | 最终标签：加密工具
+- `cryptocom` | 关联：1 | 推荐：cryptocom（含义、产品属性或常用中文译法不够明确） | 最终标签：cryptocom
+- `cryptography` | 关联：5 | 推荐：cryptography（含义、产品属性或常用中文译法不够明确） | 最终标签：密码学
+- `cs-self-learning` | 关联：1 | 推荐：cs-self-learning（含义、产品属性或常用中文译法不够明确） | 最终标签：计算机自学
+- `curriculum` | 关联：1 | 推荐：curriculum（含义、产品属性或常用中文译法不够明确） | 最终标签：课程
+- `cursor` | 关联：5 | 推荐：cursor（含义、产品属性或常用中文译法不够明确） | 最终标签：光标
+- `cursor-position` | 关联：3 | 推荐：cursor-position（含义、产品属性或常用中文译法不够明确） | 最终标签：光标位置
+- `cursorword` | 关联：4 | 推荐：cursorword（含义、产品属性或常用中文译法不够明确） | 最终标签：cursorword
+- `custom-elements` | 关联：2 | 推荐：custom-elements（含义、产品属性或常用中文译法不够明确） | 最终标签：自定义元素
+- `custom-scrollbar` | 关联：1 | 推荐：custom-scrollbar（含义、产品属性或常用中文译法不够明确） | 最终标签：自定义滚动条
+- `custom-snippet` | 关联：1 | 推荐：custom-snippet（含义、产品属性或常用中文译法不够明确） | 最终标签：自定义代码片段
+- `daily-dev` | 关联：1 | 推荐：daily-dev（含义、产品属性或常用中文译法不够明确） | 最终标签：每日开发
+- `data-collection` | 关联：1 | 推荐：data-collection（含义、产品属性或常用中文译法不够明确） | 最终标签：数据合集
+- `data-mocking` | 关联：1 | 推荐：data-mocking（含义、产品属性或常用中文译法不够明确） | 最终标签：数据 mock
+- `data-preparation` | 关联：1 | 推荐：data-preparation（含义、产品属性或常用中文译法不够明确） | 最终标签：数据准备
+- `data-screen` | 关联：1 | 推荐：data-screen（含义、产品属性或常用中文译法不够明确） | 最终标签：数据大屏
+- `data-sending` | 关联：1 | 推荐：data-sending（含义、产品属性或常用中文译法不够明确） | 最终标签：数据发送
+- `data-tools` | 关联：2 | 推荐：data-tools（含义、产品属性或常用中文译法不够明确） | 最终标签：数据工具
+- `data-transfer` | 关联：2 | 推荐：data-transfer（含义、产品属性或常用中文译法不够明确） | 最终标签：数据传输
+- `datacenter-proxy` | 关联：2 | 推荐：datacenter-proxy（含义、产品属性或常用中文译法不够明确） | 最终标签：数据中心代理
+- `date-parsing` | 关联：1 | 推荐：date-parsing（含义、产品属性或常用中文译法不够明确） | 最终标签：日期解析
+- `datepicker` | 关联：4 | 推荐：datepicker（含义、产品属性或常用中文译法不够明确） | 最终标签：日期选择器
+- `decimal` | 关联：3 | 推荐：decimal（含义、产品属性或常用中文译法不够明确） | 最终标签：小数
+- `deep-dive` | 关联：1 | 推荐：deep-dive（含义、产品属性或常用中文译法不够明确） | 最终标签：深度解析
+- `deep-imports` | 关联：1 | 推荐：deep-imports（含义、产品属性或常用中文译法不够明确） | 最终标签：深度导入
+- `deepseek` | 关联：4 | 推荐：deepseek（含义、产品属性或常用中文译法不够明确） | 最终标签：deepseek
+- `definitely-typed` | 关联：1 | 推荐：definitely-typed（含义、产品属性或常用中文译法不够明确） | 最终标签：DefinitelyTyped
+- `dependency-check` | 关联：1 | 推荐：dependency-check（含义、产品属性或常用中文译法不够明确） | 最终标签：依赖检查
+- `derivatives-trading` | 关联：1 | 推荐：derivatives-trading（含义、产品属性或常用中文译法不够明确） | 最终标签：衍生品交易
+- `design-tip` | 关联：1 | 推荐：design-tip（含义、产品属性或常用中文译法不够明确） | 最终标签：设计技巧
+- `design-to-code` | 关联：2 | 推荐：design-to-code（含义、产品属性或常用中文译法不够明确） | 最终标签：设计稿转代码
+- `dev` | 关联：2 | 推荐：dev（含义、产品属性或常用中文译法不够明确） | 最终标签：开发
+- `dev-diaries` | 关联：1 | 推荐：dev-diaries（含义、产品属性或常用中文译法不够明确） | 最终标签：开发日记
+- `dev-server` | 关联：1 | 推荐：dev-server（含义、产品属性或常用中文译法不够明确） | 最终标签：开发服务器
+- `developer-docs` | 关联：1 | 推荐：developer-docs（含义、产品属性或常用中文译法不够明确） | 最终标签：开发者文档
+- `developer-profile` | 关联：1 | 推荐：developer-profile（含义、产品属性或常用中文译法不够明确） | 最终标签：开发者档案
+- `developer-roadmap` | 关联：1 | 推荐：developer-roadmap（含义、产品属性或常用中文译法不够明确） | 最终标签：开发者路线图
+- `development-method` | 关联：1 | 推荐：development-method（含义、产品属性或常用中文译法不够明确） | 最终标签：开发方法
+- `development-mode` | 关联：1 | 推荐：development-mode（含义、产品属性或常用中文译法不够明确） | 最终标签：开发模式
+- `development-toolkit` | 关联：1 | 推荐：development-toolkit（含义、产品属性或常用中文译法不够明确） | 最终标签：开发工具包
+- `development-tools` | 关联：1 | 推荐：development-tools（含义、产品属性或常用中文译法不够明确） | 最终标签：开发工具
+- `devnet` | 关联：3 | 推荐：devnet（含义、产品属性或常用中文译法不够明确） | 最终标签：devnet
+- `devtools` | 关联：10 | 推荐：devtools（含义、产品属性或常用中文译法不够明确） | 最终标签：DevTools
+- `devtools-detection` | 关联：1 | 推荐：devtools-detection（含义、产品属性或常用中文译法不够明确） | 最终标签：DevTools 检测
+- `di-container` | 关联：1 | 推荐：di-container（含义、产品属性或常用中文译法不够明确） | 最终标签：依赖注入容器
+- `diffusion-models` | 关联：1 | 推荐：diffusion-models（含义、产品属性或常用中文译法不够明确） | 最终标签：扩散模型
+- `digital-literacy` | 关联：1 | 推荐：digital-literacy（含义、产品属性或常用中文译法不够明确） | 最终标签：数字素养
+- `directory-cleanup` | 关联：1 | 推荐：directory-cleanup（含义、产品属性或常用中文译法不够明确） | 最终标签：目录清理
+- `directory-jumping` | 关联：2 | 推荐：directory-jumping（含义、产品属性或常用中文译法不够明确） | 最终标签：目录跳转
+- `discovery-channel` | 关联：1 | 推荐：discovery-channel（含义、产品属性或常用中文译法不够明确） | 最终标签：发现频道
+- `disk-usage` | 关联：1 | 推荐：disk-usage（含义、产品属性或常用中文译法不够明确） | 最终标签：磁盘用量
+- `distributed-systems` | 关联：1 | 推荐：distributed-systems（含义、产品属性或常用中文译法不够明确） | 最终标签：分布式系统
+- `document-processing` | 关联：3 | 推荐：document-processing（含义、产品属性或常用中文译法不够明确） | 最终标签：文档处理
+- `docz` | 关联：2 | 推荐：docz（含义、产品属性或常用中文译法不够明确） | 最终标签：docz
+- `domain-primitive` | 关联：2 | 推荐：domain-primitive（含义、产品属性或常用中文译法不够明确） | 最终标签：领域原语
+- `domain-sale` | 关联：1 | 推荐：domain-sale（含义、产品属性或常用中文译法不够明确） | 最终标签：领域销售
+- `domcontentloaded` | 关联：1 | 推荐：domcontentloaded（含义、产品属性或常用中文译法不够明确） | 最终标签：domcontentloaded
+- `dotfiles` | 关联：2 | 推荐：dotfiles（含义、产品属性或常用中文译法不够明确） | 最终标签：dotfiles
+- `download-accelerator` | 关联：2 | 推荐：download-accelerator（含义、产品属性或常用中文译法不够明确） | 最终标签：下载加速器
+- `download-stats` | 关联：1 | 推荐：download-stats（含义、产品属性或常用中文译法不够明确） | 最终标签：下载统计
+- `dynamic-templates` | 关联：1 | 推荐：dynamic-templates（含义、产品属性或常用中文译法不够明确） | 最终标签：动态模板
+- `e-reader` | 关联：1 | 推荐：e-reader（含义、产品属性或常用中文译法不够明确） | 最终标签：电子阅读器
+- `ecommerce` | 关联：5 | 推荐：ecommerce（含义、产品属性或常用中文译法不够明确） | 最终标签：电商
+- `ecosystem` | 关联：4 | 推荐：ecosystem（含义、产品属性或常用中文译法不够明确） | 最终标签：生态
+- `edge` | 关联：3 | 推荐：edge（含义、产品属性或常用中文译法不够明确） | 最终标签：边缘
+- `edge-rendering` | 关联：1 | 推荐：edge-rendering（含义、产品属性或常用中文译法不够明确） | 最终标签：边缘渲染
+- `element-outline` | 关联：1 | 推荐：element-outline（含义、产品属性或常用中文译法不够明确） | 最终标签：元素outline
+- `ellipsis` | 关联：3 | 推荐：ellipsis（含义、产品属性或常用中文译法不够明确） | 最终标签：省略
+- `end-to-end-typesafety` | 关联：2 | 推荐：end-to-end-typesafety（含义、产品属性或常用中文译法不够明确） | 最终标签：端到端类型安全
+- `english` | 关联：1 | 推荐：english（含义、产品属性或常用中文译法不够明确） | 最终标签：英语
+- `english-font` | 关联：1 | 推荐：english-font（含义、产品属性或常用中文译法不够明确） | 最终标签：英语字体
+- `english-learning` | 关联：1 | 推荐：english-learning（含义、产品属性或常用中文译法不够明确） | 最终标签：英语学习
+- `entity` | 关联：1 | 推荐：entity（含义、产品属性或常用中文译法不够明确） | 最终标签：entity
+- `env-var-manager` | 关联：2 | 推荐：env-var-manager（含义、产品属性或常用中文译法不够明确） | 最终标签：环境变量管理器
+- `error-fix` | 关联：2 | 推荐：error-fix（含义、产品属性或常用中文译法不够明确） | 最终标签：错误修复
+- `es-modules` | 关联：3 | 推荐：es-modules（含义、产品属性或常用中文译法不够明确） | 最终标签：ES 模块
+- `esoteric` | 关联：1 | 推荐：esoteric（含义、产品属性或常用中文译法不够明确） | 最终标签：小众
+- `etymology` | 关联：2 | 推荐：etymology（含义、产品属性或常用中文译法不够明确） | 最终标签：词源学
+- `event-driven` | 关联：1 | 推荐：event-driven（含义、产品属性或常用中文译法不够明确） | 最终标签：事件驱动
+- `event-emitter` | 关联：2 | 推荐：event-emitter（含义、产品属性或常用中文译法不够明确） | 最终标签：事件触发器
+- `event-handling` | 关联：2 | 推荐：event-handling（含义、产品属性或常用中文译法不够明确） | 最终标签：事件处理
+- `event-listener` | 关联：1 | 推荐：event-listener（含义、产品属性或常用中文译法不够明确） | 最终标签：事件监听器
+- `event-loop` | 关联：1 | 推荐：event-loop（含义、产品属性或常用中文译法不够明确） | 最终标签：事件循环
+- `expense-management` | 关联：1 | 推荐：expense-management（含义、产品属性或常用中文译法不够明确） | 最终标签：费用管理
+- `exposure-watch` | 关联：1 | 推荐：exposure-watch（含义、产品属性或常用中文译法不够明确） | 最终标签：泄露监测
+- `expression-language` | 关联：1 | 推荐：expression-language（含义、产品属性或常用中文译法不够明确） | 最终标签：表达式语言
+- `extensible-architecture` | 关联：1 | 推荐：extensible-architecture（含义、产品属性或常用中文译法不够明确） | 最终标签：可扩展架构
+- `fan-blog` | 关联：1 | 推荐：fan-blog（含义、产品属性或常用中文译法不够明确） | 最终标签：粉丝博客
+- `fantasy` | 关联：1 | 推荐：fantasy（含义、产品属性或常用中文译法不够明确） | 最终标签：奇幻
+- `faucet` | 关联：9 | 推荐：faucet（含义、产品属性或常用中文译法不够明确） | 最终标签：水龙头
+- `favicon` | 关联：3 | 推荐：favicon（含义、产品属性或常用中文译法不够明确） | 最终标签：网站图标
+- `feature-flags` | 关联：1 | 推荐：feature-flags（含义、产品属性或常用中文译法不够明确） | 最终标签：功能开关
+- `feature-request` | 关联：1 | 推荐：feature-request（含义、产品属性或常用中文译法不够明确） | 最终标签：功能请求
+- `fetch` | 关联：1 | 推荐：fetch（含义、产品属性或常用中文译法不够明确） | 最终标签：fetch
+- `fiction` | 关联：1 | 推荐：fiction（含义、产品属性或常用中文译法不够明确） | 最终标签：小说
+- `file-explorer` | 关联：1 | 推荐：file-explorer（含义、产品属性或常用中文译法不够明确） | 最终标签：文件浏览器
+- `file-transfer` | 关联：2 | 推荐：file-transfer（含义、产品属性或常用中文译法不够明确） | 最终标签：文件传输
+- `fill` | 关联：1 | 推荐：fill（含义、产品属性或常用中文译法不够明确） | 最终标签：填充
+- `find-locate` | 关联：1 | 推荐：find-locate（含义、产品属性或常用中文译法不够明确） | 最终标签：文件查找
+- `fintech` | 关联：1 | 推荐：fintech（含义、产品属性或常用中文译法不够明确） | 最终标签：金融科技
+- `fixed-column` | 关联：2 | 推荐：fixed-column（含义、产品属性或常用中文译法不够明确） | 最终标签：固定列
+- `flamegraph` | 关联：1 | 推荐：flamegraph（含义、产品属性或常用中文译法不够明确） | 最终标签：火焰图
+- `flexbox` | 关联：3 | 推荐：flexbox（含义、产品属性或常用中文译法不够明确） | 最终标签：flexbox
+- `flow-based-programming` | 关联：1 | 推荐：flow-based-programming（含义、产品属性或常用中文译法不够明确） | 最终标签：流程式编程
+- `font-face` | 关联：2 | 推荐：font-face（含义、产品属性或常用中文译法不够明确） | 最终标签：字体字形
+- `forge` | 关联：1 | 推荐：forge（含义、产品属性或常用中文译法不够明确） | 最终标签：forge
+- `fps` | 关联：1 | 推荐：fps（含义、产品属性或常用中文译法不够明确） | 最终标签：fps
+- `free-ebooks` | 关联：2 | 推荐：free-ebooks（含义、产品属性或常用中文译法不够明确） | 最终标签：免费电子书
+- `free-resources` | 关联：1 | 推荐：free-resources（含义、产品属性或常用中文译法不够明确） | 最终标签：免费资源
+- `free-services` | 关联：1 | 推荐：free-services（含义、产品属性或常用中文译法不够明确） | 最终标签：免费服务
+- `free-tier` | 关联：1 | 推荐：free-tier（含义、产品属性或常用中文译法不够明确） | 最终标签：免费层
+- `freebies` | 关联：1 | 推荐：freebies（含义、产品属性或常用中文译法不够明确） | 最终标签：免费资源
+- `freepik` | 关联：2 | 推荐：freepik（含义、产品属性或常用中文译法不够明确） | 最终标签：freepik
+- `front-end-testing` | 关联：1 | 推荐：front-end-testing（含义、产品属性或常用中文译法不够明确） | 最终标签：前端测试
+- `frontend-blog` | 关联：1 | 推荐：frontend-blog（含义、产品属性或常用中文译法不够明确） | 最终标签：前端博客
+- `frontend-exception` | 关联：1 | 推荐：frontend-exception（含义、产品属性或常用中文译法不够明确） | 最终标签：前端异常
+- `frontend-frameworks` | 关联：1 | 推荐：frontend-frameworks（含义、产品属性或常用中文译法不够明确） | 最终标签：前端框架
+- `fullpagejs` | 关联：1 | 推荐：fullpagejs（含义、产品属性或常用中文译法不够明确） | 最终标签：fullpagejs
+- `fullstack` | 关联：3 | 推荐：fullstack（含义、产品属性或常用中文译法不够明确） | 最终标签：全栈
+- `funny` | 关联：1 | 推荐：funny（含义、产品属性或常用中文译法不够明确） | 最终标签：趣味
+- `fuzzy-finder` | 关联：1 | 推荐：fuzzy-finder（含义、产品属性或常用中文译法不够明确） | 最终标签：模糊查找
+- `gambling` | 关联：1 | 推荐：gambling（含义、产品属性或常用中文译法不够明确） | 最终标签：博彩
+- `gas` | 关联：1 | 推荐：gas（含义、产品属性或常用中文译法不够明确） | 最终标签：Gas
+- `gas-consumption` | 关联：1 | 推荐：gas-consumption（含义、产品属性或常用中文译法不够明确） | 最终标签：Gas 消耗
+- `gas-estimation` | 关联：1 | 推荐：gas-estimation（含义、产品属性或常用中文译法不够明确） | 最终标签：Gas 估算
+- `gas-fee` | 关联：1 | 推荐：gas-fee（含义、产品属性或常用中文译法不够明确） | 最终标签：Gas 手续费
+- `gas-tracker` | 关联：1 | 推荐：gas-tracker（含义、产品属性或常用中文译法不够明确） | 最终标签：Gas 追踪器
+- `gbdt` | 关联：1 | 推荐：gbdt（含义、产品属性或常用中文译法不够明确） | 最终标签：gbdt
+- `gcr` | 关联：1 | 推荐：gcr（含义、产品属性或常用中文译法不够明确） | 最终标签：gcr
+- `gemini` | 关联：4 | 推荐：gemini（含义、产品属性或常用中文译法不够明确） | 最终标签：gemini
+- `generated-content` | 关联：1 | 推荐：generated-content（含义、产品属性或常用中文译法不够明确） | 最终标签：生成内容
+- `generics` | 关联：1 | 推荐：generics（含义、产品属性或常用中文译法不够明确） | 最终标签：泛型
+- `getting-started` | 关联：1 | 推荐：getting-started（含义、产品属性或常用中文译法不够明确） | 最终标签：快速入门
+- `ghostty` | 关联：2 | 推荐：ghostty（含义、产品属性或常用中文译法不够明确） | 最终标签：ghostty
+- `gif` | 关联：4 | 推荐：gif（含义、产品属性或常用中文译法不够明确） | 最终标签：GIF
+- `githooks` | 关联：1 | 推荐：githooks（含义、产品属性或常用中文译法不够明确） | 最终标签：githooks
+- `gmx` | 关联：2 | 推荐：gmx（含义、产品属性或常用中文译法不够明确） | 最终标签：gmx
+- `Google zx` | 关联：1 | 推荐：Google zx（含义、产品属性或常用中文译法不够明确） | 最终标签：Google zx
+- `google-ai` | 关联：3 | 推荐：google-AI（含义、产品属性或常用中文译法不够明确） | 最终标签：Google AI
+- `google-cloud` | 关联：1 | 推荐：google-cloud（含义、产品属性或常用中文译法不够明确） | 最终标签：Google 云
+- `google-translate` | 关联：2 | 推荐：google-translate（含义、产品属性或常用中文译法不够明确） | 最终标签：Google 翻译
+- `governance` | 关联：1 | 推荐：governance（含义、产品属性或常用中文译法不够明确） | 最终标签：治理
+- `gpu-accelerated` | 关联：1 | 推荐：gpu-accelerated（含义、产品属性或常用中文译法不够明确） | 最终标签：GPU 加速
+- `gradient-boosting` | 关联：2 | 推荐：gradient-boosting（含义、产品属性或常用中文译法不够明确） | 最终标签：梯度提升
+- `graphing-calculator` | 关联：1 | 推荐：graphing-calculator（含义、产品属性或常用中文译法不够明确） | 最终标签：绘图计算器
+- `grok` | 关联：1 | 推荐：grok（含义、产品属性或常用中文译法不够明确） | 最终标签：grok
+- `guide-collection` | 关联：1 | 推荐：guide-collection（含义、产品属性或常用中文译法不够明确） | 最终标签：指南合集
+- `hack-database` | 关联：1 | 推荐：hack-database（含义、产品属性或常用中文译法不够明确） | 最终标签：破解数据库
+- `hand-drawn` | 关联：4 | 推荐：hand-drawn（含义、产品属性或常用中文译法不够明确） | 最终标签：手绘
+- `handsontable` | 关联：3 | 推荐：handsontable（含义、产品属性或常用中文译法不够明确） | 最终标签：handsontable
+- `has-pseudo-class` | 关联：1 | 推荐：has-pseudo-class（含义、产品属性或常用中文译法不够明确） | 最终标签：:has 伪类
+- `hash` | 关联：4 | 推荐：hash（含义、产品属性或常用中文译法不够明确） | 最终标签：hash
+- `header-grouping` | 关联：1 | 推荐：header-grouping（含义、产品属性或常用中文译法不够明确） | 最终标签：表头分组
+- `headless-cms` | 关联：1 | 推荐：headless-cms（含义、产品属性或常用中文译法不够明确） | 最终标签：无头 CMS
+- `helix` | 关联：2 | 推荐：helix（含义、产品属性或常用中文译法不够明确） | 最终标签：helix
+- `here-document` | 关联：1 | 推荐：here-document（含义、产品属性或常用中文译法不够明确） | 最终标签：Here Document
+- `hex` | 关联：1 | 推荐：hex（含义、产品属性或常用中文译法不够明确） | 最终标签：hex
+- `hmac` | 关联：1 | 推荐：hmac（含义、产品属性或常用中文译法不够明确） | 最终标签：hmac
+- `holesky` | 关联：1 | 推荐：holesky（含义、产品属性或常用中文译法不够明确） | 最终标签：holesky
+- `hot-list` | 关联：1 | 推荐：hot-list（含义、产品属性或常用中文译法不够明确） | 最终标签：热门榜单
+- `hotwire` | 关联：2 | 推荐：hotwire（含义、产品属性或常用中文译法不够明确） | 最终标签：hotwire
+- `hover-effects` | 关联：4 | 推荐：hover-effects（含义、产品属性或常用中文译法不够明确） | 最终标签：hover效果
+- `hugedomains` | 关联：1 | 推荐：hugedomains（含义、产品属性或常用中文译法不够明确） | 最终标签：hugedomains
+- `ico` | 关联：2 | 推荐：ico（含义、产品属性或常用中文译法不够明确） | 最终标签：ico
+- `ie` | 关联：10 | 推荐：ie（含义、产品属性或常用中文译法不够明确） | 最终标签：IE
+- `image-accelerator` | 关联：1 | 推荐：image-accelerator（含义、产品属性或常用中文译法不够明确） | 最终标签：图片加速器
+- `image-collection` | 关联：1 | 推荐：image-collection（含义、产品属性或常用中文译法不够明确） | 最终标签：图片合集
+- `image-preloading` | 关联：1 | 推荐：image-preloading（含义、产品属性或常用中文译法不够明确） | 最终标签：图片预加载
+- `image-recognition` | 关联：1 | 推荐：image-recognition（含义、产品属性或常用中文译法不够明确） | 最终标签：图像识别
+- `image-transformation` | 关联：1 | 推荐：image-transformation（含义、产品属性或常用中文译法不够明确） | 最终标签：图片转换
+- `image-upload` | 关联：4 | 推荐：image-upload（含义、产品属性或常用中文译法不够明确） | 最终标签：图像上传
+- `immediate-mode` | 关联：2 | 推荐：immediate-mode（含义、产品属性或常用中文译法不够明确） | 最终标签：即时模式
+- `immigration` | 关联：1 | 推荐：immigration（含义、产品属性或常用中文译法不够明确） | 最终标签：移民
+- `inline-assembly` | 关联：1 | 推荐：inline-assembly（含义、产品属性或常用中文译法不够明确） | 最终标签：内联汇编
+- `inpainting` | 关联：3 | 推荐：inpainting（含义、产品属性或常用中文译法不够明确） | 最终标签：图像修复
+- `input-mask` | 关联：3 | 推荐：input-mask（含义、产品属性或常用中文译法不够明确） | 最终标签：输入掩码
+- `input-method` | 关联：1 | 推荐：input-method（含义、产品属性或常用中文译法不够明确） | 最终标签：输入法
+- `input-value` | 关联：1 | 推荐：input-value（含义、产品属性或常用中文译法不够明确） | 最终标签：输入值
+- `install-size` | 关联：2 | 推荐：install-size（含义、产品属性或常用中文译法不够明确） | 最终标签：安装包体积
+- `instance-discovery` | 关联：1 | 推荐：instance-discovery（含义、产品属性或常用中文译法不够明确） | 最终标签：实例发现
+- `intellij-idea` | 关联：1 | 推荐：intellij-idea（含义、产品属性或常用中文译法不够明确） | 最终标签：IDEA
+- `interactive-diagrams` | 关联：1 | 推荐：interactive-diagrams（含义、产品属性或常用中文译法不够明确） | 最终标签：交互式图表
+- `interactive-docs` | 关联：2 | 推荐：interactive-docs（含义、产品属性或常用中文译法不够明确） | 最终标签：交互式文档
+- `interactive-staging` | 关联：1 | 推荐：interactive-staging（含义、产品属性或常用中文译法不够明确） | 最终标签：交互式暂存
+- `intercepting` | 关联：1 | 推荐：intercepting（含义、产品属性或常用中文译法不够明确） | 最终标签：拦截
+- `interface-generation` | 关联：1 | 推荐：interface-generation（含义、产品属性或常用中文译法不够明确） | 最终标签：接口生成
+- `intermediate` | 关联：1 | 推荐：intermediate（含义、产品属性或常用中文译法不够明确） | 最终标签：进阶
+- `internet-explorer` | 关联：1 | 推荐：internet-explorer（含义、产品属性或常用中文译法不够明确） | 最终标签：IE
+- `intersection-observer` | 关联：1 | 推荐：intersection-observer（含义、产品属性或常用中文译法不够明确） | 最终标签：intersection-observer
+- `interview-prep` | 关联：3 | 推荐：interview-prep（含义、产品属性或常用中文译法不够明确） | 最终标签：面试准备
+- `interview-questions` | 关联：5 | 推荐：interview-questions（含义、产品属性或常用中文译法不够明确） | 最终标签：面试问题
+- `ip-check` | 关联：2 | 推荐：ip-check（含义、产品属性或常用中文译法不够明确） | 最终标签：IP 检查
+- `ip-geolocation` | 关联：1 | 推荐：ip-geolocation（含义、产品属性或常用中文译法不够明确） | 最终标签：IP 位置
+- `ip-proxy` | 关联：1 | 推荐：ip-proxy（含义、产品属性或常用中文译法不够明确） | 最终标签：IP 代理
+- `islands-architecture` | 关联：1 | 推荐：islands-architecture（含义、产品属性或常用中文译法不够明确） | 最终标签：islands 架构
+- `ivy` | 关联：5 | 推荐：ivy（含义、产品属性或常用中文译法不够明确） | 最终标签：ivy
+- `japanese-actress` | 关联：1 | 推荐：japanese-actress（含义、产品属性或常用中文译法不够明确） | 最终标签：日本女演员
+- `job-hunting` | 关联：2 | 推荐：job-hunting（含义、产品属性或常用中文译法不够明确） | 最终标签：工作求职
+- `jsplumb` | 关联：2 | 推荐：jsplumb（含义、产品属性或常用中文译法不够明确） | 最终标签：jsplumb
+- `jupiter` | 关联：1 | 推荐：jupiter（含义、产品属性或常用中文译法不够明确） | 最终标签：jupiter
+- `k-line-chart` | 关联：1 | 推荐：k-line-chart（含义、产品属性或常用中文译法不够明确） | 最终标签：K 线图
+- `key-generation` | 关联：1 | 推荐：key-generation（含义、产品属性或常用中文译法不够明确） | 最终标签：密钥生成
+- `key-value` | 关联：1 | 推荐：key-value（含义、产品属性或常用中文译法不够明确） | 最终标签：key-value
+- `keyboard-events` | 关联：1 | 推荐：keyboard-events（含义、产品属性或常用中文译法不够明确） | 最终标签：键盘事件
+- `keyboard-shortcuts` | 关联：1 | 推荐：keyboard-shortcuts（含义、产品属性或常用中文译法不够明确） | 最终标签：键盘快捷键
+- `landscape` | 关联：3 | 推荐：landscape（含义、产品属性或常用中文译法不够明确） | 最终标签：全景
+- `large-scale-app` | 关联：1 | 推荐：large-scale-app（含义、产品属性或常用中文译法不够明确） | 最终标签：大型软件
+- `large-scale-systems` | 关联：1 | 推荐：large-scale-systems（含义、产品属性或常用中文译法不够明确） | 最终标签：大型系统
+- `lark` | 关联：1 | 推荐：lark（含义、产品属性或常用中文译法不够明确） | 最终标签：lark
+- `layout-shift` | 关联：2 | 推荐：layout-shift（含义、产品属性或常用中文译法不够明确） | 最终标签：布局偏移
+- `learning-hub` | 关联：1 | 推荐：learning-hub（含义、产品属性或常用中文译法不够明确） | 最终标签：学习中心
+- `learning-notes` | 关联：1 | 推荐：learning-notes（含义、产品属性或常用中文译法不够明确） | 最终标签：学习笔记
+- `learning-resources` | 关联：2 | 推荐：learning-resources（含义、产品属性或常用中文译法不够明确） | 最终标签：学习资源
+- `leetcode` | 关联：2 | 推荐：leetcode（含义、产品属性或常用中文译法不够明确） | 最终标签：leetcode
+- `letsencrypt` | 关联：2 | 推荐：letsencrypt（含义、产品属性或常用中文译法不够明确） | 最终标签：letsencrypt
+- `library-collection` | 关联：3 | 推荐：library-collection（含义、产品属性或常用中文译法不够明确） | 最终标签：代码库合集
+- `line-counting` | 关联：1 | 推荐：line-counting（含义、产品属性或常用中文译法不够明确） | 最终标签：行计数
+- `linear-gradient` | 关联：1 | 推荐：linear-gradient（含义、产品属性或常用中文译法不够明确） | 最终标签：线性渐变
+- `link-shortener` | 关联：4 | 推荐：link-shortener（含义、产品属性或常用中文译法不够明确） | 最终标签：短链工具
+- `liquid-staking` | 关联：2 | 推荐：liquid-staking（含义、产品属性或常用中文译法不够明确） | 最终标签：流动性质押
+- `liquidity-locking` | 关联：1 | 推荐：liquidity-locking（含义、产品属性或常用中文译法不够明确） | 最终标签：流动性锁定
+- `liquidity-protocol` | 关联：2 | 推荐：liquidity-protocol（含义、产品属性或常用中文译法不够明确） | 最终标签：流动性协议
+- `live-reload` | 关联：1 | 推荐：live-reload（含义、产品属性或常用中文译法不够明确） | 最终标签：热重载
+- `live-tv` | 关联：1 | 推荐：live-tv（含义、产品属性或常用中文译法不够明确） | 最终标签：直播
+- `loader` | 关联：2 | 推荐：loader（含义、产品属性或常用中文译法不够明确） | 最终标签：loader
+- `localstorage` | 关联：1 | 推荐：localstorage（含义、产品属性或常用中文译法不够明确） | 最终标签：localstorage
+- `lockfile` | 关联：2 | 推荐：lockfile（含义、产品属性或常用中文译法不够明确） | 最终标签：lockfile
+- `logical-operations` | 关联：1 | 推荐：logical-operations（含义、产品属性或常用中文译法不够明确） | 最终标签：逻辑运维
+- `logo-maker` | 关联：2 | 推荐：logo-maker（含义、产品属性或常用中文译法不够明确） | 最终标签：Logo 制作
+- `long-term-memory` | 关联：1 | 推荐：long-term-memory（含义、产品属性或常用中文译法不够明确） | 最终标签：长期记忆
+- `lorem-ipsum` | 关联：1 | 推荐：lorem-ipsum（含义、产品属性或常用中文译法不够明确） | 最终标签：lorem ipsum
+- `lottery` | 关联：1 | 推荐：lottery（含义、产品属性或常用中文译法不够明确） | 最终标签：彩票
+- `low-poly` | 关联：1 | 推荐：low-poly（含义、产品属性或常用中文译法不够明确） | 最终标签：low poly
+- `loyalty-program` | 关联：1 | 推荐：loyalty-program（含义、产品属性或常用中文译法不够明确） | 最终标签：会员忠诚度计划
+- `makerdao` | 关联：2 | 推荐：makerdao（含义、产品属性或常用中文译法不够明确） | 最终标签：makerdao
+- `manifest` | 关联：1 | 推荐：manifest（含义、产品属性或常用中文译法不够明确） | 最终标签：manifest
+- `mantine` | 关联：2 | 推荐：mantine（含义、产品属性或常用中文译法不够明确） | 最终标签：mantine
+- `mapify` | 关联：1 | 推荐：mapify（含义、产品属性或常用中文译法不够明确） | 最终标签：mapify
+- `market-cap` | 关联：1 | 推荐：market-cap（含义、产品属性或常用中文译法不够明确） | 最终标签：市场市值
+- `media-downloader` | 关联：1 | 推荐：media-downloader（含义、产品属性或常用中文译法不够明确） | 最终标签：媒体下载器
+- `memecoin` | 关联：1 | 推荐：memecoin（含义、产品属性或常用中文译法不够明确） | 最终标签：memecoin
+- `memecoin-launchpad` | 关联：1 | 推荐：memecoin-launchpad（含义、产品属性或常用中文译法不够明确） | 最终标签：memecoin launchpad
+- `memory-systems` | 关联：1 | 推荐：memory-systems（含义、产品属性或常用中文译法不够明确） | 最终标签：记忆系统
+- `mempool` | 关联：1 | 推荐：mempool（含义、产品属性或常用中文译法不够明确） | 最终标签：mempool
+- `merged-headers` | 关联：1 | 推荐：merged-headers（含义、产品属性或常用中文译法不够明确） | 最终标签：合并请求头
+- `meta` | 关联：1 | 推荐：meta（含义、产品属性或常用中文译法不够明确） | 最终标签：meta
+- `meta-tags` | 关联：1 | 推荐：meta-tags（含义、产品属性或常用中文译法不够明确） | 最终标签：meta 标签
+- `metadata-badges` | 关联：1 | 推荐：metadata-badges（含义、产品属性或常用中文译法不够明确） | 最终标签：元数据徽章
+- `metaprogramming` | 关联：2 | 推荐：metaprogramming（含义、产品属性或常用中文译法不够明确） | 最终标签：元编程
+- `microsoft` | 关联：2 | 推荐：microsoft（含义、产品属性或常用中文译法不够明确） | 最终标签：微软
+- `midjourney` | 关联：2 | 推荐：midjourney（含义、产品属性或常用中文译法不够明确） | 最终标签：midjourney
+- `mime-type` | 关联：2 | 推荐：mime-type（含义、产品属性或常用中文译法不够明确） | 最终标签：MIME 类型
+- `mini-nvim` | 关联：1 | 推荐：mini-nvim（含义、产品属性或常用中文译法不够明确） | 最终标签：mini nvim
+- `minifier` | 关联：2 | 推荐：minifier（含义、产品属性或常用中文译法不够明确） | 最终标签：压缩工具
+- `miniprogram` | 关联：2 | 推荐：miniprogram（含义、产品属性或常用中文译法不够明确） | 最终标签：小程序
+- `mirror-sites` | 关联：1 | 推荐：mirror-sites（含义、产品属性或常用中文译法不够明确） | 最终标签：镜像站
+- `mitm` | 关联：1 | 推荐：mitm（含义、产品属性或常用中文译法不够明确） | 最终标签：mitm
+- `mixed-content` | 关联：2 | 推荐：mixed-content（含义、产品属性或常用中文译法不够明确） | 最终标签：mixed 内容
+- `mnemonic` | 关联：1 | 推荐：mnemonic（含义、产品属性或常用中文译法不够明确） | 最终标签：助记词
+- `mockup` | 关联：1 | 推荐：mockup（含义、产品属性或常用中文译法不够明确） | 最终标签：mockup
+- `mockup-editor` | 关联：1 | 推荐：mockup-editor（含义、产品属性或常用中文译法不够明确） | 最终标签：mockup 编辑器
+- `model-hub` | 关联：2 | 推荐：model-hub（含义、产品属性或常用中文译法不够明确） | 最终标签：模型 hub
+- `modeler` | 关联：2 | 推荐：modeler（含义、产品属性或常用中文译法不够明确） | 最终标签：modeler
+- `module-federation` | 关联：2 | 推荐：module-federation（含义、产品属性或常用中文译法不够明确） | 最终标签：模块联邦
+- `module-formats` | 关联：1 | 推荐：module-formats（含义、产品属性或常用中文译法不够明确） | 最终标签：模块格式
+- `momentjs-alternative` | 关联：1 | 推荐：momentjs-alternative（含义、产品属性或常用中文译法不够明确） | 最终标签：momentjs 替代方案
+- `monad` | 关联：6 | 推荐：monad（含义、产品属性或常用中文译法不够明确） | 最终标签：monad
+- `motion-graphics` | 关联：1 | 推荐：motion-graphics（含义、产品属性或常用中文译法不够明确） | 最终标签：动效图形
+- `mouse-events` | 关联：1 | 推荐：mouse-events（含义、产品属性或常用中文译法不够明确） | 最终标签：鼠标事件
+- `multi-line-ellipsis` | 关联：1 | 推荐：multi-line-ellipsis（含义、产品属性或常用中文译法不够明确） | 最终标签：多行省略
+- `multichain` | 关联：13 | 推荐：multichain（含义、产品属性或常用中文译法不够明确） | 最终标签：多链
+- `multiple-formats` | 关联：1 | 推荐：multiple-formats（含义、产品属性或常用中文译法不够明确） | 最终标签：多格式
+- `naiveui` | 关联：3 | 推荐：naiveui（含义、产品属性或常用中文译法不够明确） | 最终标签：naive-ui
+- `naming-conventions` | 关联：1 | 推荐：naming-conventions（含义、产品属性或常用中文译法不够明确） | 最终标签：命名约定
+- `national-geographic` | 关联：1 | 推荐：national-geographic（含义、产品属性或常用中文译法不够明确） | 最终标签：国家地理
+- `nested-conditions` | 关联：1 | 推荐：nested-conditions（含义、产品属性或常用中文译法不够明确） | 最终标签：嵌套条件
+- `netflix-conductor` | 关联：1 | 推荐：netflix-conductor（含义、产品属性或常用中文译法不够明确） | 最终标签：netflix conductor
+- `network-tools` | 关联：1 | 推荐：network-tools（含义、产品属性或常用中文译法不够明确） | 最终标签：网络工具
+- `network-wide` | 关联：1 | 推荐：network-wide（含义、产品属性或常用中文译法不够明确） | 最终标签：全局网络
+- `neural-network` | 关联：1 | 推荐：neural-network（含义、产品属性或常用中文译法不够明确） | 最终标签：神经网络
+- `new-tokens` | 关联：1 | 推荐：new-tokens（含义、产品属性或常用中文译法不够明确） | 最终标签：新代币
+- `nextauth` | 关联：2 | 推荐：nextauth（含义、产品属性或常用中文译法不够明确） | 最终标签：next-auth
+- `ngmodel` | 关联：2 | 推荐：ngmodel（含义、产品属性或常用中文译法不够明确） | 最终标签：ng-model
+- `no-ads` | 关联：1 | 推荐：no-ads（含义、产品属性或常用中文译法不够明确） | 最终标签：无广告
+- `nodejs-framework` | 关联：1 | 推荐：nodejs-framework（含义、产品属性或常用中文译法不够明确） | 最终标签：nodejs 框架
+- `nodereal` | 关联：2 | 推荐：nodereal（含义、产品属性或常用中文译法不够明确） | 最终标签：nodereal
+- `notion` | 关联：1 | 推荐：notion（含义、产品属性或常用中文译法不够明确） | 最终标签：notion
+- `notion-alternative` | 关联：1 | 推荐：notion-alternative（含义、产品属性或常用中文译法不够明确） | 最终标签：notion 替代方案
+- `novel` | 关联：1 | 推荐：novel（含义、产品属性或常用中文译法不够明确） | 最终标签：小说
+- `number-manipulation` | 关联：1 | 推荐：number-manipulation（含义、产品属性或常用中文译法不够明确） | 最终标签：数字操作
+- `numerical-computing` | 关联：1 | 推荐：numerical-computing（含义、产品属性或常用中文译法不够明确） | 最终标签：数值计算
+- `nvchad` | 关联：1 | 推荐：nvchad（含义、产品属性或常用中文译法不够明确） | 最终标签：英伟达
+- `nx` | 关联：2 | 推荐：nx（含义、产品属性或常用中文译法不够明确） | 最终标签：nx
+- `obfuscation` | 关联：3 | 推荐：obfuscation（含义、产品属性或常用中文译法不够明确） | 最终标签：混淆
+- `object-removal` | 关联：2 | 推荐：object-removal（含义、产品属性或常用中文译法不够明确） | 最终标签：对象移除
+- `official` | 关联：1 | 推荐：official（含义、产品属性或常用中文译法不够明确） | 最终标签：官方
+- `official-wrapper` | 关联：1 | 推荐：official-wrapper（含义、产品属性或常用中文译法不够明确） | 最终标签：官方封装
+- `oh-my-zsh` | 关联：1 | 推荐：oh-my-zsh（含义、产品属性或常用中文译法不够明确） | 最终标签：oh my zsh
+- `omni-route` | 关联：1 | 推荐：omni-route（含义、产品属性或常用中文译法不够明确） | 最终标签：omni-rote
+- `on-device-ai` | 关联：1 | 推荐：on-device-AI（含义、产品属性或常用中文译法不够明确） | 最终标签：端侧 AI
+- `onchain` | 关联：3 | 推荐：onchain（含义、产品属性或常用中文译法不够明确） | 最终标签：链上
+- `onchain-analytics` | 关联：1 | 推荐：onchain-analytics（含义、产品属性或常用中文译法不够明确） | 最终标签：链上分析
+- `online-playground` | 关联：1 | 推荐：online-playground（含义、产品属性或常用中文译法不够明确） | 最终标签：在线playground
+- `open-source-badges` | 关联：1 | 推荐：open-source-badges（含义、产品属性或常用中文译法不够明确） | 最终标签：开放源码徽章
+- `optimism` | 关联：1 | 推荐：optimism（含义、产品属性或常用中文译法不够明确） | 最终标签：optimism
+- `options-request` | 关联：1 | 推荐：options-request（含义、产品属性或常用中文译法不够明确） | 最终标签：options请求
+- `oracle` | 关联：1 | 推荐：oracle（含义、产品属性或常用中文译法不够明确） | 最终标签：oracle
+- `orchestration` | 关联：2 | 推荐：orchestration（含义、产品属性或常用中文译法不够明确） | 最终标签：编排
+- `order` | 关联：1 | 推荐：order（含义、产品属性或常用中文译法不够明确） | 最终标签：order
+- `os-detection` | 关联：1 | 推荐：os-detection（含义、产品属性或常用中文译法不够明确） | 最终标签：os 检测
+- `package-explorer` | 关联：1 | 推荐：package-explorer（含义、产品属性或常用中文译法不够明确） | 最终标签：包浏览器
+- `package-manager` | 关联：6 | 推荐：package-manager（含义、产品属性或常用中文译法不够明确） | 最终标签：包管理器
+- `package-size` | 关联：1 | 推荐：package-size（含义、产品属性或常用中文译法不够明确） | 最终标签：包体积
+- `page-lifecycle` | 关联：1 | 推荐：page-lifecycle（含义、产品属性或常用中文译法不够明确） | 最终标签：页面生命周期
+- `page-size` | 关联：2 | 推荐：page-size（含义、产品属性或常用中文译法不够明确） | 最终标签：页面尺寸
+- `page-transition` | 关联：1 | 推荐：page-transition（含义、产品属性或常用中文译法不够明确） | 最终标签：页面过渡
+- `paged-media` | 关联：2 | 推荐：paged-media（含义、产品属性或常用中文译法不够明确） | 最终标签：PageSize
+- `pancakeswap` | 关联：1 | 推荐：pancakeswap（含义、产品属性或常用中文译法不够明确） | 最终标签：pancakeswap
+- `parachain` | 关联：1 | 推荐：parachain（含义、产品属性或常用中文译法不够明确） | 最终标签：parachain
+- `parallax` | 关联：1 | 推荐：parallax（含义、产品属性或常用中文译法不够明确） | 最终标签：parallax
+- `parallel-agents` | 关联：1 | 推荐：parallel-agents（含义、产品属性或常用中文译法不够明确） | 最终标签：多 agent 并行
+- `password-mask` | 关联：1 | 推荐：password-mask（含义、产品属性或常用中文译法不够明确） | 最终标签：密码mask
+- `passwordless` | 关联：1 | 推荐：passwordless（含义、产品属性或常用中文译法不够明确） | 最终标签：无密码登录
+- `pastebin` | 关联：1 | 推荐：pastebin（含义、产品属性或常用中文译法不够明确） | 最终标签：pastebin
+- `pattern-matching` | 关联：1 | 推荐：pattern-matching（含义、产品属性或常用中文译法不够明确） | 最终标签：模式匹配
+- `pen-tool` | 关联：1 | 推荐：pen-tool（含义、产品属性或常用中文译法不够明确） | 最终标签：钢笔工具
+- `perpetual` | 关联：2 | 推荐：perpetual（含义、产品属性或常用中文译法不够明确） | 最终标签：perpetual
+- `persistent-vectors` | 关联：1 | 推荐：persistent-vectors（含义、产品属性或常用中文译法不够明确） | 最终标签：持久化向量
+- `personal-blog` | 关联：1 | 推荐：personal-blog（含义、产品属性或常用中文译法不够明确） | 最终标签：个人博客
+- `personal-site` | 关联：1 | 推荐：personal-site（含义、产品属性或常用中文译法不够明确） | 最终标签：个人网站
+- `photoshop` | 关联：2 | 推荐：photoshop（含义、产品属性或常用中文译法不够明确） | 最终标签：photoshop
+- `ping` | 关联：1 | 推荐：ping（含义、产品属性或常用中文译法不够明确） | 最终标签：ping
+- `pinyin` | 关联：1 | 推荐：pinyin（含义、产品属性或常用中文译法不够明确） | 最终标签：拼音
+- `pixi-js` | 关联：1 | 推荐：pixi-js（含义、产品属性或常用中文译法不够明确） | 最终标签：pixi JS
+- `playwright` | 关联：3 | 推荐：playwright（含义、产品属性或常用中文译法不够明确） | 最终标签：playwright
+- `plugin-collection` | 关联：1 | 推荐：plugin-collection（含义、产品属性或常用中文译法不够明确） | 最终标签：插件合集
+- `plugin-manager` | 关联：1 | 推荐：plugin-manager（含义、产品属性或常用中文译法不够明确） | 最终标签：插件管理器
+- `podcast` | 关联：1 | 推荐：podcast（含义、产品属性或常用中文译法不够明确） | 最终标签：播客
+- `poe` | 关联：2 | 推荐：poe（含义、产品属性或常用中文译法不够明确） | 最终标签：poe
+- `polyfill` | 关联：5 | 推荐：polyfill（含义、产品属性或常用中文译法不够明确） | 最终标签：polyfill
+- `port-forwarding` | 关联：1 | 推荐：port-forwarding（含义、产品属性或常用中文译法不够明确） | 最终标签：端口转发
+- `port-scanning` | 关联：3 | 推荐：port-scanning（含义、产品属性或常用中文译法不够明确） | 最终标签：端口扫描
+- `postman-alternative` | 关联：2 | 推荐：postman-alternative（含义、产品属性或常用中文译法不够明确） | 最终标签：postman 替代方案
+- `ppt-generation` | 关联：2 | 推荐：ppt-generation（含义、产品属性或常用中文译法不够明确） | 最终标签：PPT 生成
+- `pre-commit` | 关联：1 | 推荐：pre-commit（含义、产品属性或常用中文译法不够明确） | 最终标签：提交前检查
+- `pre-tge` | 关联：1 | 推荐：pre-tge（含义、产品属性或常用中文译法不够明确） | 最终标签：pre tge
+- `print-styles` | 关联：1 | 推荐：print-styles（含义、产品属性或常用中文译法不够明确） | 最终标签：打印样式
+- `prism` | 关联：2 | 推荐：prism（含义、产品属性或常用中文译法不够明确） | 最终标签：prism
+- `product-tour` | 关联：1 | 推荐：product-tour（含义、产品属性或常用中文译法不够明确） | 最终标签：产品导览
+- `producthunt` | 关联：2 | 推荐：producthunt（含义、产品属性或常用中文译法不够明确） | 最终标签：producthunt
+- `programmer-resources` | 关联：1 | 推荐：programmer-resources（含义、产品属性或常用中文译法不够明确） | 最终标签：程序员资源
+- `programming-ebooks` | 关联：1 | 推荐：programming-ebooks（含义、产品属性或常用中文译法不够明确） | 最终标签：编程电子书
+- `programming-languages` | 关联：1 | 推荐：programming-languages（含义、产品属性或常用中文译法不够明确） | 最终标签：编程语言
+- `progress-bar` | 关联：1 | 推荐：progress-bar（含义、产品属性或常用中文译法不够明确） | 最终标签：进度条
+- `progressive-enhancement` | 关联：1 | 推荐：progressive-enhancement（含义、产品属性或常用中文译法不够明确） | 最终标签：渐进式增强
+- `project-information` | 关联：1 | 推荐：project-information（含义、产品属性或常用中文译法不够明确） | 最终标签：项目信息
+- `prop-types` | 关联：1 | 推荐：prop-types（含义、产品属性或常用中文译法不够明确） | 最终标签：PropTypes
+- `public-apis` | 关联：1 | 推荐：public-apis（含义、产品属性或常用中文译法不够明确） | 最终标签：公共 API
+- `publish-size` | 关联：1 | 推荐：publish-size（含义、产品属性或常用中文译法不够明确） | 最终标签：发布体积
+- `publish-subscribe` | 关联：2 | 推荐：publish-subscribe（含义、产品属性或常用中文译法不够明确） | 最终标签：发布订阅
+- `pull-to-refresh` | 关联：1 | 推荐：pull-to-refresh（含义、产品属性或常用中文译法不够明确） | 最终标签：下拉刷新
+- `pump-fun` | 关联：1 | 推荐：pump-fun（含义、产品属性或常用中文译法不够明确） | 最终标签：pump fun
+- `qq-show` | 关联：1 | 推荐：qq-show（含义、产品属性或常用中文译法不够明确） | 最终标签：QQ 秀
+- `qr-code-decoder` | 关联：1 | 推荐：qr-code-decoder（含义、产品属性或常用中文译法不够明确） | 最终标签：二维码解码器
+- `quantitative-trading` | 关联：1 | 推荐：quantitative-trading（含义、产品属性或常用中文译法不够明确） | 最终标签：量化交易
+- `quarkc` | 关联：1 | 推荐：quarkc（含义、产品属性或常用中文译法不够明确） | 最终标签：quarkc
+- `query` | 关联：3 | 推荐：query（含义、产品属性或常用中文译法不够明确） | 最终标签：查询
+- `query-builder` | 关联：3 | 推荐：query-builder（含义、产品属性或常用中文译法不够明确） | 最终标签：查询构建器
+- `query-language` | 关联：1 | 推荐：query-language（含义、产品属性或常用中文译法不够明确） | 最终标签：查询语言
+- `quests` | 关联：1 | 推荐：quests（含义、产品属性或常用中文译法不够明确） | 最终标签：任务
+- `quick-reference` | 关联：2 | 推荐：quick-reference（含义、产品属性或常用中文译法不够明确） | 最终标签：快速参考
+- `quickfix` | 关联：2 | 推荐：quickfix（含义、产品属性或常用中文译法不够明确） | 最终标签：quickfix
+- `raylib` | 关联：1 | 推荐：raylib（含义、产品属性或常用中文译法不够明确） | 最终标签：raylib
+- `reactive` | 关联：4 | 推荐：reactive（含义、产品属性或常用中文译法不够明确） | 最终标签：响应式
+- `reactive-streams` | 关联：1 | 推荐：reactive-streams（含义、产品属性或常用中文译法不够明确） | 最终标签：响应式流
+- `readme` | 关联：2 | 推荐：readme（含义、产品属性或常用中文译法不够明确） | 最终标签：README
+- `readystatechange` | 关联：1 | 推荐：readystatechange（含义、产品属性或常用中文译法不够明确） | 最终标签：readystatechange
+- `realtime-info` | 关联：1 | 推荐：realtime-info（含义、产品属性或常用中文译法不够明确） | 最终标签：实时信息
+- `receive-sms-online` | 关联：1 | 推荐：receive-sms-online（含义、产品属性或常用中文译法不够明确） | 最终标签：在线接收短信
+- `recharge` | 关联：1 | 推荐：recharge（含义、产品属性或常用中文译法不够明确） | 最终标签：充值
+- `reentrancy` | 关联：1 | 推荐：reentrancy（含义、产品属性或常用中文译法不够明确） | 最终标签：reentrancy
+- `remote-functions` | 关联：1 | 推荐：remote-functions（含义、产品属性或常用中文译法不够明确） | 最终标签：远程函数
+- `reproducible-builds` | 关联：1 | 推荐：reproducible-builds（含义、产品属性或常用中文译法不够明确） | 最终标签：可复现构建
+- `resolution-enhancement` | 关联：1 | 推荐：resolution-enhancement（含义、产品属性或常用中文译法不够明确） | 最终标签：分辨率增强
+- `resource-collection` | 关联：5 | 推荐：resource-collection（含义、产品属性或常用中文译法不够明确） | 最终标签：资源合集
+- `retrodrops` | 关联：1 | 推荐：retrodrops（含义、产品属性或常用中文译法不够明确） | 最终标签：retrodrops
+- `risk-mitigation` | 关联：1 | 推荐：risk-mitigation（含义、产品属性或常用中文译法不够明确） | 最终标签：风险缓解
+- `rome` | 关联：2 | 推荐：rome（含义、产品属性或常用中文译法不够明确） | 最终标签：rome
+- `route-reuse-strategy` | 关联：1 | 推荐：route-reuse-strategy（含义、产品属性或常用中文译法不够明确） | 最终标签：路由复用策略
+- `rug-pull` | 关联：1 | 推荐：rug-pull（含义、产品属性或常用中文译法不够明确） | 最终标签：项目跑路
+- `running-elements` | 关联：1 | 推荐：running-elements（含义、产品属性或常用中文译法不够明确） | 最终标签：运行元素
+- `runtime-types` | 关联：3 | 推荐：runtime-types（含义、产品属性或常用中文译法不够明确） | 最终标签：运行时类型
+- `schematics` | 关联：4 | 推荐：schematics（含义、产品属性或常用中文译法不够明确） | 最终标签：schematics
+- `scheme-url` | 关联：2 | 推荐：scheme-url（含义、产品属性或常用中文译法不够明确） | 最终标签：scheme-url
+- `script-repository` | 关联：1 | 推荐：script-repository（含义、产品属性或常用中文译法不够明确） | 最终标签：脚本仓库
+- `scroll-snap` | 关联：2 | 推荐：scroll-snap（含义、产品属性或常用中文译法不够明确） | 最终标签：滚动吸附
+- `scroll-to-error` | 关联：2 | 推荐：scroll-to-error（含义、产品属性或常用中文译法不够明确） | 最终标签：滚动到错误处
+- `scrollbar` | 关联：4 | 推荐：scrollbar（含义、产品属性或常用中文译法不够明确） | 最终标签：滚动条
+- `seam-carving` | 关联：1 | 推荐：seam-carving（含义、产品属性或常用中文译法不够明确） | 最终标签：接缝裁剪
+- `search-and-replace` | 关联：2 | 推荐：search-and-replace（含义、产品属性或常用中文译法不够明确） | 最终标签：搜索替换
+- `security-tools` | 关联：1 | 推荐：security-tools（含义、产品属性或常用中文译法不够明确） | 最终标签：安全工具
+- `seed-phrase` | 关联：1 | 推荐：seed-phrase（含义、产品属性或常用中文译法不够明确） | 最终标签：助记词
+- `semantic-retrieval` | 关联：1 | 推荐：semantic-retrieval（含义、产品属性或常用中文译法不够明确） | 最终标签：语义检索
+- `sendbeacon` | 关联：2 | 推荐：sendbeacon（含义、产品属性或常用中文译法不够明确） | 最终标签：sendbeacon
+- `sentry-compatible` | 关联：1 | 推荐：sentry-compatible（含义、产品属性或常用中文译法不够明确） | 最终标签：sentry 兼容
+- `sepolia` | 关联：6 | 推荐：sepolia（含义、产品属性或常用中文译法不够明确） | 最终标签：sepolia
+- `shader` | 关联：1 | 推荐：shader（含义、产品属性或常用中文译法不够明确） | 最终标签：shader
+- `shadow` | 关联：1 | 推荐：shadow（含义、产品属性或常用中文译法不够明确） | 最终标签：阴影
+- `shadowsocks` | 关联：3 | 推荐：shadowsocks（含义、产品属性或常用中文译法不够明确） | 最终标签：shadowsocks
+- `show-more` | 关联：1 | 推荐：show-more（含义、产品属性或常用中文译法不够明确） | 最终标签：展开更多
+- `silent-login` | 关联：1 | 推荐：silent-login（含义、产品属性或常用中文译法不够明确） | 最终标签：静默登录
+- `slim` | 关联：2 | 推荐：slim（含义、产品属性或常用中文译法不够明确） | 最终标签：slim
+- `smms` | 关联：2 | 推荐：smms（含义、产品属性或常用中文译法不够明确） | 最终标签：smms
+- `sms` | 关联：5 | 推荐：sms（含义、产品属性或常用中文译法不够明确） | 最终标签：短信
+- `software-complexity` | 关联：1 | 推荐：software-complexity（含义、产品属性或常用中文译法不够明确） | 最终标签：软件复杂度
+- `sop` | 关联：1 | 推荐：sop（含义、产品属性或常用中文译法不够明确） | 最终标签：sop
+- `sortable` | 关联：5 | 推荐：sortable（含义、产品属性或常用中文译法不够明确） | 最终标签：排序
+- `sortable-table` | 关联：1 | 推荐：sortable-table（含义、产品属性或常用中文译法不够明确） | 最终标签：排序表格
+- `sortablejs` | 关联：2 | 推荐：sortablejs（含义、产品属性或常用中文译法不够明确） | 最终标签：sortablejs
+- `speech-synthesis` | 关联：1 | 推荐：speech-synthesis（含义、产品属性或常用中文译法不够明确） | 最终标签：语音合成
+- `spinkit` | 关联：1 | 推荐：spinkit（含义、产品属性或常用中文译法不够明确） | 最终标签：spinkit
+- `splash-screen` | 关联：1 | 推荐：splash-screen（含义、产品属性或常用中文译法不够明确） | 最终标签：启动图
+- `split-view` | 关联：1 | 推荐：split-view（含义、产品属性或常用中文译法不够明确） | 最终标签：分栏视图
+- `ss` | 关联：2 | 推荐：ss（含义、产品属性或常用中文译法不够明确） | 最终标签：ss
+- `stable-diffusion` | 关联：6 | 推荐：stable-diffusion（含义、产品属性或常用中文译法不够明确） | 最终标签：Stable Diffusion
+- `stacking-context` | 关联：2 | 推荐：stacking-context（含义、产品属性或常用中文译法不够明确） | 最终标签：层叠上下文
+- `stackoverflow` | 关联：13 | 推荐：stackoverflow（含义、产品属性或常用中文译法不够明确） | 最终标签：stackoverflow
+- `starknet` | 关联：1 | 推荐：starknet（含义、产品属性或常用中文译法不够明确） | 最终标签：starknet
+- `starter-kit` | 关联：3 | 推荐：starter-kit（含义、产品属性或常用中文译法不够明确） | 最终标签：启动套件
+- `startpage` | 关联：1 | 推荐：startpage（含义、产品属性或常用中文译法不够明确） | 最终标签：落地页
+- `static-site-generator` | 关联：2 | 推荐：static-site-generator（含义、产品属性或常用中文译法不够明确） | 最终标签：静态网站生成器
+- `stealth-browser` | 关联：1 | 推荐：stealth-browser（含义、产品属性或常用中文译法不够明确） | 最终标签：隐身浏览器
+- `sticky-columns` | 关联：5 | 推荐：sticky-columns（含义、产品属性或常用中文译法不够明确） | 最终标签：吸附列
+- `sticky-notes` | 关联：1 | 推荐：sticky-notes（含义、产品属性或常用中文译法不够明确） | 最终标签：便利贴
+- `stock-photos` | 关联：5 | 推荐：stock-photos（含义、产品属性或常用中文译法不够明确） | 最终标签：照片图库
+- `stroke-animation` | 关联：1 | 推荐：stroke-animation（含义、产品属性或常用中文译法不够明确） | 最终标签：描边动画
+- `strong-typing` | 关联：1 | 推荐：strong-typing（含义、产品属性或常用中文译法不够明确） | 最终标签：强类型
+- `structural-patterns` | 关联：1 | 推荐：structural-patterns（含义、产品属性或常用中文译法不够明确） | 最终标签：结构型模式
+- `study-abroad` | 关联：1 | 推荐：study-abroad（含义、产品属性或常用中文译法不够明确） | 最终标签：留学
+- `sublime-text` | 关联：1 | 推荐：sublime-text（含义、产品属性或常用中文译法不够明确） | 最终标签：sublime-text
+- `superchain` | 关联：1 | 推荐：superchain（含义、产品属性或常用中文译法不够明确） | 最终标签：superchain
+- `supply-chain-security` | 关联：1 | 推荐：supply-chain-security（含义、产品属性或常用中文译法不够明确） | 最终标签：供应链安全
+- `symmetry` | 关联：1 | 推荐：symmetry（含义、产品属性或常用中文译法不够明确） | 最终标签：对称
+- `synapse-protocol` | 关联：1 | 推荐：synapse-protocol（含义、产品属性或常用中文译法不够明确） | 最终标签：synapse 协议
+- `synology` | 关联：1 | 推荐：synology（含义、产品属性或常用中文译法不够明确） | 最终标签：synology
+- `tabline` | 关联：1 | 推荐：tabline（含义、产品属性或常用中文译法不够明确） | 最终标签：tabline
+- `tail-call-optimization` | 关联：1 | 推荐：tail-call-optimization（含义、产品属性或常用中文译法不够明确） | 最终标签：尾调用优化
+- `tainted-canvas` | 关联：2 | 推荐：tainted-canvas（含义、产品属性或常用中文译法不够明确） | 最终标签：污染 Canvas
+- `task-automation` | 关联：1 | 推荐：task-automation（含义、产品属性或常用中文译法不够明确） | 最终标签：任务自动化
+- `task-runner` | 关联：2 | 推荐：task-runner（含义、产品属性或常用中文译法不够明确） | 最终标签：任务运行器
+- `tavily` | 关联：1 | 推荐：tavily（含义、产品属性或常用中文译法不够明确） | 最终标签：tavily
+- `tech-blog` | 关联：1 | 推荐：tech-blog（含义、产品属性或常用中文译法不够明确） | 最终标签：技术博客
+- `technology-profiler` | 关联：1 | 推荐：technology-profiler（含义、产品属性或常用中文译法不够明确） | 最终标签：技术分析器
+- `technology-stack` | 关联：2 | 推荐：technology-stack（含义、产品属性或常用中文译法不够明确） | 最终标签：技术栈
+- `telescope` | 关联：2 | 推荐：telescope（含义、产品属性或常用中文译法不够明确） | 最终标签：telescope
+- `television` | 关联：1 | 推荐：television（含义、产品属性或常用中文译法不够明确） | 最终标签：电视
+- `temporal-memory` | 关联：1 | 推荐：temporal-memory（含义、产品属性或常用中文译法不够明确） | 最终标签：时序记忆
+- `temporary-phone-number` | 关联：4 | 推荐：temporary-phone-number（含义、产品属性或常用中文译法不够明确） | 最终标签：临时电话
+- `test-runner` | 关联：1 | 推荐：test-runner（含义、产品属性或常用中文译法不够明确） | 最终标签：测试运行器
+- `testnet` | 关联：16 | 推荐：testnet（含义、产品属性或常用中文译法不够明确） | 最终标签：testnet
+- `text-animation` | 关联：2 | 推荐：text-animation（含义、产品属性或常用中文译法不够明确） | 最终标签：文本动画
+- `text-effects` | 关联：3 | 推荐：text-effects（含义、产品属性或常用中文译法不够明确） | 最终标签：文本效果
+- `text-selection` | 关联：1 | 推荐：text-selection（含义、产品属性或常用中文译法不够明确） | 最终标签：文本选择
+- `text-to-image` | 关联：1 | 推荐：text-to-image（含义、产品属性或常用中文译法不够明确） | 最终标签：文生图
+- `text-to-video` | 关联：2 | 推荐：text-to-video（含义、产品属性或常用中文译法不够明确） | 最终标签：文生视频
+- `text-wrap` | 关联：1 | 推荐：text-wrap（含义、产品属性或常用中文译法不够明确） | 最终标签：文本换行
+- `texturing` | 关联：1 | 推荐：texturing（含义、产品属性或常用中文译法不够明确） | 最终标签：纹理
+- `theme-switching` | 关联：2 | 推荐：theme-switching（含义、产品属性或常用中文译法不够明确） | 最终标签：主题切换
+- `thinkphp` | 关联：1 | 推荐：thinkphp（含义、产品属性或常用中文译法不够明确） | 最终标签：thinkphp
+- `third-party-scripts` | 关联：1 | 推荐：third-party-scripts（含义、产品属性或常用中文译法不够明确） | 最终标签：第三方脚本
+- `thirdweb` | 关联：3 | 推荐：thirdweb（含义、产品属性或常用中文译法不够明确） | 最终标签：thirdweb
+- `thread-pool` | 关联：2 | 推荐：thread-pool（含义、产品属性或常用中文译法不够明确） | 最终标签：线程池
+- `tidb-cloud` | 关联：1 | 推荐：tidb-cloud（含义、产品属性或常用中文译法不够明确） | 最终标签：tidb 云
+- `timepicker` | 关联：1 | 推荐：timepicker（含义、产品属性或常用中文译法不够明确） | 最终标签：时间选择器
+- `todataurl` | 关联：2 | 推荐：todataurl（含义、产品属性或常用中文译法不够明确） | 最终标签：todataurl
+- `toggle-switch` | 关联：2 | 推荐：toggle-switch（含义、产品属性或常用中文译法不够明确） | 最终标签：开关切换
+- `token-approvals` | 关联：2 | 推荐：token-approvals（含义、产品属性或常用中文译法不够明确） | 最终标签：token 审批
+- `token-creator` | 关联：1 | 推荐：token-creator（含义、产品属性或常用中文译法不够明确） | 最终标签：token 创建工具
+- `token-explorer` | 关联：1 | 推荐：token-explorer（含义、产品属性或常用中文译法不够明确） | 最终标签：token 浏览器
+- `token-launchpad` | 关联：1 | 推荐：token-launchpad（含义、产品属性或常用中文译法不够明确） | 最终标签：代币发行平台
+- `token-sale` | 关联：1 | 推荐：token-sale（含义、产品属性或常用中文译法不够明确） | 最终标签：token 销售
+- `token-vesting` | 关联：1 | 推荐：token-vesting（含义、产品属性或常用中文译法不够明确） | 最终标签：token 解锁
+- `tool-collection` | 关联：3 | 推荐：tool-collection（含义、产品属性或常用中文译法不够明确） | 最终标签：工具合集
+- `tool-use` | 关联：1 | 推荐：tool-use（含义、产品属性或常用中文译法不够明确） | 最终标签：工具使用
+- `topaz-video-ai` | 关联：1 | 推荐：topaz-video-AI（含义、产品属性或常用中文译法不够明确） | 最终标签：topaz-video-ai
+- `tornado-cash` | 关联：1 | 推荐：tornado-cash（含义、产品属性或常用中文译法不够明确） | 最终标签：tornado cash
+- `tradingview` | 关联：3 | 推荐：tradingview（含义、产品属性或常用中文译法不够明确） | 最终标签：tradingview
+- `traditional-colors` | 关联：1 | 推荐：traditional-colors（含义、产品属性或常用中文译法不够明确） | 最终标签：传统颜色
+- `transaction-tracer` | 关联：1 | 推荐：transaction-tracer（含义、产品属性或常用中文译法不够明确） | 最终标签：交易追踪器
+- `transpiler` | 关联：3 | 推荐：transpiler（含义、产品属性或常用中文译法不够明确） | 最终标签：转译器
+- `treesitter` | 关联：2 | 推荐：treesitter（含义、产品属性或常用中文译法不够明确） | 最终标签：treesitter
+- `trojan` | 关联：4 | 推荐：trojan（含义、产品属性或常用中文译法不够明确） | 最终标签：trojan
+- `tv-shows` | 关联：1 | 推荐：tv-shows（含义、产品属性或常用中文译法不够明确） | 最终标签：电视节目
+- `tvl` | 关联：1 | 推荐：tvl（含义、产品属性或常用中文译法不够明确） | 最终标签：tvl
+- `twitter` | 关联：4 | 推荐：twitter（含义、产品属性或常用中文译法不够明确） | 最终标签：twitter
+- `two-way-binding` | 关联：1 | 推荐：two-way-binding（含义、产品属性或常用中文译法不够明确） | 最终标签：双向绑定
+- `type-definitions` | 关联：1 | 推荐：type-definitions（含义、产品属性或常用中文译法不够明确） | 最终标签：类型定义
+- `type-library` | 关联：1 | 推荐：type-library（含义、产品属性或常用中文译法不够明确） | 最终标签：类型库
+- `type-system` | 关联：1 | 推荐：type-system（含义、产品属性或常用中文译法不够明确） | 最终标签：类型系统
+- `typesafe` | 关联：1 | 推荐：typesafe（含义、产品属性或常用中文译法不够明确） | 最终标签：类型安全
+- `typing-animation` | 关联：1 | 推荐：typing-animation（含义、产品属性或常用中文译法不够明确） | 最终标签：打字动画
+- `uni-app` | 关联：2 | 推荐：uni-app（含义、产品属性或常用中文译法不够明确） | 最终标签：uni-app
+- `uniswap` | 关联：4 | 推荐：uniswap（含义、产品属性或常用中文译法不够明确） | 最终标签：uniswap
+- `unload` | 关联：2 | 推荐：unload（含义、产品属性或常用中文译法不够明确） | 最终标签：unload
+- `unused-dependencies` | 关联：2 | 推荐：unused-dependencies（含义、产品属性或常用中文译法不够明确） | 最终标签：未使用依赖
+- `unused-files` | 关联：2 | 推荐：unused-files（含义、产品属性或常用中文译法不够明确） | 最终标签：未使用文件
+- `url-friendly` | 关联：1 | 推荐：url-friendly（含义、产品属性或常用中文译法不够明确） | 最终标签：URL 友好
+- `url-shortener` | 关联：4 | 推荐：url-shortener（含义、产品属性或常用中文译法不够明确） | 最终标签：URL 短链工具
+- `us-proxy` | 关联：1 | 推荐：us-proxy（含义、产品属性或常用中文译法不够明确） | 最终标签：美国代理
+- `use-event-listener` | 关联：1 | 推荐：use-event-listener（含义、产品属性或常用中文译法不够明确） | 最终标签：使用事件监听器
+- `usehooks-ts` | 关联：2 | 推荐：usehooks-ts（含义、产品属性或常用中文译法不够明确） | 最终标签：usehooks ts
+- `userscript` | 关联：2 | 推荐：userscript（含义、产品属性或常用中文译法不够明确） | 最终标签：用户脚本
+- `utility-classes` | 关联：1 | 推荐：utility-classes（含义、产品属性或常用中文译法不够明确） | 最终标签：实用工具类
+- `utility-first` | 关联：3 | 推荐：utility-first（含义、产品属性或常用中文译法不够明确） | 最终标签：实用工具优先
+- `utility-types` | 关联：2 | 推荐：utility-types（含义、产品属性或常用中文译法不够明确） | 最终标签：实用类型
+- `velocity-js` | 关联：1 | 推荐：velocity-js（含义、产品属性或常用中文译法不够明确） | 最终标签：velocity JS
+- `verdaccio` | 关联：2 | 推荐：verdaccio（含义、产品属性或常用中文译法不够明确） | 最终标签：verdaccio
+- `version-manager` | 关联：1 | 推荐：version-manager（含义、产品属性或常用中文译法不够明确） | 最终标签：版本管理器
+- `video-downloader` | 关联：2 | 推荐：video-downloader（含义、产品属性或常用中文译法不够明确） | 最终标签：视频下载器
+- `video-generation` | 关联：3 | 推荐：video-generation（含义、产品属性或常用中文译法不够明确） | 最终标签：视频生成
+- `video-processing` | 关联：2 | 推荐：video-processing（含义、产品属性或常用中文译法不够明确） | 最终标签：视频处理
+- `viewport-units` | 关联：1 | 推荐：viewport-units（含义、产品属性或常用中文译法不够明确） | 最终标签：视口单位
+- `virtual-phone-number` | 关联：5 | 推荐：virtual-phone-number（含义、产品属性或常用中文译法不够明确） | 最终标签：虚拟电话
+- `virtual-tour` | 关联：2 | 推荐：virtual-tour（含义、产品属性或常用中文译法不够明确） | 最终标签：虚拟导览
+- `virtualized-table` | 关联：1 | 推荐：virtualized-table（含义、产品属性或常用中文译法不够明确） | 最终标签：虚拟化表格
+- `visa` | 关联：1 | 推荐：visa（含义、产品属性或常用中文译法不够明确） | 最终标签：visa
+- `visual-effects` | 关联：1 | 推荐：visual-effects（含义、产品属性或常用中文译法不够明确） | 最终标签：可视化效果
+- `visual-feedback` | 关联：1 | 推荐：visual-feedback（含义、产品属性或常用中文译法不够明确） | 最终标签：可视化反馈
+- `visual-mode` | 关联：1 | 推荐：visual-mode（含义、产品属性或常用中文译法不够明确） | 最终标签：可视模式
+- `web-based` | 关联：2 | 推荐：web-based（含义、产品属性或常用中文译法不够明确） | 最终标签：Web 应用
+- `web-dev` | 关联：2 | 推荐：web-dev（含义、产品属性或常用中文译法不够明确） | 最终标签：Web 开发
+- `web-ssh` | 关联：1 | 推荐：web-ssh（含义、产品属性或常用中文译法不够明确） | 最终标签：Web SSH
+- `web-standards` | 关联：2 | 推荐：web-standards（含义、产品属性或常用中文译法不够明确） | 最终标签：Web 标准
+- `web-to-desktop` | 关联：1 | 推荐：web-to-desktop（含义、产品属性或常用中文译法不够明确） | 最终标签：Web 转桌面端
+- `web-vitals` | 关联：2 | 推荐：web-vitals（含义、产品属性或常用中文译法不够明确） | 最终标签：Web 核心指标
+- `web-workers` | 关联：3 | 推荐：web-workers（含义、产品属性或常用中文译法不够明确） | 最终标签：Web-workers
+- `webdisk` | 关联：1 | 推荐：webdisk（含义、产品属性或常用中文译法不够明确） | 最终标签：webdisk
+- `webscraping` | 关联：8 | 推荐：webscraping（含义、产品属性或常用中文译法不够明确） | 最终标签：webscraping
+- `window-opener` | 关联：1 | 推荐：window-opener（含义、产品属性或常用中文译法不够明确） | 最终标签：窗口打开器
+- `wired-elements` | 关联：1 | 推荐：wired-elements（含义、产品属性或常用中文译法不够明确） | 最终标签：手绘风格
+- `wireframing` | 关联：1 | 推荐：wireframing（含义、产品属性或常用中文译法不够明确） | 最终标签：线框设计
+- `word-roots` | 关联：1 | 推荐：word-roots（含义、产品属性或常用中文译法不够明确） | 最终标签：词根
+- `worker-threads` | 关联：1 | 推荐：worker-threads（含义、产品属性或常用中文译法不够明确） | 最终标签：工作线程
+- `yapi` | 关联：2 | 推荐：yapi（含义、产品属性或常用中文译法不够明确） | 最终标签：yapi
+- `yield-farming` | 关联：1 | 推荐：yield-farming（含义、产品属性或常用中文译法不够明确） | 最终标签：流动性挖矿
+- `yield-layer` | 关联：1 | 推荐：yield-layer（含义、产品属性或常用中文译法不够明确） | 最终标签：收益层

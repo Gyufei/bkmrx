@@ -1,4 +1,4 @@
-## bkmr 的搜索可以支持哪些参数呢，给我详细列举一下 bkmr search，bkmr hsearch 有哪些使用方法和参数
+# bkmr 搜索参数参考
 
 下面把 bkmr 的两个搜索命令的参数和用法详列出来（直接、完整、带示例）。先给结论：bkmr search 支持丰富的 FTS + 标签过滤 + 交互选项（包括 --fzf）；bkmr hsearch 是混合（hybrid）检索，将全文检索与语义检索用 RRF 融合，并提供类似的标签过滤、交互和 JSON 输出选项。
 
