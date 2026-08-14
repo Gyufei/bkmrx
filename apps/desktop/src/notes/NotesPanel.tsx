@@ -213,7 +213,7 @@ export default function NotesPanel() {
                         onClick={() => handleSelectFile(note)}
                         className={cn(
                           'w-full rounded-md px-2.5 py-2 text-left transition-colors',
-                          selectedFilePath === note.path ? 'bg-accent' : 'hover:bg-accent/50',
+                          selectedFilePath === note.path ? 'bg-primary/15' : 'hover:bg-accent/50',
                         )}
                       >
                         <span className="block truncate text-sm font-medium text-foreground">
