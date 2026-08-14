@@ -4,5 +4,6 @@ pub mod database;
 pub mod error;
 pub mod http_server;
 pub mod notes;
+pub mod preview;
 pub mod settings;
 pub mod todos;

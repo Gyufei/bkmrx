@@ -1,10 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
   Bookmark,
+  BookmarkPreview,
   BookmarkPage,
   BookmarkPageRequest,
   CreateBookmark,
   ImportPreview,
+  PrepareBookmarkPreviewRequest,
   NoteFile,
   Tag,
   TagQueryRequest,
@@ -50,6 +52,13 @@ export function invokeRecordBookmarkAccess(id: number): Promise<Bookmark> {
 
 export function invokeSetBookmarkStarred(id: number, starred: boolean): Promise<Bookmark> {
   return invoke<Bookmark>('set_bookmark_starred', { id, starred });
+}
+
+export function invokePrepareBookmarkPreview(
+  request: PrepareBookmarkPreviewRequest,
+  forceRefresh = false,
+): Promise<BookmarkPreview> {
+  return invoke<BookmarkPreview>('prepare_bookmark_preview', { request, forceRefresh });
 }
 
 export function invokeExportBookmarks(path: string): Promise<string> {

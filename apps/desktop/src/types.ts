@@ -11,6 +11,50 @@ export interface Bookmark {
   starred_at: string | null;
 }
 
+export interface PrepareBookmarkPreviewRequest {
+  bookmark_id: number;
+  url: string;
+}
+
+export interface GithubRepositoryPreview {
+  owner: string;
+  name: string;
+  full_name: string;
+  description: string | null;
+  html_url: string;
+  owner_avatar_url: string | null;
+  primary_language: string | null;
+  stars: number;
+  forks: number;
+  topics: string[];
+  default_branch: string;
+  updated_at: string;
+}
+
+export type PreviewFallbackReason =
+  | 'embedding_denied'
+  | 'timeout'
+  | 'dns_failure'
+  | 'connection_failure'
+  | 'http_error'
+  | 'unsupported_protocol'
+  | 'unsupported_provider_url'
+  | 'provider_rate_limited'
+  | 'provider_not_found'
+  | 'provider_error'
+  | 'unsafe_target';
+
+export type BookmarkPreview =
+  | { kind: 'web'; url: string; final_url: string }
+  | { kind: 'github_repository'; url: string; repository: GithubRepositoryPreview }
+  | {
+      kind: 'fallback';
+      url: string;
+      reason: PreviewFallbackReason;
+      message: string;
+      http_status: number | null;
+    };
+
 export interface Tag {
   name: string;
   count: number;

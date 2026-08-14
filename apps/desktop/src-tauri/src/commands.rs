@@ -5,6 +5,7 @@ use crate::bookmarks::{
     SharedBookmarkService, TagQueryRequest, TagSummary, UpdateBookmark,
 };
 use crate::notes::SharedNoteService;
+use crate::preview::{BookmarkPreview, PrepareBookmarkPreviewRequest, SharedPreviewService};
 use crate::todos::{
     CreateTodo, SharedTodoService, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
 };
@@ -73,6 +74,15 @@ pub fn set_bookmark_starred(
     starred: bool,
 ) -> AppResult<Bookmark> {
     service.set_starred(id, starred)
+}
+
+#[tauri::command]
+pub async fn prepare_bookmark_preview(
+    service: State<'_, SharedPreviewService>,
+    request: PrepareBookmarkPreviewRequest,
+    force_refresh: bool,
+) -> AppResult<BookmarkPreview> {
+    Ok(service.prepare(request, force_refresh).await)
 }
 
 #[tauri::command]

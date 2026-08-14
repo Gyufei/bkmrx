@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use bkmrx_lib::{
     bookmarks::{BookmarkService, SqliteBookmarkRepository, SqliteFtsSearch},
     database::Database,
+    preview::PreviewService,
     todos::{SqliteTodoRepository, TodoService},
 };
 use tauri::{Emitter, Manager};
@@ -34,6 +35,7 @@ fn main() {
             );
 
             app.manage(Arc::clone(&service));
+            app.manage(Arc::new(PreviewService::new(None)?));
             let todo_handle = handle.clone();
             let todo_service = Arc::new(
                 TodoService::new(SqliteTodoRepository::new(Arc::clone(&database)))
@@ -67,6 +69,7 @@ fn main() {
             bkmrx_lib::commands::get_tags,
             bkmrx_lib::commands::record_bookmark_access,
             bkmrx_lib::commands::set_bookmark_starred,
+            bkmrx_lib::commands::prepare_bookmark_preview,
             bkmrx_lib::commands::query_todos,
             bkmrx_lib::commands::get_todo_tags,
             bkmrx_lib::commands::create_todo,

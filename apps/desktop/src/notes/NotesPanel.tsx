@@ -1,12 +1,12 @@
-import { Copy, FileText, Trash2 } from 'lucide-react';
+import { Copy, Plus, Trash2 } from 'lucide-react';
 import { buildFolderTree } from './buildFolderTree';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { getSettingsApi, SettingsQueryApiKey } from '@/settings/settings.api';
-import { tagColor } from '../lib/tagColor';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -25,15 +25,6 @@ import FolderTree from './FolderTree';
 import NoteEditor from './NoteEditor';
 import { scanNotesDirectoryApi, createNoteApi, deleteNoteFileApi, NotesQueryApiKey } from './notes.api';
 import type { NoteFile } from '../types';
-
-function formatTime(unix: number): string {
-  const d = new Date(unix * 1000);
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  if (diff < 86400000) return '今天';
-  if (diff < 172800000) return '昨天';
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
 
 export default function NotesPanel() {
   const queryClient = useQueryClient();
@@ -197,80 +188,37 @@ export default function NotesPanel() {
 
         <div className="w-56 shrink-0 border-r border-border flex flex-col">
           <div className="shrink-0 px-3 pt-3 pb-2">
-            <div className="flex items-center gap-1">
-              <Input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索笔记..."
-                className="flex-1 h-7 px-2.5 text-xs rounded-md"
-              />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => {
-                  setNewFileName('');
-                  setNewFileError(null);
-                  setShowNewModal(true);
-                }}
-                title="新建笔记"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 12h14" />
-                  <path d="M12 5v14" />
-                </svg>
-              </Button>
-            </div>
+            <Input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索笔记..."
+              className="h-7 px-2.5 text-xs rounded-md"
+            />
           </div>
-            <div className="flex-1 overflow-y-auto thin-scrollbar">
+          <div className="flex-1 overflow-y-auto thin-scrollbar">
             {loading ? (
-                <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-                  <div className="w-4 h-4 mr-2 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  扫描中...
-                </div>
-              ) : filteredNotes.length === 0 ? (
+              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                <div className="w-4 h-4 mr-2 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                扫描中...
+              </div>
+            ) : filteredNotes.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">无匹配笔记</div>
             ) : (
-              <div className="space-y-0.5 px-2 pb-2">
+              <div className="flex flex-col gap-1 px-2 pb-2">
                 {filteredNotes.map((note) => (
                   <ContextMenu key={note.path}>
                     <ContextMenuTrigger>
                       <button
                         onClick={() => handleSelectFile(note)}
-                        className={`w-full text-left px-2.5 py-2 rounded-md transition-colors ${
-                          selectedFilePath === note.path ? 'bg-primary/10' : 'hover:bg-accent/15'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                          <FileText className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                          <span className="truncate">{note.title}</span>
-                        </div>
-                        {note.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {note.tags.slice(0, 3).map((tag) => (
-                              <span
-                                key={tag}
-                                className="inline-block px-1.5 py-0.5 text-[10px] rounded-sm leading-none"
-                                style={tagColor(tag)}
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
+                        className={cn(
+                          'w-full rounded-md px-2.5 py-2 text-left transition-colors',
+                          selectedFilePath === note.path ? 'bg-accent' : 'hover:bg-accent/50',
                         )}
-                        <div className="text-[10px] text-muted-foreground dark:text-muted-foreground mt-1">
-                          {formatTime(note.modified)}
-                        </div>
+                      >
+                        <span className="block truncate text-sm font-medium text-foreground">
+                          {note.title}
+                        </span>
                       </button>
                     </ContextMenuTrigger>
                     <ContextMenuContent>
@@ -296,6 +244,21 @@ export default function NotesPanel() {
                 ))}
               </div>
             )}
+          </div>
+          <div className="shrink-0 border-t border-border p-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                setNewFileName('');
+                setNewFileError(null);
+                setShowNewModal(true);
+              }}
+            >
+              <Plus data-icon="inline-start" />
+              新建笔记
+            </Button>
           </div>
         </div>
 
