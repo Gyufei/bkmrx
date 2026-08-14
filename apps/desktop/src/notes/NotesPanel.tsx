@@ -1,4 +1,4 @@
-import { Copy, Plus, Trash2 } from 'lucide-react';
+import { Copy, Pencil, Plus, Trash2 } from 'lucide-react';
 import { buildFolderTree } from './buildFolderTree';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,7 +23,13 @@ import {
 } from '@/components/ui/dialog';
 import FolderTree from './FolderTree';
 import NoteEditor from './NoteEditor';
-import { scanNotesDirectoryApi, createNoteApi, deleteNoteFileApi, NotesQueryApiKey } from './notes.api';
+import {
+  scanNotesDirectoryApi,
+  createNoteApi,
+  deleteNoteFileApi,
+  renameNoteFileApi,
+  NotesQueryApiKey,
+} from './notes.api';
 import type { NoteFile } from '../types';
 
 export default function NotesPanel() {
@@ -35,6 +41,7 @@ export default function NotesPanel() {
   const [showNewModal, setShowNewModal] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [newFileError, setNewFileError] = useState<string | null>(null);
+  const [editingNote, setEditingNote] = useState<NoteFile | null>(null);
 
   // Settings — fetch notes_dir
   const { data: settings } = useQuery({
@@ -106,6 +113,22 @@ export default function NotesPanel() {
     },
   });
 
+  const renameMutation = useMutation({
+    mutationFn: renameNoteFileApi,
+    onSuccess: (_, { oldPath, newPath }) => {
+      if (selectedFilePath === oldPath) {
+        setSelectedFilePath(newPath);
+      }
+      setShowNewModal(false);
+      setEditingNote(null);
+      setNewFileName('');
+      queryClient.invalidateQueries({ queryKey: [NotesQueryApiKey.NOTES, notesDir] });
+    },
+    onError: (e: Error) => {
+      setNewFileError(e.message);
+    },
+  });
+
   const folderTree = useMemo(() => buildFolderTree(notes), [notes]);
 
   const filteredNotes = useMemo(() => {
@@ -133,9 +156,25 @@ export default function NotesPanel() {
       return;
     }
     setNewFileError(null);
+    if (editingNote) {
+      const separatorIndex = Math.max(
+        editingNote.path.lastIndexOf('/'),
+        editingNote.path.lastIndexOf('\\'),
+      );
+      const directory = editingNote.path.slice(0, separatorIndex + 1);
+      const fileName = name.endsWith('.md') ? name : `${name}.md`;
+      const newPath = `${directory}${fileName}`;
+      if (newPath === editingNote.path) {
+        setShowNewModal(false);
+        setEditingNote(null);
+        return;
+      }
+      renameMutation.mutate({ oldPath: editingNote.path, newPath });
+      return;
+    }
     const targetDir = selectedFolder ? `${notesDir}/${selectedFolder}` : notesDir!;
     createMutation.mutate({ dir: targetDir, name });
-  }, [newFileName, notesDir, selectedFolder, createMutation]);
+  }, [newFileName, editingNote, notesDir, selectedFolder, createMutation, renameMutation]);
 
   if (!notesDir) {
     return (
@@ -224,6 +263,17 @@ export default function NotesPanel() {
                     <ContextMenuContent>
                       <ContextMenuItem
                         onClick={() => {
+                          setEditingNote(note);
+                          setNewFileName(note.title);
+                          setNewFileError(null);
+                          setShowNewModal(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span>重命名</span>
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onClick={() => {
                           navigator.clipboard.writeText(note.path).catch(() => {});
                         }}
                       >
@@ -251,6 +301,7 @@ export default function NotesPanel() {
               size="sm"
               className="w-full"
               onClick={() => {
+                setEditingNote(null);
                 setNewFileName('');
                 setNewFileError(null);
                 setShowNewModal(true);
@@ -277,11 +328,12 @@ export default function NotesPanel() {
         open={showNewModal}
         onOpenChange={(v) => {
           setShowNewModal(v);
+          if (!v) setEditingNote(null);
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>新建笔记</DialogTitle>
+            <DialogTitle>{editingNote ? '重命名笔记' : '新建笔记'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
