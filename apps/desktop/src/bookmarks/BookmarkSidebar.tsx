@@ -74,9 +74,8 @@ export default function BookmarkSidebar({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-3 flex items-center justify-between px-1">
-        <span className="text-sm font-semibold text-foreground">标签</span>
-        {selectedTags.length > 0 && (
+      {selectedTags.length > 0 && (
+        <div className="mb-3 flex justify-end px-1">
           <Button
             variant="ghost"
             className="h-auto p-0 text-xs text-muted-foreground"
@@ -84,8 +83,8 @@ export default function BookmarkSidebar({
           >
             清除
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="relative mb-3">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

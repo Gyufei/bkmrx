@@ -21,6 +21,7 @@ import BookmarkWebPreview from './BookmarkWebPreview';
 import { invokeRecordBookmarkAccess } from '@/lib/invoke';
 import { toast } from '@/components/ui/toast';
 import { useTauriEvent } from '@/lib/use-tauri-event';
+import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 
 const PAGE_SIZE = 50;
 
@@ -232,18 +233,15 @@ export default function BookmarkView() {
   ]);
 
   return (
-    <div
-      ref={setPreviewContainer}
-      className="relative flex min-h-0 w-full flex-1 overflow-hidden"
-    >
-      <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-sidebar p-3">
+    <div ref={setPreviewContainer} className="relative flex min-h-0 w-full flex-1 overflow-hidden">
+      <CollapsibleSidebar title="标签" className="w-56" contentClassName="px-3 pb-3">
         <BookmarkSidebar
           selectedTags={selectedTags}
           onTagsChange={handleTagsChange}
           baseView={baseView}
           onBaseViewChange={setBaseView}
         />
-      </aside>
+      </CollapsibleSidebar>
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
         <header className="shrink-0 border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">

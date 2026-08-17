@@ -37,6 +37,14 @@ vi.mock('./notes.api', () => ({
       modified: 0,
       size: 0,
     },
+    {
+      path: '/notes/资料/nested.md',
+      relative_path: '资料/nested.md',
+      title: '资料笔记',
+      tags: [],
+      modified: 0,
+      size: 0,
+    },
   ]),
   createNoteApi: vi.fn(),
   deleteNoteFileApi,
@@ -45,7 +53,10 @@ vi.mock('./notes.api', () => ({
 
 vi.mock('./NoteEditor', () => ({ default: () => <div>笔记内容</div> }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 it('uses sidebar backgrounds for both navigation columns and the content background for the editor', async () => {
   const queryClient = new QueryClient({
@@ -58,16 +69,38 @@ it('uses sidebar backgrounds for both navigation columns and the content backgro
   );
 
   const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
-  const folderColumn = screen.getByText('共 2 篇笔记').closest('.bg-sidebar');
+  const folderColumn = screen.getByText('共 3 篇笔记').closest('.bg-sidebar');
   const noteColumn = firstNote.closest('.bg-sidebar');
 
   expect(folderColumn).not.toBeNull();
   expect(noteColumn).not.toBeNull();
 
   fireEvent.click(firstNote);
-  expect((await screen.findByText('笔记内容')).parentElement?.classList.contains('bg-background')).toBe(
-    true,
+  expect(
+    (await screen.findByText('笔记内容')).parentElement?.classList.contains('bg-background'),
+  ).toBe(true);
+});
+
+it('restores the selected folder when returning to the notes page', async () => {
+  const firstRender = render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
   );
+
+  const folder = await screen.findByRole('button', { name: '资料' });
+  fireEvent.click(folder);
+  expect(folder.classList.contains('bg-primary/15')).toBe(true);
+
+  firstRender.unmount();
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  const restoredFolder = await screen.findByRole('button', { name: '资料' });
+  await waitFor(() => expect(restoredFolder.classList.contains('bg-primary/15')).toBe(true));
 });
 
 it('uses the same primary-tinted selection background as the folder column', async () => {

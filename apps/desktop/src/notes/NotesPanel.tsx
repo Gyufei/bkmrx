@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -13,6 +13,30 @@ import { useNotesWorkspace } from './use-notes-workspace';
 
 type NameDialogState = { mode: 'create' } | { mode: 'rename'; note: NoteFile };
 
+const SELECTED_FOLDER_STORAGE_PREFIX = 'bkmrx:notes:selected-folder:';
+
+function selectedFolderStorageKey(notesDir: string) {
+  return `${SELECTED_FOLDER_STORAGE_PREFIX}${notesDir}`;
+}
+
+function readSelectedFolder(notesDir: string) {
+  try {
+    return localStorage.getItem(selectedFolderStorageKey(notesDir));
+  } catch {
+    return null;
+  }
+}
+
+function writeSelectedFolder(notesDir: string, path: string | null) {
+  try {
+    const key = selectedFolderStorageKey(notesDir);
+    if (path) localStorage.setItem(key, path);
+    else localStorage.removeItem(key);
+  } catch {
+    // Local storage can be unavailable; folder selection still works for this render.
+  }
+}
+
 export default function NotesPanel() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
@@ -20,6 +44,19 @@ export default function NotesPanel() {
   const [deletingNote, setDeletingNote] = useState<NoteFile | null>(null);
   const { notesDir, notes, loading, error, createNote, deleteNote, renameNote } =
     useNotesWorkspace();
+
+  useEffect(() => {
+    if (!notesDir) return;
+    setSelectedFolder(readSelectedFolder(notesDir));
+  }, [notesDir]);
+
+  useEffect(() => {
+    if (!notesDir || loading || !selectedFolder) return;
+    const folderExists = notes.some((note) => note.relative_path.startsWith(`${selectedFolder}/`));
+    if (folderExists) return;
+    setSelectedFolder(null);
+    writeSelectedFolder(notesDir, null);
+  }, [loading, notes, notesDir, selectedFolder]);
 
   if (!notesDir) {
     return (
@@ -84,6 +121,7 @@ export default function NotesPanel() {
           selectedFolder={selectedFolder}
           onSelectFolder={(path) => {
             setSelectedFolder(path);
+            writeSelectedFolder(notesDir, path);
             setSelectedFilePath(null);
           }}
         />

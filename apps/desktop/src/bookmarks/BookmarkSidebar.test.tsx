@@ -7,6 +7,7 @@ import { useState } from 'react';
 
 import type { BookmarkBaseView } from '@/types';
 import BookmarkSidebar from './BookmarkSidebar';
+import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 
 const queryTagsMock = vi.hoisted(() => vi.fn());
 
@@ -28,12 +29,14 @@ function renderSidebar() {
     const [baseView, setBaseView] = useState<BookmarkBaseView>('all');
     return (
       <QueryClientProvider client={client}>
-        <BookmarkSidebar
-          selectedTags={selectedTags}
-          onTagsChange={setSelectedTags}
-          baseView={baseView}
-          onBaseViewChange={setBaseView}
-        />
+        <CollapsibleSidebar title="标签" className="w-56">
+          <BookmarkSidebar
+            selectedTags={selectedTags}
+            onTagsChange={setSelectedTags}
+            baseView={baseView}
+            onBaseViewChange={setBaseView}
+          />
+        </CollapsibleSidebar>
       </QueryClientProvider>
     );
   }
@@ -60,6 +63,17 @@ describe('BookmarkSidebar', () => {
 
     fireEvent.click(screen.getByText('星标'));
     expect(screen.getByText('星标').closest('button')?.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('does not request tags again after collapsing and expanding', async () => {
+    queryTagsMock.mockResolvedValue([{ name: 'popular', count: 12 }]);
+    renderSidebar();
+
+    expect(await screen.findByText('popular')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '折叠侧边栏' }));
+    fireEvent.click(screen.getByRole('button', { name: '展开侧边栏' }));
+
+    expect(queryTagsMock).toHaveBeenCalledTimes(1);
   });
 
   it('debounces tag search and trims the request', async () => {

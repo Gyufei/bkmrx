@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 import type { TodoTag } from '@/types';
+import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 
 interface TodoSidebarProps {
   tags: TodoTag[];
@@ -32,8 +33,11 @@ export default function TodoSidebar({
   onDeleteTag,
 }: TodoSidebarProps) {
   return (
-    <aside className="thin-scrollbar w-56 shrink-0 overflow-y-auto border-r border-border bg-sidebar p-3">
-      <h2 className="mb-3 px-1 text-sm font-semibold text-foreground">分类</h2>
+    <CollapsibleSidebar
+      title="分类"
+      className="w-56"
+      contentClassName="thin-scrollbar overflow-y-auto px-3 pb-3"
+    >
       <button onClick={() => onSelectTag(null)} className={tagButtonClass(selectedTagId === null)}>
         <span>所有任务</span>
         <span className="text-xs text-muted-foreground">{total}</span>
@@ -64,6 +68,6 @@ export default function TodoSidebar({
           </ContextMenu>
         ))}
       </div>
-    </aside>
+    </CollapsibleSidebar>
   );
 }
