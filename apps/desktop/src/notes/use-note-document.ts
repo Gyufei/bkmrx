@@ -72,7 +72,7 @@ export function useNoteDocument(
   const latestSubmittedVersionRef = useRef(0);
   const latestSubmittedPromiseRef = useRef<Promise<void> | null>(null);
   const latestSavedVersionRef = useRef(0);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mountedRef = useRef(false);
   const saveFailureRef = useRef<CapturedSaveFailure | null>(null);
   const retryPromiseRef = useRef<{

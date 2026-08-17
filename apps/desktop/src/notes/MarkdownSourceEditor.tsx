@@ -32,7 +32,7 @@ export default function MarkdownSourceEditor({
   onChange,
   onSnapshot,
   onReady,
-}: MarkdownSourceEditorProps): JSX.Element {
+}: MarkdownSourceEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);

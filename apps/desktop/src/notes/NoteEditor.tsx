@@ -46,7 +46,7 @@ function modeShortcutLabel(): string {
     : 'Ctrl E';
 }
 
-export default function NoteEditor({ filePath }: Props): JSX.Element {
+export default function NoteEditor({ filePath }: Props) {
   const session = useNoteDocument(filePath);
   const [modeState, setModeState] = useState<ModeState>({ filePath, value: 'view' });
   const modeRef = useRef<Mode>('view');
