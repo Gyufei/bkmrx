@@ -36,6 +36,20 @@ describe('TagInput', () => {
     expect(screen.getByRole('option', { name: '待办' })).toHaveAttribute('aria-selected', 'false');
   });
 
+  it('keeps suggestions open when focus returns from the popup to the tag input', () => {
+    render(<TestInput />);
+
+    const input = screen.getByRole('combobox');
+    fireEvent.focus(input);
+    const listbox = screen.getByRole('listbox', { name: '标签建议' });
+
+    input.focus();
+    fireEvent.focusOut(listbox, { relatedTarget: input });
+
+    expect(input).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('listbox', { name: '标签建议' })).toBeInTheDocument();
+  });
+
   it.each([
     ['Enter', '临时'],
     [',', '临时'],

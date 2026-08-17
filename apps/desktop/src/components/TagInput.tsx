@@ -121,7 +121,15 @@ export default function TagInput({
   return (
     <Popover
       open={isListboxOpen}
-      onOpenChange={(open) => {
+      onOpenChange={(open, eventDetails) => {
+        if (
+          !open &&
+          eventDetails.reason === 'focus-out' &&
+          anchorRef.current?.contains(document.activeElement)
+        ) {
+          eventDetails.cancel();
+          return;
+        }
         setShowDropdown(open);
         if (!open) setActiveIdx(-1);
       }}

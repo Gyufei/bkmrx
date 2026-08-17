@@ -73,6 +73,20 @@ describe('TodoPage', () => {
 
   afterEach(cleanup);
 
+  it('matches the bookmark workspace sidebar and content surface styles', async () => {
+    renderPage();
+    await screen.findByText('写测试');
+
+    const sidebar = screen.getByText('分类').closest('aside');
+    const tagControl = screen.getByText('工作', { selector: 'span.truncate' }).closest('.text-sm');
+    const main = screen.getByText('写测试').closest('main');
+
+    expect(sidebar?.classList.contains('w-56')).toBe(true);
+    expect(sidebar?.classList.contains('bg-sidebar')).toBe(true);
+    expect(tagControl).not.toBeNull();
+    expect(main?.classList.contains('bg-background')).toBe(true);
+  });
+
   it('combines a selected tag with a status filter', async () => {
     renderPage();
     expect(await screen.findByText('写测试')).toBeTruthy();

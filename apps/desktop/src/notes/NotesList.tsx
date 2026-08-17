@@ -52,7 +52,7 @@ export default function NotesList({
   }, [notes, searchQuery, selectedFolder]);
 
   return (
-    <div className="relative flex w-56 shrink-0 flex-col">
+    <div className="relative flex w-56 shrink-0 flex-col bg-sidebar">
       <Separator orientation="vertical" className="absolute right-0" />
       <div className="shrink-0 px-3 pt-3 pb-2">
         <Input

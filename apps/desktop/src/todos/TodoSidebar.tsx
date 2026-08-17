@@ -19,7 +19,7 @@ interface TodoSidebarProps {
 
 const tagButtonClass = (selected: boolean) =>
   cn(
-    'flex w-full items-center justify-between rounded-xl px-3 py-2 text-left',
+    'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm',
     selected ? 'bg-muted font-medium' : 'hover:bg-muted/60',
   );
 
@@ -32,8 +32,8 @@ export default function TodoSidebar({
   onDeleteTag,
 }: TodoSidebarProps) {
   return (
-    <aside className="thin-scrollbar w-64 shrink-0 overflow-y-auto border-r border-border bg-sidebar/50 p-4">
-      <h2 className="mb-3 px-2 text-sm font-semibold text-muted-foreground">分类</h2>
+    <aside className="thin-scrollbar w-56 shrink-0 overflow-y-auto border-r border-border bg-sidebar p-3">
+      <h2 className="mb-3 px-1 text-sm font-semibold text-foreground">分类</h2>
       <button onClick={() => onSelectTag(null)} className={tagButtonClass(selectedTagId === null)}>
         <span>所有任务</span>
         <span className="text-xs text-muted-foreground">{total}</span>

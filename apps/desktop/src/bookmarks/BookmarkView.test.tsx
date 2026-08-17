@@ -183,6 +183,20 @@ describe('BookmarkView infinite pagination', () => {
 
   afterEach(cleanup);
 
+  it('keeps the tag sidebar beside a main area that contains the search toolbar', async () => {
+    queryBookmarksMock.mockResolvedValue({ items: [], next_cursor: null });
+    renderView();
+
+    await screen.findByText('暂无书签');
+    const sidebar = screen.getByTestId('tag-panel').closest('aside');
+    const main = screen.getByLabelText('搜索书签').closest('main');
+
+    expect(sidebar).not.toBeNull();
+    expect(main).not.toBeNull();
+    expect(sidebar?.parentElement).toBe(main?.parentElement);
+    expect(screen.getByLabelText('搜索书签').closest('header')?.parentElement).toBe(main);
+  });
+
   it('flattens pages and loads the next cursor once', async () => {
     queryBookmarksMock.mockImplementation(
       ({ cursor }: { cursor: string | null }): Promise<BookmarkPage> =>

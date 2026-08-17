@@ -234,79 +234,77 @@ export default function BookmarkView() {
   return (
     <div
       ref={setPreviewContainer}
-      className="relative flex w-full min-h-0 flex-1 flex-col overflow-hidden"
+      className="relative flex min-h-0 w-full flex-1 overflow-hidden"
     >
-      <div className="shrink-0 px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <SearchBar
-            ref={searchInputRef}
-            onSearch={handleSearch}
-            loading={bookmarksQuery.isLoading}
-          />
-          <Button
-            variant="outline"
-            className="h-10 w-10 shrink-0 !px-0 flex items-center justify-center"
-            onClick={() => setShowAddDialog(true)}
-            title="添加书签"
-          >
-            <Plus className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
-      <div className="flex-1 flex overflow-hidden">
-        <aside className="w-56 shrink-0 border-r border-border bg-sidebar p-3 flex flex-col">
-          <BookmarkSidebar
-            selectedTags={selectedTags}
-            onTagsChange={handleTagsChange}
-            baseView={baseView}
-            onBaseViewChange={setBaseView}
-          />
-        </aside>
-        <main className="flex-1 flex flex-col overflow-hidden">
-          {starMutation.isError && (
-            <div
-              role="alert"
-              className="shrink-0 px-4 py-2 text-sm text-destructive border-b border-border"
-            >
-              更新星标失败：{starMutation.error.message}
-            </div>
-          )}
-          <div className="flex-1 overflow-y-auto p-3 thin-scrollbar">
-            <ResultList
-              bookmarks={bookmarks}
-              initialLoading={bookmarksQuery.isLoading}
-              initialError={
-                bookmarksQuery.isError && !bookmarksQuery.data ? bookmarksQuery.error.message : null
-              }
-              hasMore={bookmarksQuery.hasNextPage}
-              isFetchingNextPage={bookmarksQuery.isFetchingNextPage}
-              nextPageError={
-                bookmarksQuery.isFetchNextPageError ? bookmarksQuery.error.message : null
-              }
-              onLoadMore={() => bookmarksQuery.fetchNextPage()}
-              onRetryNextPage={() => bookmarksQuery.fetchNextPage()}
-              starredView={starredView}
-              emptyMessage={
-                starredView
-                  ? '暂无星标书签。在搜索结果中点击星形按钮，即可将常用书签显示在这里。'
-                  : isSearchMode
-                    ? '暂无匹配的书签'
-                    : '暂无书签'
-              }
-              starPendingId={starMutation.isPending ? (starMutation.variables?.id ?? null) : null}
-              onToggleStarred={(bookmark, starred) =>
-                starMutation.mutate({ id: bookmark.id, starred })
-              }
-              onPreviewBookmark={handlePreviewBookmark}
-              onOpenBookmark={handleOpenBookmark}
-              activeBookmarkId={activeBookmarkId}
-              onActiveBookmarkChange={setActiveBookmarkId}
-              onBookmarkElementChange={registerBookmarkElement}
-              onInteractionLockChange={setResultListInteractionLocked}
+      <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-sidebar p-3">
+        <BookmarkSidebar
+          selectedTags={selectedTags}
+          onTagsChange={handleTagsChange}
+          baseView={baseView}
+          onBaseViewChange={setBaseView}
+        />
+      </aside>
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+        <header className="shrink-0 border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            <SearchBar
+              ref={searchInputRef}
+              onSearch={handleSearch}
+              loading={bookmarksQuery.isLoading}
             />
+            <Button
+              variant="outline"
+              className="flex size-10 shrink-0 items-center justify-center !px-0"
+              onClick={() => setShowAddDialog(true)}
+              title="添加书签"
+            >
+              <Plus />
+            </Button>
           </div>
-        </main>
-      </div>
+        </header>
+        {starMutation.isError && (
+          <div
+            role="alert"
+            className="shrink-0 border-b border-border px-4 py-2 text-sm text-destructive"
+          >
+            更新星标失败：{starMutation.error.message}
+          </div>
+        )}
+        <div className="thin-scrollbar flex-1 overflow-y-auto p-3">
+          <ResultList
+            bookmarks={bookmarks}
+            initialLoading={bookmarksQuery.isLoading}
+            initialError={
+              bookmarksQuery.isError && !bookmarksQuery.data ? bookmarksQuery.error.message : null
+            }
+            hasMore={bookmarksQuery.hasNextPage}
+            isFetchingNextPage={bookmarksQuery.isFetchingNextPage}
+            nextPageError={
+              bookmarksQuery.isFetchNextPageError ? bookmarksQuery.error.message : null
+            }
+            onLoadMore={() => bookmarksQuery.fetchNextPage()}
+            onRetryNextPage={() => bookmarksQuery.fetchNextPage()}
+            starredView={starredView}
+            emptyMessage={
+              starredView
+                ? '暂无星标书签。在搜索结果中点击星形按钮，即可将常用书签显示在这里。'
+                : isSearchMode
+                  ? '暂无匹配的书签'
+                  : '暂无书签'
+            }
+            starPendingId={starMutation.isPending ? (starMutation.variables?.id ?? null) : null}
+            onToggleStarred={(bookmark, starred) =>
+              starMutation.mutate({ id: bookmark.id, starred })
+            }
+            onPreviewBookmark={handlePreviewBookmark}
+            onOpenBookmark={handleOpenBookmark}
+            activeBookmarkId={activeBookmarkId}
+            onActiveBookmarkChange={setActiveBookmarkId}
+            onBookmarkElementChange={registerBookmarkElement}
+            onInteractionLockChange={setResultListInteractionLocked}
+          />
+        </div>
+      </main>
 
       <AddBookmarkDialog open={showAddDialog} onOpenChange={setShowAddDialog} />
       <BookmarkWebPreview

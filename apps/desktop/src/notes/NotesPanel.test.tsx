@@ -47,6 +47,29 @@ vi.mock('./NoteEditor', () => ({ default: () => <div>笔记内容</div> }));
 
 afterEach(cleanup);
 
+it('uses sidebar backgrounds for both navigation columns and the content background for the editor', async () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  const folderColumn = screen.getByText('共 2 篇笔记').closest('.bg-sidebar');
+  const noteColumn = firstNote.closest('.bg-sidebar');
+
+  expect(folderColumn).not.toBeNull();
+  expect(noteColumn).not.toBeNull();
+
+  fireEvent.click(firstNote);
+  expect((await screen.findByText('笔记内容')).parentElement?.classList.contains('bg-background')).toBe(
+    true,
+  );
+});
+
 it('uses the same primary-tinted selection background as the folder column', async () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },

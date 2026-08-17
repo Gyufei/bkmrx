@@ -149,7 +149,7 @@ export default function TodoPage() {
         }}
       />
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
         <header className="flex items-center justify-between px-8 py-5">
           <h1 className="text-2xl font-semibold">{selectedTag?.name ?? '所有任务'}</h1>
           <Button
