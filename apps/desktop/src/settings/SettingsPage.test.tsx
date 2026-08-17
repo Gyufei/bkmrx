@@ -2,10 +2,15 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { open } from '@tauri-apps/plugin-dialog';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SettingsPage from './SettingsPage';
-import { updateSettingsApi } from './settings.api';
+import {
+  applyBookmarkImportApi,
+  previewBookmarkImportApi,
+  updateSettingsApi,
+} from './settings.api';
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn(),
@@ -38,18 +43,22 @@ function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <SettingsPage />
-    </QueryClientProvider>,
-  );
+  return {
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <SettingsPage />
+      </QueryClientProvider>,
+    ),
+    queryClient,
+  };
 }
 
 describe('SettingsPage', () => {
   afterEach(cleanup);
 
   beforeEach(() => {
-    vi.mocked(updateSettingsApi).mockClear();
+    vi.clearAllMocks();
+    vi.mocked(updateSettingsApi).mockResolvedValue(undefined);
   });
 
   it('shows complete path text until the user starts editing', async () => {
@@ -112,5 +121,79 @@ describe('SettingsPage', () => {
 
     expect(screen.getByText('/old/backup')).toBeTruthy();
     expect(vi.mocked(updateSettingsApi)).not.toHaveBeenCalled();
+  });
+
+  it('saves with Enter and cancels with Escape', async () => {
+    renderPage();
+    await screen.findByText('/old/backup');
+    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]);
+
+    const backupInput = screen.getByPlaceholderText('/Users/me/CloudDrive/bookmarks');
+    fireEvent.change(backupInput, { target: { value: '/enter/backup' } });
+    fireEvent.keyDown(backupInput, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(vi.mocked(updateSettingsApi).mock.calls[0]?.[0]).toEqual({
+        backup_dir: '/enter/backup',
+        notes_dir: '/old/notes',
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByPlaceholderText('/Users/me/CloudDrive/bookmarks')).toBeNull(),
+    );
+
+    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[1]);
+    const notesInput = screen.getByPlaceholderText('输入 Obsidian 笔记目录路径');
+    fireEvent.change(notesInput, { target: { value: '/discarded/notes' } });
+    fireEvent.keyDown(notesInput, { key: 'Escape' });
+
+    expect(screen.queryByPlaceholderText('输入 Obsidian 笔记目录路径')).toBeNull();
+    expect(screen.getByText('/old/notes')).toBeTruthy();
+  });
+
+  it('keeps the directory editor open and shows an error when saving fails', async () => {
+    vi.mocked(updateSettingsApi).mockRejectedValueOnce(new Error('无法写入设置'));
+    renderPage();
+    await screen.findByText('/old/backup');
+    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(await screen.findByText('保存失败：无法写入设置')).toBeTruthy();
+    expect(screen.getByLabelText('默认备份目录').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('previews and applies an import, then invalidates bookmark queries', async () => {
+    vi.mocked(open).mockResolvedValue('/tmp/bookmarks.json');
+    vi.mocked(previewBookmarkImportApi).mockResolvedValue({
+      file_hash: 'hash',
+      total: 3,
+      create_count: 1,
+      update_count: 1,
+      skip_count: 1,
+    });
+    vi.mocked(applyBookmarkImportApi).mockResolvedValue({
+      file_hash: 'hash',
+      total: 3,
+      create_count: 1,
+      update_count: 1,
+      skip_count: 1,
+    });
+    const { queryClient } = renderPage();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    fireEvent.click(await screen.findByRole('button', { name: '导入 JSON' }));
+    expect(await screen.findByRole('heading', { name: '确认导入书签？' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '确认导入' }));
+
+    await waitFor(() =>
+      expect(vi.mocked(applyBookmarkImportApi).mock.calls[0]?.[0]).toEqual({
+        path: '/tmp/bookmarks.json',
+        fileHash: 'hash',
+      }),
+    );
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['bookmarks'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['tags'] });
+    });
   });
 });

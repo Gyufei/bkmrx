@@ -12,6 +12,11 @@ import { tagColor } from '../lib/tagColor';
 import type { Bookmark } from '../types';
 import DeleteBkDialog from './DeleteBkDialog';
 import { toast } from '@/components/ui/toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
 
 interface Props {
   bookmarks: Bookmark[];
@@ -86,15 +91,21 @@ export default function ResultList({
 
   if (initialError) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-destructive">
-        {initialError}
+      <div className="flex h-48 items-center justify-center px-4">
+        <Alert variant="destructive" className="max-w-md text-center">
+          <AlertDescription>{initialError}</AlertDescription>
+        </Alert>
       </div>
     );
   }
 
   if (initialLoading) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
+      <div
+        role="status"
+        className="flex h-48 items-center justify-center gap-2 text-sm text-muted-foreground"
+      >
+        <Spinner />
         加载中...
       </div>
     );
@@ -102,9 +113,9 @@ export default function ResultList({
 
   if (bookmarks.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
-        {emptyMessage}
-      </div>
+      <Empty className="h-48">
+        <EmptyDescription>{emptyMessage}</EmptyDescription>
+      </Empty>
     );
   }
 
@@ -170,19 +181,25 @@ export default function ResultList({
 
       {/* Loading indicator */}
       {isFetchingNextPage && (
-        <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
-          <div className="w-4 h-4 mr-2 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div
+          role="status"
+          className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground"
+        >
+          <Spinner />
           加载中...
         </div>
       )}
 
       {nextPageError && (
-        <div className="flex items-center justify-center gap-2 py-4 text-sm text-destructive">
-          <span>{nextPageError}</span>
-          <button className="underline" onClick={onRetryNextPage}>
+        <Alert
+          variant="destructive"
+          className="flex items-center justify-center gap-2 border-0 py-2"
+        >
+          <AlertDescription>{nextPageError}</AlertDescription>
+          <Button variant="link" size="xs" onClick={onRetryNextPage}>
             重试
-          </button>
-        </div>
+          </Button>
+        </Alert>
       )}
 
       {/* All loaded */}
@@ -279,13 +296,9 @@ function BookmarkRow({
         {bookmark.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1.5">
             {bookmark.tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-block px-2 py-0.5 text-xs rounded-md"
-                style={tagColor(tag)}
-              >
+              <Badge key={tag} style={tagColor(tag)}>
                 {tag}
-              </span>
+              </Badge>
             ))}
           </div>
         )}

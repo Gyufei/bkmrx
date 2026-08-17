@@ -3,6 +3,10 @@ import { BookOpen, Pencil } from 'lucide-react';
 import { useHotkeys } from '@tanstack/react-hotkeys';
 
 import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/ui/alert';
+import { Empty, EmptyTitle } from '@/components/ui/empty';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 
 import type { MarkdownEditorSnapshot } from './MarkdownSourceEditor';
 import MarkdownViewer from './MarkdownViewer';
@@ -205,7 +209,7 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <header className="flex h-9 shrink-0 items-center gap-2 border-b border-border/50 px-3">
+      <header className="flex h-9 shrink-0 items-center gap-2 px-3">
         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
           {basename(filePath)}
         </span>
@@ -232,15 +236,20 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
           </Button>
         ) : null}
       </header>
+      <Separator />
 
       <div className="min-h-0 flex-1">
         {session.loadState === 'loading' ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          <div
+            role="status"
+            className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground"
+          >
+            <Spinner />
             加载笔记...
           </div>
         ) : session.loadState === 'error' ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-sm">
-            <span className="text-destructive">加载失败</span>
+          <Empty className="h-full">
+            <EmptyTitle className="text-sm text-destructive">加载失败</EmptyTitle>
             <Button
               type="button"
               variant="ghost"
@@ -249,7 +258,7 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
             >
               重试
             </Button>
-          </div>
+          </Empty>
         ) : mode === 'view' ? (
           <MarkdownViewer
             content={session.content}
@@ -260,7 +269,11 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
         ) : (
           <Suspense
             fallback={
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <div
+                role="status"
+                className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground"
+              >
+                <Spinner />
                 加载编辑器...
               </div>
             }
@@ -280,9 +293,9 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
       </div>
 
       {session.saveError ? (
-        <div
-          role="alert"
-          className="flex shrink-0 items-center gap-2 border-t border-destructive/20 px-3 py-1 text-xs text-destructive"
+        <Alert
+          variant="destructive"
+          className="flex shrink-0 items-center gap-2 rounded-none border-x-0 border-b-0 px-3 py-1 text-xs"
         >
           <span className="min-w-0 flex-1 truncate">
             {basename(session.saveError.path)} 保存失败
@@ -298,7 +311,7 @@ export default function NoteEditor({ filePath }: Props): JSX.Element {
           <Button type="button" variant="ghost" size="xs" onClick={session.dismissSaveError}>
             忽略
           </Button>
-        </div>
+        </Alert>
       ) : null}
     </div>
   );

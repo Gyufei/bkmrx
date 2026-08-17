@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listen } from '@tauri-apps/api/event';
 import { Plus } from 'lucide-react';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { useHotkeys } from '@tanstack/react-hotkeys';
@@ -21,6 +20,7 @@ import BookmarkSidebar from './BookmarkSidebar';
 import BookmarkWebPreview from './BookmarkWebPreview';
 import { invokeRecordBookmarkAccess } from '@/lib/invoke';
 import { toast } from '@/components/ui/toast';
+import { useTauriEvent } from '@/lib/use-tauri-event';
 
 const PAGE_SIZE = 50;
 
@@ -90,15 +90,10 @@ export default function BookmarkView() {
     bookmarkElementsRef.current.get(activeBookmarkId)?.scrollIntoView?.({ block: 'nearest' });
   }, [activeBookmarkId]);
 
-  useEffect(() => {
-    const unlisten = listen('bookmarks-changed', () => {
-      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
-      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
-    });
-    return () => {
-      unlisten.then((stop) => stop());
-    };
-  }, [queryClient]);
+  useTauriEvent('bookmarks-changed', () => {
+    queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+    queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
+  });
 
   const recordAccess = useCallback(async (bookmark: Bookmark) => {
     try {

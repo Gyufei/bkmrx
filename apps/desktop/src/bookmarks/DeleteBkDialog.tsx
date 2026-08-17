@@ -1,13 +1,13 @@
+import { useEffect } from 'react';
 import type { Bookmark } from "../types";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { deleteBookmarksApi, BkQueryApiKey } from "./bookmarks.api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function DeleteBkDialog({ deleteTarget, setDeleteTarget }: { deleteTarget: Bookmark | null, setDeleteTarget: (bookmark: Bookmark | null) => void }) {
   const queryClient = useQueryClient();
 
-  const { mutate: handleDelete, isPending: isDeleting, error: deleteError } = useMutation({
+  const { mutate: handleDelete, isPending: isDeleting, error: deleteError, reset } = useMutation({
     mutationFn: deleteBookmarksApi,
     onSuccess: () => {
       setDeleteTarget(null);
@@ -16,50 +16,21 @@ export default function DeleteBkDialog({ deleteTarget, setDeleteTarget }: { dele
     },
   });
 
+  useEffect(() => {
+    if (deleteTarget) reset();
+  }, [deleteTarget, reset]);
+
   return (
-    <Dialog
+    <ConfirmDeleteDialog
       open={deleteTarget !== null}
-      onOpenChange={(open) => {
-        if (!open) setDeleteTarget(null);
+      title="确认删除"
+      description={`确定要删除书签“${deleteTarget?.title || deleteTarget?.url}”吗？此操作不可撤销。`}
+      pending={isDeleting}
+      error={deleteError}
+      onOpenChange={(open) => !open && setDeleteTarget(null)}
+      onConfirm={() => {
+        if (deleteTarget) handleDelete([deleteTarget.id]);
       }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>确认删除</DialogTitle>
-          <DialogDescription>
-            <div>
-              确定要删除书签
-              <span className="font-bold text-chart-4">
-                {` ${deleteTarget?.title || deleteTarget?.url} `}
-              </span>
-              吗？此操作不可撤销。
-            </div>
-
-            {deleteError && (
-              <div className="text-destructive">
-                删除失败：{deleteError.message}
-              </div>
-            )}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-            取消
-          </Button>
-          <Button
-            variant="destructive"
-            disabled={isDeleting}
-            onClick={() => {
-              if (deleteTarget) {
-                handleDelete([deleteTarget.id]);
-              }
-            }}
-          >
-            删除
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-  )
+    />
+  );
 }

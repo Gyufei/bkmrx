@@ -2,8 +2,12 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import TodoDialog from './TodoDialog';
+
+beforeAll(() => {
+  window.PointerEvent = MouseEvent as typeof PointerEvent;
+});
 
 function renderDialog(props: React.ComponentProps<typeof TodoDialog>) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -50,6 +54,30 @@ describe('TodoDialog', () => {
         description: '',
         tags: ['工作'],
         is_high_priority: false,
+      }),
+    );
+  });
+
+  it('uses the shared checkbox and submits the high-priority state', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    renderDialog({
+      open: true,
+      todo: null,
+      availableTags: [],
+      onOpenChange: vi.fn(),
+      onSave,
+    });
+
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '紧急任务' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: '高优先级' }));
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        title: '紧急任务',
+        description: '',
+        tags: [],
+        is_high_priority: true,
       }),
     );
   });

@@ -1,14 +1,5 @@
 import type { FormEvent } from 'react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,6 +17,7 @@ interface TodoTagDialogsProps {
   renamePending: boolean;
   deleting: TodoTag | null;
   deletePending: boolean;
+  deleteError?: unknown;
   onRenameValueChange: (value: string) => void;
   onCloseRename: () => void;
   onRename: () => Promise<void>;
@@ -39,6 +31,7 @@ export default function TodoTagDialogs({
   renamePending,
   deleting,
   deletePending,
+  deleteError,
   onRenameValueChange,
   onCloseRename,
   onRename,
@@ -76,22 +69,16 @@ export default function TodoTagDialogs({
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={Boolean(deleting)} onOpenChange={(open) => !open && onCloseDelete()}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>删除标签“{deleting?.name}”？</AlertDialogTitle>
-            <AlertDialogDescription>
-              只会删除标签及其任务关联，不会删除任何任务。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel render={<Button variant="outline" />}>取消</AlertDialogCancel>
-            <AlertDialogAction disabled={deletePending} onClick={onDelete}>
-              删除标签
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={Boolean(deleting)}
+        title={`删除标签“${deleting?.name}”？`}
+        description="只会删除标签及其任务关联，不会删除任何任务。"
+        confirmLabel="删除标签"
+        pending={deletePending}
+        error={deleteError}
+        onOpenChange={(open) => !open && onCloseDelete()}
+        onConfirm={onDelete}
+      />
     </>
   );
 }

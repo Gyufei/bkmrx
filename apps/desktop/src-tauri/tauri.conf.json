@@ -1,6 +1,6 @@
 {
   "productName": "bkmrx",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "identifier": "com.bkmrx",
   "build": {
     "frontendDist": "../dist",

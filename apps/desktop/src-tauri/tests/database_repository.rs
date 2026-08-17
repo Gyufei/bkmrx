@@ -5,10 +5,10 @@ use bkmrx_lib::database::Database;
 use std::sync::Arc;
 
 #[test]
-fn creates_v3_schema_and_enables_fts5_trigram() {
+fn creates_v1_schema_and_enables_fts5_trigram() {
     let db = Database::open_in_memory().unwrap();
 
-    assert_eq!(db.schema_version().unwrap(), 3);
+    assert_eq!(db.schema_version().unwrap(), 1);
     for table in [
         "bookmarks",
         "tags",
@@ -67,7 +67,7 @@ fn creates_v3_schema_and_enables_fts5_trigram() {
 }
 
 #[test]
-fn reopens_existing_v3_database_without_changing_data() {
+fn reopens_existing_v1_database_without_changing_data() {
     let directory = tempfile::TempDir::new().unwrap();
     let path = directory.path().join("bookmarks.db");
     let database = Database::open(&path).unwrap();
@@ -82,7 +82,7 @@ fn reopens_existing_v3_database_without_changing_data() {
 
     let database = Database::open(&path).unwrap();
 
-    assert_eq!(database.schema_version().unwrap(), 3);
+    assert_eq!(database.schema_version().unwrap(), 1);
     assert_eq!(
         database
             .query_i64_for_test("SELECT count(*) FROM bookmarks WHERE id = 7")
@@ -93,7 +93,7 @@ fn reopens_existing_v3_database_without_changing_data() {
 
 #[test]
 fn rejects_every_non_baseline_schema_version() {
-    for version in [1, 2, 4] {
+    for version in [2, 3, 4] {
         let directory = tempfile::TempDir::new().unwrap();
         let path = directory.path().join("bookmarks.db");
         let connection = rusqlite::Connection::open(&path).unwrap();
@@ -107,7 +107,7 @@ fn rejects_every_non_baseline_schema_version() {
         assert_eq!(error.code(), "unsupported_schema_version");
         assert_eq!(
             error.details,
-            Some(serde_json::json!({ "found": version, "supported": 3 }))
+            Some(serde_json::json!({ "found": version, "supported": 1 }))
         );
     }
 }

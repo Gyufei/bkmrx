@@ -1,368 +1,149 @@
-import { Copy, Pencil, Plus, Trash2 } from 'lucide-react';
-import { buildFolderTree } from './buildFolderTree';
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listen } from '@tauri-apps/api/event';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { getSettingsApi, SettingsQueryApiKey } from '@/settings/settings.api';
-import {
-  ContextMenu,
-  ContextMenuTrigger,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-} from '@/components/ui/context-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import FolderTree from './FolderTree';
-import NoteEditor from './NoteEditor';
-import {
-  scanNotesDirectoryApi,
-  createNoteApi,
-  deleteNoteFileApi,
-  renameNoteFileApi,
-  NotesQueryApiKey,
-} from './notes.api';
+import { useState } from 'react';
+
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { FileText } from 'lucide-react';
 import type { NoteFile } from '../types';
+import NoteEditor from './NoteEditor';
+import NoteNameDialog from './NoteNameDialog';
+import NotesList from './NotesList';
+import NotesSidebar from './NotesSidebar';
+import { useNotesWorkspace } from './use-notes-workspace';
+
+type NameDialogState = { mode: 'create' } | { mode: 'rename'; note: NoteFile };
 
 export default function NotesPanel() {
-  const queryClient = useQueryClient();
-
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [newFileName, setNewFileName] = useState('');
-  const [newFileError, setNewFileError] = useState<string | null>(null);
-  const [editingNote, setEditingNote] = useState<NoteFile | null>(null);
-
-  // Settings — fetch notes_dir
-  const { data: settings } = useQuery({
-    queryKey: [SettingsQueryApiKey.SETTINGS],
-    queryFn: getSettingsApi,
-  });
-
-  const notesDir = settings?.notes_dir ?? null;
-
-  // Scan notes directory
-  const { data: notes = [], isLoading: loading, error } = useQuery({
-    queryKey: [NotesQueryApiKey.NOTES, notesDir],
-    queryFn: () => scanNotesDirectoryApi(notesDir!),
-    enabled: !!notesDir,
-  });
-
-  // File watcher: note-changed / note-removed → update query cache in-place
-  useEffect(() => {
-    if (!notesDir) return;
-
-    const unlisten1 = listen<NoteFile>('note-changed', (event) => {
-      queryClient.setQueryData([NotesQueryApiKey.NOTES, notesDir], (old: NoteFile[] | undefined) => {
-        if (!old) return old;
-        const changed = event.payload;
-        const idx = old.findIndex((n) => n.path === changed.path);
-        let next: NoteFile[];
-        if (idx >= 0) {
-          next = [...old];
-          next[idx] = changed;
-        } else {
-          next = [changed, ...old];
-        }
-
-        return next;
-      });
-    });
-
-    const unlisten2 = listen<string>('note-removed', (event) => {
-      queryClient.setQueryData([NotesQueryApiKey.NOTES, notesDir], (old: NoteFile[] | undefined) => {
-        if (!old) return old;
-        return old.filter((n) => n.path !== event.payload);
-      });
-    });
-
-    return () => {
-      unlisten1.then((fn) => fn());
-      unlisten2.then((fn) => fn());
-    };
-  }, [queryClient, notesDir]);
-
-  // Mutations
-  const createMutation = useMutation({
-    mutationFn: createNoteApi,
-    onSuccess: (filePath) => {
-      setShowNewModal(false);
-      setNewFileName('');
-      setSelectedFilePath(filePath);
-      queryClient.invalidateQueries({ queryKey: [NotesQueryApiKey.NOTES, notesDir] });
-    },
-    onError: (e: Error) => {
-      setNewFileError(e.message);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (path: string) => deleteNoteFileApi(path),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [NotesQueryApiKey.NOTES, notesDir] });
-    },
-  });
-
-  const renameMutation = useMutation({
-    mutationFn: renameNoteFileApi,
-    onSuccess: (_, { oldPath, newPath }) => {
-      if (selectedFilePath === oldPath) {
-        setSelectedFilePath(newPath);
-      }
-      setShowNewModal(false);
-      setEditingNote(null);
-      setNewFileName('');
-      queryClient.invalidateQueries({ queryKey: [NotesQueryApiKey.NOTES, notesDir] });
-    },
-    onError: (e: Error) => {
-      setNewFileError(e.message);
-    },
-  });
-
-  const folderTree = useMemo(() => buildFolderTree(notes), [notes]);
-
-  const filteredNotes = useMemo(() => {
-    let result = notes;
-    if (selectedFolder) {
-      result = result.filter((n) => n.relative_path.startsWith(selectedFolder + '/'));
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (n) => n.title.toLowerCase().includes(q) || n.tags.some((t) => t.toLowerCase().includes(q)),
-      );
-    }
-    return result;
-  }, [notes, selectedFolder, searchQuery]);
-
-  const handleSelectFile = useCallback((note: NoteFile) => {
-    setSelectedFilePath(note.path);
-  }, []);
-
-  const handleCreate = useCallback(() => {
-    const name = newFileName.trim();
-    if (!name) {
-      setNewFileError('请输入文件名');
-      return;
-    }
-    setNewFileError(null);
-    if (editingNote) {
-      const separatorIndex = Math.max(
-        editingNote.path.lastIndexOf('/'),
-        editingNote.path.lastIndexOf('\\'),
-      );
-      const directory = editingNote.path.slice(0, separatorIndex + 1);
-      const fileName = name.endsWith('.md') ? name : `${name}.md`;
-      const newPath = `${directory}${fileName}`;
-      if (newPath === editingNote.path) {
-        setShowNewModal(false);
-        setEditingNote(null);
-        return;
-      }
-      renameMutation.mutate({ oldPath: editingNote.path, newPath });
-      return;
-    }
-    const targetDir = selectedFolder ? `${notesDir}/${selectedFolder}` : notesDir!;
-    createMutation.mutate({ dir: targetDir, name });
-  }, [newFileName, editingNote, notesDir, selectedFolder, createMutation, renameMutation]);
+  const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
+  const [deletingNote, setDeletingNote] = useState<NoteFile | null>(null);
+  const { notesDir, notes, loading, error, createNote, deleteNote, renameNote } =
+    useNotesWorkspace();
 
   if (!notesDir) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="40"
-            height="40"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="mx-auto mb-3 opacity-40"
-          >
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-          <div className="text-base font-medium mb-1">未设置笔记目录</div>
-          <div className="text-sm opacity-60">请点击右上角齿轮⚙打开设置</div>
-        </div>
-      </div>
+      <Empty className="flex-1 text-muted-foreground">
+        <EmptyMedia>
+          <FileText className="size-10 opacity-40" />
+        </EmptyMedia>
+        <EmptyTitle>未设置笔记目录</EmptyTitle>
+        <EmptyDescription>请点击右上角齿轮⚙打开设置</EmptyDescription>
+      </Empty>
     );
   }
+
+  const submitName = (name: string) => {
+    if (nameDialog?.mode === 'rename') {
+      const note = nameDialog.note;
+      const separatorIndex = Math.max(note.path.lastIndexOf('/'), note.path.lastIndexOf('\\'));
+      const fileName = name.endsWith('.md') ? name : `${name}.md`;
+      const newPath = `${note.path.slice(0, separatorIndex + 1)}${fileName}`;
+      if (newPath === note.path) {
+        setNameDialog(null);
+        return;
+      }
+      renameNote.mutate(
+        { oldPath: note.path, newPath },
+        {
+          onSuccess: (_, { oldPath }) => {
+            setSelectedFilePath((current) => (current === oldPath ? newPath : current));
+            setNameDialog(null);
+          },
+        },
+      );
+      return;
+    }
+
+    const targetDir = selectedFolder ? `${notesDir}/${selectedFolder}` : notesDir;
+    createNote.mutate(
+      { dir: targetDir, name },
+      {
+        onSuccess: (filePath) => {
+          setSelectedFilePath(filePath);
+          setNameDialog(null);
+        },
+      },
+    );
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {error && (
-        <div className="shrink-0 px-4 py-2 text-sm text-destructive bg-destructive/10">{error.message}</div>
+        <Alert
+          variant="destructive"
+          className="shrink-0 rounded-none border-x-0 border-t-0 px-4 py-2"
+        >
+          <AlertDescription>{error.message}</AlertDescription>
+        </Alert>
       )}
 
       <div className="flex-1 flex overflow-hidden">
-        <div className="w-48 shrink-0 border-r border-border flex flex-col px-2">
-          <div className="shrink-0 pt-3 pb-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              共 {notes.length} 篇笔记
-            </span>
-          </div>
-          <FolderTree
-            tree={folderTree}
-            selectedPath={selectedFolder}
-            onSelect={(path) => {
-              setSelectedFolder(path);
-              setSelectedFilePath(null);
-            }}
-          />
-        </div>
-
-        <div className="w-56 shrink-0 border-r border-border flex flex-col">
-          <div className="shrink-0 px-3 pt-3 pb-2">
-            <Input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索笔记..."
-              className="h-7 px-2.5 text-xs rounded-md"
-            />
-          </div>
-          <div className="flex-1 overflow-y-auto thin-scrollbar">
-            {loading ? (
-              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-                <div className="w-4 h-4 mr-2 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                扫描中...
-              </div>
-            ) : filteredNotes.length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">无匹配笔记</div>
-            ) : (
-              <div className="flex flex-col gap-1 px-2 pb-2">
-                {filteredNotes.map((note) => (
-                  <ContextMenu key={note.path}>
-                    <ContextMenuTrigger>
-                      <button
-                        onClick={() => handleSelectFile(note)}
-                        className={cn(
-                          'w-full rounded-md px-2.5 py-2 text-left transition-colors',
-                          selectedFilePath === note.path ? 'bg-primary/15' : 'hover:bg-accent/50',
-                        )}
-                      >
-                        <span className="block truncate text-sm font-medium text-foreground">
-                          {note.title}
-                        </span>
-                      </button>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem
-                        onClick={() => {
-                          setEditingNote(note);
-                          setNewFileName(note.title);
-                          setNewFileError(null);
-                          setShowNewModal(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span>重命名</span>
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        onClick={() => {
-                          navigator.clipboard.writeText(note.path).catch(() => {});
-                        }}
-                      >
-                        <Copy className="h-4 w-4" />
-                        <span>复制文件路径</span>
-                      </ContextMenuItem>
-                      <ContextMenuSeparator />
-                      <ContextMenuItem
-                        onClick={() => {
-                          deleteMutation.mutate(note.path);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="text-destructive">删除笔记</span>
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="shrink-0 border-t border-border p-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full"
-              onClick={() => {
-                setEditingNote(null);
-                setNewFileName('');
-                setNewFileError(null);
-                setShowNewModal(true);
-              }}
-            >
-              <Plus data-icon="inline-start" />
-              新建笔记
-            </Button>
-          </div>
-        </div>
+        <NotesSidebar
+          notes={notes}
+          selectedFolder={selectedFolder}
+          onSelectFolder={(path) => {
+            setSelectedFolder(path);
+            setSelectedFilePath(null);
+          }}
+        />
+        <NotesList
+          notes={notes}
+          loading={loading}
+          selectedFolder={selectedFolder}
+          selectedFilePath={selectedFilePath}
+          onSelectNote={(note) => setSelectedFilePath(note.path)}
+          onCreateNote={() => {
+            createNote.reset();
+            setNameDialog({ mode: 'create' });
+          }}
+          onRenameNote={(note) => {
+            renameNote.reset();
+            setNameDialog({ mode: 'rename', note });
+          }}
+          onDeleteNote={(note) => {
+            deleteNote.reset();
+            setDeletingNote(note);
+          }}
+        />
 
         <div className="flex-1 flex flex-col overflow-hidden">
           {selectedFilePath ? (
             <NoteEditor filePath={selectedFilePath} />
           ) : (
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-              选择左侧笔记查看内容
-            </div>
+            <Empty className="flex-1">
+              <EmptyDescription>选择左侧笔记查看内容</EmptyDescription>
+            </Empty>
           )}
         </div>
       </div>
 
-      <Dialog
-        open={showNewModal}
-        onOpenChange={(v) => {
-          setShowNewModal(v);
-          if (!v) setEditingNote(null);
+      <NoteNameDialog
+        open={nameDialog !== null}
+        note={nameDialog?.mode === 'rename' ? nameDialog.note : null}
+        pending={createNote.isPending || renameNote.isPending}
+        error={nameDialog?.mode === 'rename' ? renameNote.error : createNote.error}
+        onOpenChange={(open) => !open && setNameDialog(null)}
+        onSubmit={submitName}
+      />
+
+      <ConfirmDeleteDialog
+        open={deletingNote !== null}
+        title={`删除笔记“${deletingNote?.title}”？`}
+        description="此操作不可撤销。"
+        pending={deleteNote.isPending}
+        error={deleteNote.error}
+        onOpenChange={(open) => !open && setDeletingNote(null)}
+        onConfirm={() => {
+          if (!deletingNote) return;
+          deleteNote.mutate(deletingNote.path, {
+            onSuccess: (_, deletedPath) => {
+              setSelectedFilePath((current) => (current === deletedPath ? null : current));
+              setDeletingNote(null);
+            },
+          });
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingNote ? '重命名笔记' : '新建笔记'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Input
-                type="text"
-                value={newFileName}
-                onChange={(e) => {
-                  setNewFileName(e.target.value);
-                  setNewFileError(null);
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-                placeholder="输入文件名（无需 .md）"
-                autoFocus
-              />
-              {newFileError && (
-                <div className="mt-1.5 text-xs text-destructive">{newFileError}</div>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowNewModal(false)}>
-              取消
-            </Button>
-            <Button variant="default" size="sm" onClick={handleCreate}>
-              确定
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
     </div>
   );
 }

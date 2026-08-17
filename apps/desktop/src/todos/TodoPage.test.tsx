@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   tags: vi.fn(),
   create: vi.fn(),
   setStatus: vi.fn(),
+  deleteTag: vi.fn(),
   toastAdd: vi.fn(),
   dialog: vi.fn(),
   listen: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('./todos.api', async (importOriginal) => {
     getTodoTagsApi: mocks.tags,
     createTodoApi: mocks.create,
     setTodoStatusApi: mocks.setStatus,
+    deleteTodoTagApi: mocks.deleteTag,
   };
 });
 vi.mock('./TodoDialog', () => ({
@@ -65,6 +67,7 @@ describe('TodoPage', () => {
       completed: 0,
     });
     mocks.create.mockResolvedValue({ id: 2 });
+    mocks.deleteTag.mockResolvedValue(undefined);
     mocks.listen.mockResolvedValue(() => {});
   });
 
@@ -94,7 +97,7 @@ describe('TodoPage', () => {
     const statusPanel = await screen.findByText('1 个任务 · 0 个已完成');
     expect(statusPanel.tagName).toBe('FOOTER');
     expect(statusPanel.classList.contains('mt-auto')).toBe(true);
-    expect(statusPanel.classList.contains('border-t')).toBe(true);
+    expect(statusPanel.previousElementSibling?.getAttribute('data-slot')).toBe('separator');
     expect(container.querySelectorAll('.thin-scrollbar')).toHaveLength(2);
   });
 
@@ -168,5 +171,25 @@ describe('TodoPage', () => {
     resolveListen?.(unlisten);
 
     await waitFor(() => expect(unlisten).toHaveBeenCalledOnce());
+  });
+
+  it('shows a tag deletion error and clears it before reopening', async () => {
+    mocks.deleteTag.mockRejectedValueOnce(new Error('标签仍被占用'));
+    renderPage();
+    const tag = await screen.findByText('工作', { selector: 'span.truncate' });
+
+    fireEvent.contextMenu(tag);
+    fireEvent.click(await screen.findByText('删除'));
+    fireEvent.click(screen.getByRole('button', { name: '删除标签' }));
+
+    expect(await screen.findByText('删除失败：标签仍被占用')).toBeTruthy();
+    expect(screen.getByText('删除标签“工作”？')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    fireEvent.contextMenu(tag);
+    fireEvent.click(await screen.findByText('删除'));
+
+    expect(screen.queryByText('删除失败：标签仍被占用')).toBeNull();
+    expect(screen.getByText('删除标签“工作”？')).toBeTruthy();
   });
 });

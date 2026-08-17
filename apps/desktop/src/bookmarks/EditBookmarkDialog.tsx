@@ -1,20 +1,14 @@
-import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import TagInput from '@/components/TagInput';
 import type { Bookmark } from '../types';
-import { BkQueryApiKey, updateBookmarkApi } from './bookmarks.api';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { BkQueryApiKey, getTagsApi, tagQueryKey, updateBookmarkApi } from './bookmarks.api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import BookmarkForm, { type BookmarkFormValues } from './BookmarkForm';
 
 interface Props {
   editTarget: Bookmark | null;
@@ -23,20 +17,10 @@ interface Props {
 
 export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props) {
   const queryClient = useQueryClient();
-
-  const [url, setUrl] = useState('');
-  const [title, setTitle] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [description, setDescription] = useState('');
-
-  useEffect(() => {
-    if (editTarget) {
-      setUrl(editTarget.url);
-      setTitle(editTarget.title || '');
-      setTags(editTarget.tags);
-      setDescription(editTarget.description || '');
-    }
-  }, [editTarget]);
+  const { data: availableTags = [] } = useQuery({
+    queryKey: tagQueryKey('', null),
+    queryFn: () => getTagsApi({ query: '', limit: null }),
+  });
 
   const {
     mutate: handleUpdate,
@@ -51,17 +35,12 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
     },
   });
 
-  function handleSubmit() {
-    if (!editTarget || !url.trim() || isUpdating) return;
+  function handleSubmit(values: BookmarkFormValues) {
+    if (!editTarget) return;
 
     handleUpdate({
       id: editTarget.id,
-      input: {
-        url: url.trim(),
-        title: title.trim(),
-        tags,
-        description: description.trim(),
-      },
+      input: values,
     });
   }
 
@@ -69,7 +48,7 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
     <Dialog
       open={editTarget !== null}
       onOpenChange={(open) => {
-        if (!open) setEditTarget(null);
+        if (!open && !isUpdating) setEditTarget(null);
       }}
     >
       <DialogContent>
@@ -77,49 +56,25 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
           <DialogTitle>编辑书签</DialogTitle>
           <DialogDescription>修改 URL、标题、标签或描述。</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="edit-url">URL</Label>
-            <Input
-              id="edit-url"
-              placeholder="https://example.com"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-title">标题</Label>
-            <Input
-              id="edit-title"
-              placeholder="书签标题"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>标签（可选）</Label>
-            <TagInput value={tags} onChange={setTags} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-description">描述（可选）</Label>
-            <Textarea
-              id="edit-description"
-              placeholder="添加备注或描述"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-          {updateError && <div className="text-destructive">更新失败：{updateError.message}</div>}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setEditTarget(null)} disabled={isUpdating}>
-            取消
-          </Button>
-          <Button onClick={handleSubmit} disabled={!url.trim() || isUpdating}>
-            {isUpdating ? '保存中...' : '保存'}
-          </Button>
-        </DialogFooter>
+        {editTarget && (
+          <BookmarkForm
+            key={editTarget.id}
+            idPrefix="edit-bookmark"
+            initialValues={{
+              url: editTarget.url,
+              title: editTarget.title || '',
+              tags: editTarget.tags,
+              description: editTarget.description || '',
+            }}
+            submitLabel="保存"
+            pendingLabel="保存中..."
+            errorMessage={updateError ? `更新失败：${updateError.message}` : undefined}
+            isPending={isUpdating}
+            tagSuggestions={availableTags.map((tag) => tag.name)}
+            onCancel={() => setEditTarget(null)}
+            onSubmit={handleSubmit}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CreateTodo, Todo, TodoTag } from '@/types';
 import TagInput from '@/components/TagInput';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -10,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Textarea } from '@/components/ui/textarea';
 
 interface TodoDialogProps {
@@ -68,47 +69,45 @@ export default function TodoDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <form onSubmit={submit} className="grid gap-5">
+        <form onSubmit={submit} className="flex flex-col gap-5">
           <DialogHeader>
             <DialogTitle>{todo ? '编辑任务' : '新建任务'}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="todo-title">标题</Label>
-            <Input
-              id="todo-title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="todo-description">描述</Label>
-            <Textarea
-              id="todo-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={4}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="todo-tags">标签</Label>
-            <TagInput
-              inputId="todo-tags"
-              value={tags}
-              onChange={setTags}
-              onPendingChange={setTagInput}
-              suggestions={availableTags.map((tag) => tag.name)}
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={high}
-              onChange={(event) => setHigh(event.target.checked)}
-              className="accent-primary"
-            />
-            高优先级
-          </label>
+          <FieldGroup>
+            <Field data-invalid={!title.trim() || undefined}>
+              <FieldLabel htmlFor="todo-title">标题</FieldLabel>
+              <Input
+                id="todo-title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                aria-invalid={!title.trim()}
+                autoFocus
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="todo-description">描述</FieldLabel>
+              <Textarea
+                id="todo-description"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={4}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="todo-tags">标签</FieldLabel>
+              <TagInput
+                inputId="todo-tags"
+                value={tags}
+                onChange={setTags}
+                onPendingChange={setTagInput}
+                suggestions={availableTags.map((tag) => tag.name)}
+              />
+            </Field>
+            <Field className="flex-row items-center">
+              <Checkbox id="todo-high-priority" checked={high} onCheckedChange={setHigh} />
+              <FieldLabel htmlFor="todo-high-priority">高优先级</FieldLabel>
+            </Field>
+          </FieldGroup>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               取消

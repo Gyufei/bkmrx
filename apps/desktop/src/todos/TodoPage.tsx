@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { toast } from '@/components/ui/toast';
@@ -7,6 +6,11 @@ import type { CreateTodo, Todo, TodoStatus, TodoTag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
+import { useTauriEvent } from '@/lib/use-tauri-event';
 import {
   createTodoApi,
   deleteTodoApi,
@@ -64,22 +68,7 @@ export default function TodoPage() {
     ]);
   }, [queryClient]);
 
-  useEffect(() => {
-    let cancelled = false;
-    let unlisten: (() => void) | undefined;
-    listen('todos-changed', invalidate)
-      .then((value) => {
-        if (cancelled) value();
-        else unlisten = value;
-      })
-      .catch(() => {
-        // Browser previews do not expose the Tauri event bridge.
-      });
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [invalidate]);
+  useTauriEvent('todos-changed', invalidate);
 
   const reportError = (error: unknown) => {
     const message =
@@ -154,7 +143,10 @@ export default function TodoPage() {
           setRenaming(tag);
           setRenameValue(tag.name);
         }}
-        onDeleteTag={setDeletingTag}
+        onDeleteTag={(tag) => {
+          deleteTagMutation.reset();
+          setDeletingTag(tag);
+        }}
       />
 
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -196,7 +188,7 @@ export default function TodoPage() {
         <Tabs
           value={status}
           onValueChange={(value) => setStatus(value as StatusFilter)}
-          className="border-b border-border px-8 pb-3"
+          className="px-8 pb-3"
         >
           <TabsList variant="line">
             {STATUS_TABS.map((tab) => (
@@ -206,16 +198,25 @@ export default function TodoPage() {
             ))}
           </TabsList>
         </Tabs>
+        <Separator />
 
         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-8 py-4">
           {todos.isLoading ? (
-            <p className="py-10 text-center text-muted-foreground">正在加载任务…</p>
+            <div
+              role="status"
+              className="flex items-center justify-center gap-2 py-10 text-muted-foreground"
+            >
+              <Spinner />
+              正在加载任务…
+            </div>
           ) : todos.isError ? (
-            <p role="alert" className="py-10 text-center text-destructive">
-              任务加载失败
-            </p>
+            <Alert variant="destructive" className="mx-auto max-w-md text-center">
+              <AlertTitle>任务加载失败</AlertTitle>
+            </Alert>
           ) : todos.data?.items.length === 0 ? (
-            <p className="py-10 text-center text-muted-foreground">{emptyText}</p>
+            <Empty className="py-10">
+              <EmptyDescription>{emptyText}</EmptyDescription>
+            </Empty>
           ) : (
             <div className="flex flex-col gap-1">
               {todos.data?.items.map((todo) => (
@@ -224,19 +225,23 @@ export default function TodoPage() {
                   todo={todo}
                   tags={tags.data ?? []}
                   statusPending={statusMutation.isPending}
+                  deletePending={deleteMutation.isPending}
+                  deleteError={deleteMutation.error}
                   onEdit={(item) => {
                     setEditing(item);
                     setDialogOpen(true);
                   }}
                   onSelectTag={setTagId}
                   onSetStatus={(id, next) => statusMutation.mutate({ id, next })}
-                  onDelete={(id) => deleteMutation.mutate(id)}
+                  onPrepareDelete={() => deleteMutation.reset()}
+                  onDelete={(id) => deleteMutation.mutateAsync(id)}
                 />
               ))}
             </div>
           )}
         </div>
-        <footer className="mt-auto shrink-0 border-t border-border bg-background px-8 py-2 text-sm text-muted-foreground">
+        <Separator />
+        <footer className="mt-auto shrink-0 bg-background px-8 py-2 text-sm text-muted-foreground">
           {todos.data?.total ?? 0} 个任务 · {todos.data?.completed ?? 0} 个已完成
         </footer>
       </main>
@@ -256,6 +261,7 @@ export default function TodoPage() {
         renamePending={renameMutation.isPending}
         deleting={deletingTag}
         deletePending={deleteTagMutation.isPending}
+        deleteError={deleteTagMutation.error}
         onRenameValueChange={setRenameValue}
         onCloseRename={() => setRenaming(null)}
         onRename={async () => {
