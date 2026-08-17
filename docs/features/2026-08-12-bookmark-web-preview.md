@@ -6,7 +6,7 @@
 
 **Tech Stack:** React 18, TypeScript, Tauri 2 shell plugin, Base UI-based shadcn components, Tailwind CSS 4, Vitest, Testing Library
 
-**Requirement:** `docs/specs/bookmark-web-preview-spec.md`
+**Requirement:** `docs/features/2026-08-12-bookmark-web-preview-spec.md`
 
 ## Global Constraints
 
@@ -222,7 +222,7 @@ Expected: all bookmark preview and existing bookmark interaction tests PASS.
 **Files:**
 
 - Modify production or test files only when a failure is caused by this feature.
-- Optionally append factual compatibility observations to `docs/specs/bookmark-web-preview-spec.md`; do not turn observations into unsupported guarantees.
+- Optionally append factual compatibility observations to `docs/features/2026-08-12-bookmark-web-preview-spec.md`; do not turn observations into unsupported guarantees.
 
 - [ ] **Step 1: Run the complete desktop test suite**
 
@@ -267,7 +267,7 @@ Record whether iframe compatibility appears acceptable. Do not begin a Tauri chi
 
 - [ ] **Step 1: Review only the feature diff**
 
-Check every changed line against `docs/specs/bookmark-web-preview-spec.md`, with particular attention to nested click propagation, access-count duplication, modal focus behavior, URL protocol handling and iframe permissions.
+Check every changed line against `docs/features/2026-08-12-bookmark-web-preview-spec.md`, with particular attention to nested click propagation, access-count duplication, modal focus behavior, URL protocol handling and iframe permissions.
 
 - [ ] **Step 2: Re-run focused checks after review fixes**
 

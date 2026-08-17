@@ -205,7 +205,7 @@
 - `apps/desktop/src/bookmarks/SearchBar.test.tsx`（如焦点 ref 测试不并入 BookmarkView）
 - `apps/desktop/src/bookmarks/ResultList.tsx`
 - `apps/desktop/src/bookmarks/ResultList.test.tsx`
-- `docs/plans/2026-08-12-app-hotkeys.md`
+- `docs/features/2026-08-12-app-hotkeys.md`
 
 ## 非本次范围
 

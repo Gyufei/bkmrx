@@ -20,8 +20,8 @@
 
 **Files:**
 - Move: `apps/desktop/docs/migration/*` → `docs/migration/*`
-- Move: `apps/desktop/docs/superpowers/plans/*` → `docs/superpowers/plans/*`
-- Move: `apps/desktop/docs/superpowers/specs/*` → `docs/superpowers/specs/*`
+- Move: `apps/desktop/docs/superpowers/features/*` → `docs/superpowers/features/*`
+- Move: `apps/desktop/docs/superpowers/features/*` → `docs/superpowers/features/*`
 
 - [ ] **Step 1: Confirm destinations have no same-name files**
 
@@ -39,7 +39,7 @@ Expected: `apps/desktop/docs` no longer exists and Git reports renames.
 
 **Files:**
 - Modify: `apps/desktop/README.md`
-- Modify: `docs/superpowers/plans/2026-07-24-bkmrx-monorepo-migration.md`
+- Modify: `docs/superpowers/features/2026-07-24-bkmrx-monorepo-migration.md`
 
 - [ ] **Step 1: Point the desktop README at root documentation**
 

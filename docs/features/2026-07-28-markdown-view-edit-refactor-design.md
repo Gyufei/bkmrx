@@ -18,7 +18,7 @@ Markdown experience:
 - no note content is lost during mode changes or rapid file changes.
 
 The library comparison and rejected technology routes are recorded in
-[`docs/specs/markdown-view-edit-refactor-selection.md`](./markdown-view-edit-refactor-selection.md).
+[`docs/features/2026-07-28-markdown-view-edit-refactor-selection.md`](./2026-07-28-markdown-view-edit-refactor-selection.md).
 This document does not repeat that analysis. It defines the implementation
 architecture and observable behavior selected from it.
 

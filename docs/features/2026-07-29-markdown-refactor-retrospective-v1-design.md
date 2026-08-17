@@ -15,7 +15,7 @@ architecture.
 
 ## Retrospective document
 
-Create `docs/markdown-view-edit-refactor-retrospective.md` as the durable record
+Create `docs/features/2026-07-29-markdown-view-edit-refactor-retrospective.md` as the durable record
 of the refactor.
 
 The document will cover:

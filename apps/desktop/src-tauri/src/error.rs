@@ -86,7 +86,7 @@ impl AppError {
     pub fn unsupported_schema_version(found: i64, supported: i64) -> Self {
         Self::new(
             "unsupported_schema_version",
-            "The database schema is newer than this app supports",
+            "The database schema version is not supported by this app",
             Some(serde_json::json!({
                 "found": found,
                 "supported": supported,

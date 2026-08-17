@@ -1,0 +1,10 @@
+Source: /Users/gyf/Library/Application Support/com.bkmrx/bookmarks.db
+Created: 2026-08-17 11:29:32 Asia/Shanghai
+Method: SQLite online backup API (`sqlite3 .backup`)
+Schema version: 3
+Integrity check: ok
+Foreign key check: no violations
+SHA-256: 14e7b93ded806035cfec5ce873bb305570939c9ce06b86f2a16de8865da36642
+
+Restore only while bkmrx is stopped. Keep the current database until the restored
+copy has passed `PRAGMA integrity_check` and `PRAGMA foreign_key_check`.

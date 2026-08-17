@@ -2,7 +2,7 @@
 
 **Goal:** Replace unconditional iframe loading with a backend-generated preview plan, add a GitHub repository summary card, and render all expected failures as a consistent in-Sheet fallback card.
 
-**Requirement:** `docs/specs/bookmark-adaptive-preview-spec.md`
+**Requirement:** `docs/features/2026-08-14-bookmark-adaptive-preview-spec.md`
 
 **Architecture:** A new Rust `PreviewService` owns URL validation, provider routing, restricted HTTP access, response classification and caching. One async Tauri command returns a tagged preview result. React requests that result and renders exactly one of GitHub summary, sandboxed iframe or fallback card while preserving the existing Sheet shell and bookmark interaction contract.
 
@@ -226,7 +226,7 @@ Success: observed behavior matches the spec in a packaged or development Tauri r
 
 ### Task 14: Review before merge
 
-- [ ] Review the feature diff against `docs/specs/bookmark-adaptive-preview-spec.md`.
+- [ ] Review the feature diff against `docs/features/2026-08-14-bookmark-adaptive-preview-spec.md`.
 - [ ] Pay special attention to SSRF, redirect handling, CSP parsing, stale request races, error leakage and duplicated access counts.
 - [ ] Apply only in-scope fixes and rerun affected checks.
 

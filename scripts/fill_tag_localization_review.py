@@ -9,7 +9,7 @@ from pathlib import Path
 from generate_tag_localization_review import PRESERVE_WORDS, PROFESSIONAL, WORDS
 
 
-REVIEW = Path(__file__).resolve().parents[1] / "docs/reviews/bookmark-tags-localization-review-20260813.md"
+REVIEW = Path(__file__).resolve().parents[1] / "docs/reviews/2026-08-13-bookmark-tags-localization-review.md"
 
 EXTRA = {
     "accounting": "会计", "accelerated": "加速", "acceleration": "加速", "accelerator": "加速器",

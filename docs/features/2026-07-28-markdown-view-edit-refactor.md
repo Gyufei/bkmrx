@@ -24,7 +24,7 @@
 - Every save must remain bound to its captured path, content, session, and content version.
 - Save failure must retain the in-memory content and expose retry.
 - Do not modify `NotesPanel` beyond the existing `<NoteEditor filePath={selectedFilePath} />` contract.
-- Follow the approved design in `docs/superpowers/specs/2026-07-28-markdown-view-edit-refactor-design.md`.
+- Follow the approved design in `docs/superpowers/features/2026-07-28-markdown-view-edit-refactor-design.md`.
 
 ## File Structure
 

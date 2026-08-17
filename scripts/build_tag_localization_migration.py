@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-REVIEW = ROOT / "docs/reviews/bookmark-tags-localization-review-20260813.md"
+REVIEW = ROOT / "docs/reviews/2026-08-13-bookmark-tags-localization-review.md"
 DATABASE = Path.home() / "Library/Application Support/com.bkmrx/bookmarks.db"
 OUTPUT = ROOT / "docs/migrations/bookmark-tag-localization-20260813.sql"
 ROW_PATTERN = re.compile(

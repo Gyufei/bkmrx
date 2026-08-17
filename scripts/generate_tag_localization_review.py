@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 DATABASE = Path.home() / "Library/Application Support/com.bkmrx/bookmarks.db"
-OUTPUT = Path(__file__).resolve().parents[1] / "docs/reviews/bookmark-tags-localization-review-20260813.md"
+OUTPUT = Path(__file__).resolve().parents[1] / "docs/reviews/2026-08-13-bookmark-tags-localization-review.md"
 
 
 WORDS = {

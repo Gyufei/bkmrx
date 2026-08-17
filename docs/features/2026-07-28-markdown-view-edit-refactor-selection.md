@@ -25,7 +25,7 @@
 - 桌面端已使用 Tailwind CSS 4。
 - 项目已直接声明 CodeMirror 6 及 `@codemirror/lang-markdown`。
 - 当前自动保存由共享保存队列与 400ms 防抖实现，重构时应复用已有语义。
-- 现有 Notes 后端命令、绝对路径契约及 frontmatter 行为不在本次范围内；相关约束见 [`docs/specs/2026-07-24-notes-settings-refactor-design.md`](./2026-07-24-notes-settings-refactor-design.md)。
+- 现有 Notes 后端命令、绝对路径契约及 frontmatter 行为不在本次范围内；相关约束见 [`docs/features/2026-07-24-notes-settings-refactor-design.md`](./2026-07-24-notes-settings-refactor-design.md)。
 - 当前 `remark-gfm`、`micromark` 仅由 Milkdown 间接引入。若新查看态采用它们，必须声明为直接依赖，不能依赖临时的传递依赖。
 
 ## 3. 解析与展示路线对比

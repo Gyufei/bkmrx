@@ -4,8 +4,8 @@
 
 - 状态：已确认，待实施
 - 日期：2026-08-14
-- 前置版本：`docs/specs/bookmark-web-preview-spec.md`
-- 对应计划：`docs/plans/2026-08-14-bookmark-adaptive-preview.md`
+- 前置版本：`docs/features/2026-08-12-bookmark-web-preview-spec.md`
+- 对应计划：`docs/features/2026-08-14-bookmark-adaptive-preview.md`
 
 本文档在现有 iframe 网页预览 Sheet 基础上增加后端预览决策、GitHub 仓库摘要和统一失败卡。未被本文明确修改的点击区域、访问计数、Sheet 覆盖范围、顶部栏、关闭方式、焦点恢复和 iframe sandbox 规则，继续沿用前置版本。
 

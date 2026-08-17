@@ -270,6 +270,6 @@ if it has not yet been committed.
 - [ ] **Step 4: Commit the implementation plan if still uncommitted**
 
 ```bash
-git add docs/superpowers/plans/2026-07-30-view-mode-task-toggle.md
+git add docs/superpowers/features/2026-07-30-view-mode-task-toggle.md
 git commit -m "docs: plan view-mode task toggle"
 ```

@@ -2,7 +2,7 @@
 
 > 执行日期：2026-08-10  
 > 状态：已完成  
-> 来源：`docs/reviews/bookmark-tags-localization-review-20260810.md`
+> 来源：`docs/reviews/2026-08-10-bookmark-tags-localization-review.md`
 
 ## 文档执行口径
 
@@ -60,7 +60,7 @@
 
 ## 文件
 
-- 审阅文档：`docs/reviews/bookmark-tags-localization-review-20260810.md`
+- 审阅文档：`docs/reviews/2026-08-10-bookmark-tags-localization-review.md`
 - 映射生成脚本：`scripts/build_tag_localization_migration.py`
 - 事务化迁移脚本：`docs/migrations/bookmark-tag-localization-20260810.sql`
 - 迁移前备份：`backups/tag-localization-20260810-reviewed/bookmarks.db`

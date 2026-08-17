@@ -5,101 +5,7 @@ use rusqlite::Connection;
 
 use crate::bookmarks::{AppError, AppResult};
 
-const SUPPORTED_SCHEMA_VERSION: i64 = 3;
-
-const CREATE_V2_SCHEMA: &str = r#"
-BEGIN IMMEDIATE;
-
-CREATE TABLE bookmarks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    url TEXT NOT NULL UNIQUE,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    access_count INTEGER NOT NULL DEFAULT 0 CHECK (access_count >= 0),
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    accessed_at INTEGER NULL,
-    starred_at INTEGER NULL
-);
-
-CREATE TABLE tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE bookmark_tags (
-    bookmark_id INTEGER NOT NULL REFERENCES bookmarks(id) ON DELETE CASCADE,
-    tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (bookmark_id, tag_id)
-);
-
-CREATE INDEX idx_bookmark_tags_tag_bookmark
-    ON bookmark_tags(tag_id, bookmark_id);
-
-CREATE VIRTUAL TABLE bookmarks_fts USING fts5(
-    url,
-    title,
-    description,
-    tags,
-    tokenize = 'trigram'
-);
-
-CREATE INDEX idx_bookmarks_starred
-    ON bookmarks(starred_at DESC, id DESC)
-    WHERE starred_at IS NOT NULL;
-
-PRAGMA user_version = 2;
-COMMIT;
-"#;
-
-const ADD_TODO_SCHEMA: &str = r#"
-CREATE TABLE todos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
-    description TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL DEFAULT 'in_progress'
-        CHECK (status IN ('in_progress', 'completed', 'suspended', 'canceled')),
-    is_high_priority INTEGER NOT NULL DEFAULT 0 CHECK (is_high_priority IN (0, 1)),
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    completed_at INTEGER NULL
-);
-
-CREATE TABLE todo_tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK (length(trim(name)) > 0)
-);
-
-CREATE TABLE todo_tag_relations (
-    todo_id INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
-    tag_id INTEGER NOT NULL REFERENCES todo_tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (todo_id, tag_id)
-);
-
-CREATE INDEX idx_todos_status_sort
-    ON todos(status, is_high_priority DESC, updated_at DESC, id DESC);
-CREATE INDEX idx_todo_tag_relations_tag_todo
-    ON todo_tag_relations(tag_id, todo_id);
-"#;
-
-const MIGRATE_V2_TO_V3: &str = r#"
-BEGIN IMMEDIATE;
-"#;
-
-const FINISH_V3_SCHEMA: &str = r#"
-PRAGMA user_version = 3;
-COMMIT;
-"#;
-
-const MIGRATE_V1_TO_V2: &str = r#"
-BEGIN IMMEDIATE;
-ALTER TABLE bookmarks ADD COLUMN starred_at INTEGER NULL;
-CREATE INDEX idx_bookmarks_starred
-    ON bookmarks(starred_at DESC, id DESC)
-    WHERE starred_at IS NOT NULL;
-PRAGMA user_version = 2;
-COMMIT;
-"#;
+mod migrations;
 
 #[derive(Debug)]
 pub struct Database {
@@ -128,17 +34,6 @@ impl Database {
         self.connection()?
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .map_err(database_error)
-    }
-
-    pub fn verify_supported_version(&self) -> AppResult<()> {
-        let version = self.schema_version()?;
-        if version > SUPPORTED_SCHEMA_VERSION {
-            return Err(AppError::unsupported_schema_version(
-                version,
-                SUPPORTED_SCHEMA_VERSION,
-            ));
-        }
-        Ok(())
     }
 
     pub fn has_table(&self, table: &str) -> AppResult<bool> {
@@ -192,14 +87,7 @@ impl Database {
         Ok(())
     }
 
-    #[doc(hidden)]
-    pub fn set_user_version_for_test(&self, version: i64) -> AppResult<()> {
-        self.connection()?
-            .pragma_update(None, "user_version", version)
-            .map_err(database_error)
-    }
-
-    fn initialize(connection: Connection) -> AppResult<Self> {
+    fn initialize(mut connection: Connection) -> AppResult<Self> {
         connection
             .execute_batch(
                 "PRAGMA foreign_keys = ON;
@@ -209,56 +97,10 @@ impl Database {
             )
             .map_err(database_error)?;
 
-        let database = Self {
+        migrations::run(&mut connection)?;
+        Ok(Self {
             connection: Mutex::new(connection),
-        };
-        database.verify_supported_version()?;
-        match database.schema_version()? {
-            0 => {
-                let connection = database.connection()?;
-                connection
-                    .execute_batch(CREATE_V2_SCHEMA)
-                    .map_err(database_error)?;
-                connection
-                    .execute_batch("BEGIN IMMEDIATE;")
-                    .map_err(database_error)?;
-                connection
-                    .execute_batch(ADD_TODO_SCHEMA)
-                    .map_err(database_error)?;
-                connection
-                    .execute_batch(FINISH_V3_SCHEMA)
-                    .map_err(database_error)?;
-            }
-            1 => {
-                let connection = database.connection()?;
-                connection
-                    .execute_batch(MIGRATE_V1_TO_V2)
-                    .map_err(database_error)?;
-                connection
-                    .execute_batch(MIGRATE_V2_TO_V3)
-                    .map_err(database_error)?;
-                connection
-                    .execute_batch(ADD_TODO_SCHEMA)
-                    .map_err(database_error)?;
-                connection
-                    .execute_batch(FINISH_V3_SCHEMA)
-                    .map_err(database_error)?;
-            }
-            2 => {
-                let connection = database.connection()?;
-                connection
-                    .execute_batch(MIGRATE_V2_TO_V3)
-                    .map_err(database_error)?;
-                connection
-                    .execute_batch(ADD_TODO_SCHEMA)
-                    .map_err(database_error)?;
-                connection
-                    .execute_batch(FINISH_V3_SCHEMA)
-                    .map_err(database_error)?;
-            }
-            _ => {}
-        }
-        Ok(database)
+        })
     }
 
     #[doc(hidden)]

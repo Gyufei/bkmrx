@@ -2,7 +2,7 @@
 
 bkmrx Desktop 是仅在 macOS 本机运行的 Tauri 书签与 Markdown 笔记应用。书签由 Rust 后端通过 `rusqlite` 直接维护，React WebView、本机 HTTP API 和 Chrome 扩展共用同一个 `BookmarkService`。
 
-[返回项目首页](../../README.md) · [Chrome 扩展](../chrome-extension/README.md) · [系统架构](../../docs/ARCHITECTURE.md) · [HTTP API](../../docs/reference/http-api.md)
+[返回项目首页](../../README.md) · [Chrome 扩展](../chrome-extension/README.md) · [系统架构](../../docs/ARCHITECTURE.md) · [HTTP API](../../docs/reference/2026-07-24-http-api.md)
 
 ## 核心能力
 
@@ -84,7 +84,7 @@ Rust 书签代码位于 `src-tauri/src/bookmarks/`：
 | DELETE | `/api/bookmarks/:id` | 删除书签 |
 | GET | `/api/tags` | 查询标签与计数 |
 
-完整参数、响应与错误格式见 [HTTP API 文档](../../docs/reference/http-api.md)。
+完整参数、响应与错误格式见 [HTTP API 文档](../../docs/reference/2026-07-24-http-api.md)。
 
 ## 相关项目
 

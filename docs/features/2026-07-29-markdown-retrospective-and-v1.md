@@ -25,7 +25,7 @@
 
 Create:
 
-- `docs/markdown-view-edit-refactor-retrospective.md` — durable engineering retrospective and `1.0.0` maintenance contract.
+- `docs/features/2026-07-29-markdown-view-edit-refactor-retrospective.md` — durable engineering retrospective and `1.0.0` maintenance contract.
 
 Modify:
 
@@ -127,9 +127,9 @@ git commit -m "fix: wrap long markdown lines"
 ### Task 2: Write the Engineering Retrospective
 
 **Files:**
-- Create: `docs/markdown-view-edit-refactor-retrospective.md`
-- Reference: `docs/markdown-view-edit-refactor-selection.md`
-- Reference: `docs/superpowers/specs/2026-07-28-markdown-view-edit-refactor-design.md`
+- Create: `docs/features/2026-07-29-markdown-view-edit-refactor-retrospective.md`
+- Reference: `docs/features/2026-07-28-markdown-view-edit-refactor-selection.md`
+- Reference: `docs/superpowers/features/2026-07-28-markdown-view-edit-refactor-design.md`
 - Reference: `docs/ARCHITECTURE.md`
 
 **Interfaces:**
@@ -178,8 +178,8 @@ The content must explicitly record:
 Run:
 
 ```bash
-rg -n 'T[B]D|T[O]DO|PLACEHOLD[E]R' docs/markdown-view-edit-refactor-retrospective.md
-git diff --check -- docs/markdown-view-edit-refactor-retrospective.md
+rg -n 'T[B]D|T[O]DO|PLACEHOLD[E]R' docs/features/2026-07-29-markdown-view-edit-refactor-retrospective.md
+git diff --check -- docs/features/2026-07-29-markdown-view-edit-refactor-retrospective.md
 ```
 
 Expected: no placeholder matches and no diff-check output.
@@ -190,7 +190,7 @@ chronological transcript.
 - [ ] **Step 3: Commit the retrospective**
 
 ```bash
-git add docs/markdown-view-edit-refactor-retrospective.md
+git add docs/features/2026-07-29-markdown-view-edit-refactor-retrospective.md
 git commit -m "docs: record markdown editor refactor retrospective"
 ```
 
