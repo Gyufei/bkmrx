@@ -95,20 +95,35 @@ fn fixture() -> Fixture {
 }
 
 fn request(query: &str, tags: &[&str], page_size: u32) -> BookmarkPageRequest {
-    BookmarkPageRequest {
+    BookmarkPageRequest::Search {
         query: query.to_owned(),
         tags: tags.iter().map(|tag| (*tag).to_owned()).collect(),
         cursor: None,
         page_size,
-        starred_only: false,
     }
 }
 
 fn starred_request(page_size: u32) -> BookmarkPageRequest {
-    BookmarkPageRequest {
-        starred_only: true,
-        ..request("", &[], page_size)
+    BookmarkPageRequest::Browse {
+        starred: true,
+        cursor: None,
+        page_size,
     }
+}
+
+fn with_cursor(mut request: BookmarkPageRequest, cursor: String) -> BookmarkPageRequest {
+    match &mut request {
+        BookmarkPageRequest::Browse {
+            cursor: request_cursor,
+            ..
+        }
+        | BookmarkPageRequest::Search {
+            cursor: request_cursor,
+            ..
+        } => *request_cursor = Some(cursor),
+        BookmarkPageRequest::Random { .. } => panic!("random requests do not use cursors"),
+    }
+    request
 }
 
 #[test]
@@ -232,6 +247,49 @@ fn page_size_is_limited_to_one_through_one_hundred() {
 }
 
 #[test]
+fn random_request_returns_unique_items_without_a_cursor() {
+    let fixture = fixture();
+    let page = fixture
+        .search
+        .search(&BookmarkPageRequest::Random { limit: 5 })
+        .unwrap();
+
+    assert_eq!(page.bookmark_ids.len(), 5);
+    assert_eq!(
+        page.bookmark_ids
+            .iter()
+            .copied()
+            .collect::<std::collections::HashSet<_>>()
+            .len(),
+        5
+    );
+    assert!(page.bookmark_ids.iter().all(|id| fixture.ids.contains(id)));
+    assert_eq!(page.next_cursor, None);
+}
+
+#[test]
+fn random_request_returns_all_items_when_limit_exceeds_the_collection() {
+    let fixture = fixture();
+    let page = fixture
+        .search
+        .search(&BookmarkPageRequest::Random { limit: 7 })
+        .unwrap();
+
+    assert_eq!(page.bookmark_ids.len(), fixture.ids.len());
+}
+
+#[test]
+fn bookmark_request_rejects_unknown_fields() {
+    let request = serde_json::json!({
+        "mode": "random",
+        "limit": 7,
+        "cursor": null
+    });
+
+    assert!(serde_json::from_value::<BookmarkPageRequest>(request).is_err());
+}
+
+#[test]
 fn cursor_is_bound_to_query_and_sorted_tags() {
     let fixture = fixture();
     let first = fixture
@@ -240,12 +298,10 @@ fn cursor_is_bound_to_query_and_sorted_tags() {
         .unwrap();
     let cursor = first.next_cursor.unwrap();
 
-    let mut reordered = request("", &["search", "rust"], 1);
-    reordered.cursor = Some(cursor.clone());
+    let reordered = with_cursor(request("", &["search", "rust"], 1), cursor.clone());
     fixture.search.search(&reordered).unwrap();
 
-    let mut changed = request("", &["search"], 1);
-    changed.cursor = Some(cursor);
+    let changed = with_cursor(request("", &["search"], 1), cursor);
     assert_eq!(
         fixture.search.search(&changed).unwrap_err().code(),
         "invalid_cursor"
@@ -262,7 +318,7 @@ fn pages_contain_no_duplicates_or_omissions() {
         let page = fixture.search.search(&request).unwrap();
         ids.extend(page.bookmark_ids);
         match page.next_cursor {
-            Some(cursor) => request.cursor = Some(cursor),
+            Some(cursor) => request = with_cursor(request, cursor),
             None => break,
         }
     }
@@ -312,12 +368,17 @@ fn service_maps_not_found_and_notifies_only_successful_mutations() {
     let database = Arc::new(Database::open_in_memory().unwrap());
     let notifications = Arc::new(AtomicUsize::new(0));
     let notifier_count = Arc::clone(&notifications);
+    let accesses = Arc::new(AtomicUsize::new(0));
+    let access_count = Arc::clone(&accesses);
     let service = BookmarkService::new(
         SqliteBookmarkRepository::new(Arc::clone(&database)),
         SqliteFtsSearch::new(database),
     )
     .with_change_notifier(Arc::new(move || {
         notifier_count.fetch_add(1, Ordering::SeqCst);
+    }))
+    .with_access_notifier(Arc::new(move |_| {
+        access_count.fetch_add(1, Ordering::SeqCst);
     }));
 
     assert_eq!(
@@ -360,5 +421,6 @@ fn service_maps_not_found_and_notifies_only_successful_mutations() {
     service.delete_many(vec![created.id]).unwrap();
     service.delete_many(Vec::new()).unwrap();
 
-    assert_eq!(notifications.load(Ordering::SeqCst), 5);
+    assert_eq!(notifications.load(Ordering::SeqCst), 4);
+    assert_eq!(accesses.load(Ordering::SeqCst), 1);
 }

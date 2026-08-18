@@ -53,9 +53,11 @@ vi.mock('./BookmarkSidebar', () => ({
   default: ({
     onTagsChange,
     onBaseViewChange,
+    randomDrawing,
   }: {
     onTagsChange: (tags: string[]) => void;
-    onBaseViewChange: (view: 'all' | 'starred') => void;
+    onBaseViewChange: (view: 'all' | 'starred' | 'random') => void;
+    randomDrawing: boolean;
   }) => (
     <div>
       <button data-testid="tag-panel" onClick={() => onTagsChange(['tool'])}>
@@ -64,6 +66,9 @@ vi.mock('./BookmarkSidebar', () => ({
       <button onClick={() => onTagsChange([])}>清空标签</button>
       <button onClick={() => onBaseViewChange('all')}>全部视图</button>
       <button onClick={() => onBaseViewChange('starred')}>星标视图</button>
+      <button disabled={randomDrawing} onClick={() => onBaseViewChange('random')}>
+        随便看看
+      </button>
     </div>
   ),
 }));
@@ -236,14 +241,17 @@ describe('BookmarkView infinite pagination', () => {
 
     expect(await screen.findByText('普通模式')).toBeTruthy();
     expect(screen.getByText('暂无书签')).toBeTruthy();
-    expect(queryBookmarksMock.mock.calls[0]?.[0].starred_only).toBe(false);
+    expect(queryBookmarksMock.mock.calls[0]?.[0]).toMatchObject({
+      mode: 'browse',
+      starred: false,
+    });
 
     fireEvent.click(screen.getByText('星标视图'));
     expect(await screen.findByText('星标模式')).toBeTruthy();
     expect(
       screen.getByText('暂无星标书签。在搜索结果中点击星形按钮，即可将常用书签显示在这里。'),
     ).toBeTruthy();
-    expect(lastBookmarkRequest().starred_only).toBe(true);
+    expect(lastBookmarkRequest()).toMatchObject({ mode: 'browse', starred: true });
   });
 
   it('temporarily ignores the base view while searching and restores it afterward', async () => {
@@ -258,13 +266,13 @@ describe('BookmarkView infinite pagination', () => {
     expect(await screen.findByText('普通模式')).toBeTruthy();
     expect(screen.getByText('暂无匹配的书签')).toBeTruthy();
     expect(lastBookmarkRequest()).toMatchObject({
+      mode: 'search',
       query: 'needle',
-      starred_only: false,
     });
 
     fireEvent.click(screen.getByText('清空搜索'));
     expect(await screen.findByText('星标模式')).toBeTruthy();
-    expect(lastBookmarkRequest().starred_only).toBe(true);
+    expect(lastBookmarkRequest()).toMatchObject({ mode: 'browse', starred: true });
   });
 
   it('keeps tag filtering in normal mode regardless of the base view', async () => {
@@ -278,12 +286,36 @@ describe('BookmarkView infinite pagination', () => {
 
     expect(await screen.findByText('普通模式')).toBeTruthy();
     expect(lastBookmarkRequest()).toMatchObject({
+      mode: 'search',
       tags: ['tool'],
-      starred_only: false,
     });
 
     fireEvent.click(screen.getByText('清空标签'));
     expect(await screen.findByText('星标模式')).toBeTruthy();
+  });
+
+  it('draws random bookmarks after the dice delay and ignores clicks while drawing', async () => {
+    queryBookmarksMock.mockImplementation(({ mode }: { mode: string }) =>
+      Promise.resolve(
+        mode === 'random'
+          ? { items: [bookmark(9, 'Random pick')], next_cursor: null }
+          : { items: [], next_cursor: null },
+      ),
+    );
+    renderView();
+
+    await screen.findByText('暂无书签');
+    const randomButton = screen.getByText('随便看看').closest('button')!;
+    fireEvent.click(randomButton);
+
+    await waitFor(() => expect(lastBookmarkRequest()).toEqual({ mode: 'random', limit: 7 }));
+    expect(randomButton.disabled).toBe(true);
+    fireEvent.click(randomButton);
+    expect(queryBookmarksMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('Random pick')).toBeNull();
+
+    expect(await screen.findByText('Random pick', {}, { timeout: 1_200 })).toBeTruthy();
+    expect(randomButton.disabled).toBe(false);
   });
 
   it('calls the star API, exposes pending state, and refreshes bookmarks on success', async () => {

@@ -23,6 +23,7 @@ fn creates_v1_schema_and_enables_fts5_trigram() {
     for index in [
         "idx_bookmark_tags_tag_bookmark",
         "idx_bookmarks_starred",
+        "idx_bookmarks_updated",
         "idx_todos_status_sort",
         "idx_todo_tag_relations_tag_todo",
     ] {
@@ -75,7 +76,8 @@ fn reopens_existing_v1_database_without_changing_data() {
         .execute_batch_for_test(
             "INSERT INTO bookmarks
              (id, url, title, description, access_count, created_at, updated_at)
-             VALUES (7, 'https://example.com', 'Existing', '', 0, 1, 1);",
+             VALUES (7, 'https://example.com', 'Existing', '', 0, 1, 1);
+             DROP INDEX idx_bookmarks_updated;",
         )
         .unwrap();
     drop(database);
@@ -83,6 +85,15 @@ fn reopens_existing_v1_database_without_changing_data() {
     let database = Database::open(&path).unwrap();
 
     assert_eq!(database.schema_version().unwrap(), 1);
+    assert_eq!(
+        database
+            .query_i64_for_test(
+                "SELECT count(*) FROM sqlite_master
+                 WHERE type = 'index' AND name = 'idx_bookmarks_updated'"
+            )
+            .unwrap(),
+        1
+    );
     assert_eq!(
         database
             .query_i64_for_test("SELECT count(*) FROM bookmarks WHERE id = 7")

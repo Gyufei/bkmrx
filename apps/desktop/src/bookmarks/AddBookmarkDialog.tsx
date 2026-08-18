@@ -6,7 +6,13 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addBookmarkApi, BkQueryApiKey, getTagsApi, tagQueryKey } from './bookmarks.api';
+import {
+  addBookmarkApi,
+  BkQueryApiKey,
+  getTagsApi,
+  invalidateNonRandomBookmarkQueries,
+  tagQueryKey,
+} from './bookmarks.api';
 import BookmarkForm, { type BookmarkFormValues } from './BookmarkForm';
 
 interface Props {
@@ -29,7 +35,7 @@ export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
     mutationFn: addBookmarkApi,
     onSuccess: () => {
       onOpenChange(false);
-      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+      void invalidateNonRandomBookmarkQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
     },
   });

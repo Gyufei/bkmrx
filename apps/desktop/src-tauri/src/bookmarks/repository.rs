@@ -7,6 +7,7 @@ use rusqlite::{params, params_from_iter, OptionalExtension, Transaction};
 use crate::database::Database;
 
 use super::{
+    sql::{escape_like, placeholders},
     AppError, AppResult, Bookmark, CreateBookmark, TagQueryRequest, TagSummary, UpdateBookmark,
 };
 
@@ -457,19 +458,6 @@ fn timestamp_to_string(timestamp: i64) -> Result<String, TimestampError> {
 #[derive(Debug, thiserror::Error)]
 #[error("invalid Unix timestamp: {0}")]
 struct TimestampError(i64);
-
-fn placeholders(count: usize) -> String {
-    std::iter::repeat_n("?", count)
-        .collect::<Vec<_>>()
-        .join(",")
-}
-
-fn escape_like(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
-}
 
 fn write_error(error: rusqlite::Error, url: &str) -> AppError {
     match &error {

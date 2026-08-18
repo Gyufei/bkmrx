@@ -106,7 +106,7 @@ describe('EditBookmarkDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() => expect(setEditTarget).toHaveBeenCalledWith(null));
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['bookmarks'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ predicate: expect.any(Function) });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['tags'] });
   });
 

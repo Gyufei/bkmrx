@@ -104,23 +104,28 @@ async fn list_bookmarks_handler(
     State(service): State<SharedBookmarkService>,
     Query(query): Query<BookmarkListQuery>,
 ) -> Result<Json<BookmarkPage>, ApiError> {
-    let tags = query
+    let tags: Vec<String> = query
         .tags
         .split(',')
         .map(str::trim)
         .filter(|tag| !tag.is_empty())
         .map(str::to_owned)
         .collect();
-    service
-        .query(BookmarkPageRequest {
+    let request = if query.query.trim().is_empty() && tags.is_empty() {
+        BookmarkPageRequest::Browse {
+            starred: false,
+            cursor: query.cursor,
+            page_size: query.page_size,
+        }
+    } else {
+        BookmarkPageRequest::Search {
             query: query.query,
             tags,
             cursor: query.cursor,
             page_size: query.page_size,
-            starred_only: false,
-        })
-        .map(Json)
-        .map_err(ApiError)
+        }
+    };
+    service.query(request).map(Json).map_err(ApiError)
 }
 
 async fn create_bookmark_handler(

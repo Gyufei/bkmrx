@@ -98,6 +98,12 @@ impl Database {
             .map_err(database_error)?;
 
         migrations::run(&mut connection)?;
+        connection
+            .execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_bookmarks_updated
+                 ON bookmarks(updated_at DESC, id DESC);",
+            )
+            .map_err(database_error)?;
         Ok(Self {
             connection: Mutex::new(connection),
         })

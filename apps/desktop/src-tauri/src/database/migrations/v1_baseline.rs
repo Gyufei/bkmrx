@@ -45,6 +45,9 @@ CREATE INDEX idx_bookmarks_starred
     ON bookmarks(starred_at DESC, id DESC)
     WHERE starred_at IS NOT NULL;
 
+CREATE INDEX idx_bookmarks_updated
+    ON bookmarks(updated_at DESC, id DESC);
+
 CREATE TABLE todos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL CHECK (length(trim(title)) > 0),

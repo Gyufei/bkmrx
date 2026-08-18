@@ -147,12 +147,10 @@ fn exported_starred_at_preserves_milliseconds_and_import_order() {
         .apply_bookmark_import(&path, &preview.file_hash)
         .unwrap();
     let page = target
-        .query(BookmarkPageRequest {
-            query: String::new(),
-            tags: Vec::new(),
+        .query(BookmarkPageRequest::Browse {
+            starred: true,
             cursor: None,
             page_size: 50,
-            starred_only: true,
         })
         .unwrap();
 

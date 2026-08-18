@@ -28,13 +28,25 @@ pub struct TagQueryRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct BookmarkPageRequest {
-    pub query: String,
-    pub tags: Vec<String>,
-    pub cursor: Option<String>,
-    pub page_size: u32,
-    #[serde(default)]
-    pub starred_only: bool,
+#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BookmarkPageRequest {
+    Browse {
+        #[serde(default)]
+        starred: bool,
+        cursor: Option<String>,
+        page_size: u32,
+    },
+    Search {
+        #[serde(default)]
+        query: String,
+        #[serde(default)]
+        tags: Vec<String>,
+        cursor: Option<String>,
+        page_size: u32,
+    },
+    Random {
+        limit: u32,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

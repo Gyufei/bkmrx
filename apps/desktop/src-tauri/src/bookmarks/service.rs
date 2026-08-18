@@ -10,11 +10,13 @@ use super::{
 };
 
 type ChangeNotifier = Arc<dyn Fn() + Send + Sync>;
+type AccessNotifier = Arc<dyn Fn(&Bookmark) + Send + Sync>;
 
 pub struct BookmarkService<R, S> {
     repository: R,
     search: S,
     notify_changed: ChangeNotifier,
+    notify_accessed: AccessNotifier,
 }
 
 impl<R, S> BookmarkService<R, S> {
@@ -23,11 +25,17 @@ impl<R, S> BookmarkService<R, S> {
             repository,
             search,
             notify_changed: Arc::new(|| {}),
+            notify_accessed: Arc::new(|_| {}),
         }
     }
 
     pub fn with_change_notifier(mut self, notify_changed: ChangeNotifier) -> Self {
         self.notify_changed = notify_changed;
+        self
+    }
+
+    pub fn with_access_notifier(mut self, notify_accessed: AccessNotifier) -> Self {
+        self.notify_accessed = notify_accessed;
         self
     }
 }
@@ -78,7 +86,7 @@ impl<R: BookmarkRepository, S: BookmarkSearch> BookmarkService<R, S> {
 
     pub fn record_access(&self, id: i64) -> AppResult<Bookmark> {
         let bookmark = self.repository.record_access(id)?;
-        (self.notify_changed)();
+        (self.notify_accessed)(&bookmark);
         Ok(bookmark)
     }
 

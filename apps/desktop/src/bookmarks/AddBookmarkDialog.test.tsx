@@ -72,7 +72,7 @@ describe('AddBookmarkDialog', () => {
       description: '',
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['bookmarks'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ predicate: expect.any(Function) });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['tags'] });
   });
 

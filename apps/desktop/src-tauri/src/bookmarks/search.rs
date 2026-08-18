@@ -2,13 +2,16 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use rusqlite::{params_from_iter, types::Value};
+use rusqlite::{params, params_from_iter, types::Value};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::database::Database;
 
-use super::{AppError, AppResult, BookmarkPageRequest};
+use super::{
+    sql::{escape_like, placeholders},
+    AppError, AppResult, BookmarkPageRequest,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchPage {
@@ -33,52 +36,82 @@ impl SqliteFtsSearch {
 
 impl BookmarkSearch for SqliteFtsSearch {
     fn search(&self, request: &BookmarkPageRequest) -> AppResult<SearchPage> {
-        validate_page_size(request.page_size)?;
-        let query = request.query.trim();
-        let tags = normalize_tags(&request.tags);
-        let query_hash = query_hash(query, &tags, request.page_size, request.starred_only)?;
-        let cursor = request.cursor.as_deref().map(decode_cursor).transpose()?;
-        if cursor
-            .as_ref()
-            .is_some_and(|cursor| cursor.version != 1 || cursor.query_hash != query_hash)
-        {
-            return Err(AppError::invalid_cursor());
-        }
-
-        if request.starred_only {
-            return self.search_starred(
-                request.page_size,
-                query_hash,
-                cursor.map(|cursor| cursor.mode),
-            );
-        }
-
-        match query.chars().count() {
-            0 => self.search_recent(
-                &tags,
-                request.page_size,
-                query_hash,
-                cursor.map(|cursor| cursor.mode),
-            ),
-            1 | 2 => self.search_like(
+        match request {
+            BookmarkPageRequest::Browse {
+                starred,
+                cursor,
+                page_size,
+            } => self.search_browse(*starred, cursor.as_deref(), *page_size),
+            BookmarkPageRequest::Search {
                 query,
-                &tags,
-                request.page_size,
-                query_hash,
-                cursor.map(|cursor| cursor.mode),
-            ),
-            _ => self.search_fts(
-                query,
-                &tags,
-                request.page_size,
-                query_hash,
-                cursor.map(|cursor| cursor.mode),
-            ),
+                tags,
+                cursor,
+                page_size,
+            } => self.search_filtered(query, tags, cursor.as_deref(), *page_size),
+            BookmarkPageRequest::Random { limit } => self.search_random(*limit),
         }
     }
 }
 
 impl SqliteFtsSearch {
+    fn search_browse(
+        &self,
+        starred: bool,
+        encoded_cursor: Option<&str>,
+        page_size: u32,
+    ) -> AppResult<SearchPage> {
+        validate_page_size(page_size)?;
+        let query_hash = query_hash(&("browse", starred, page_size))?;
+        let cursor = validated_cursor(encoded_cursor, &query_hash)?;
+        if starred {
+            self.search_starred(page_size, query_hash, cursor)
+        } else {
+            self.search_recent(&[], page_size, query_hash, cursor)
+        }
+    }
+
+    fn search_filtered(
+        &self,
+        raw_query: &str,
+        raw_tags: &[String],
+        encoded_cursor: Option<&str>,
+        page_size: u32,
+    ) -> AppResult<SearchPage> {
+        validate_page_size(page_size)?;
+        let query = raw_query.trim();
+        let tags = normalize_tags(raw_tags);
+        if query.is_empty() && tags.is_empty() {
+            return Err(AppError::validation_error(
+                "search requires a query or at least one tag",
+            ));
+        }
+        let query_hash = query_hash(&("search", query, &tags, page_size))?;
+        let cursor = validated_cursor(encoded_cursor, &query_hash)?;
+        match query.chars().count() {
+            0 => self.search_recent(&tags, page_size, query_hash, cursor),
+            1 | 2 => self.search_like(query, &tags, page_size, query_hash, cursor),
+            _ => self.search_fts(query, &tags, page_size, query_hash, cursor),
+        }
+    }
+
+    fn search_random(&self, limit: u32) -> AppResult<SearchPage> {
+        validate_page_size(limit)?;
+        let connection = self.database.connection()?;
+        let mut statement = connection
+            .prepare("SELECT id FROM bookmarks ORDER BY RANDOM() LIMIT ?")
+            .map_err(database_error)?;
+        let rows = statement
+            .query_map(params![limit], |row| row.get::<_, i64>(0))
+            .map_err(database_error)?;
+        let bookmark_ids = rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(database_error)?;
+        Ok(SearchPage {
+            bookmark_ids,
+            next_cursor: None,
+        })
+    }
+
     fn search_starred(
         &self,
         page_size: u32,
@@ -332,15 +365,21 @@ fn search_offset(cursor: Option<CursorMode>) -> AppResult<u64> {
     }
 }
 
-fn query_hash(
-    query: &str,
-    tags: &[String],
-    page_size: u32,
-    starred_only: bool,
-) -> AppResult<String> {
-    let input = serde_json::to_vec(&(query, tags, page_size, starred_only))
+fn query_hash(value: &impl Serialize) -> AppResult<String> {
+    let input = serde_json::to_vec(value)
         .map_err(|error| AppError::internal_error(format!("failed to hash query: {error}")))?;
     Ok(URL_SAFE_NO_PAD.encode(Sha256::digest(input)))
+}
+
+fn validated_cursor(encoded: Option<&str>, query_hash: &str) -> AppResult<Option<CursorMode>> {
+    let cursor = encoded.map(decode_cursor).transpose()?;
+    if cursor
+        .as_ref()
+        .is_some_and(|cursor| cursor.version != 1 || cursor.query_hash != query_hash)
+    {
+        return Err(AppError::invalid_cursor());
+    }
+    Ok(cursor.map(|cursor| cursor.mode))
 }
 
 fn normalize_tags(tags: &[String]) -> Vec<String> {
@@ -383,21 +422,8 @@ fn validate_page_size(page_size: u32) -> AppResult<()> {
     Ok(())
 }
 
-fn escape_like(query: &str) -> String {
-    query
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
-}
-
 fn fts_literal_phrase(query: &str) -> String {
     format!("\"{}\"", query.replace('"', "\"\""))
-}
-
-fn placeholders(count: usize) -> String {
-    std::iter::repeat_n("?", count)
-        .collect::<Vec<_>>()
-        .join(",")
 }
 
 fn database_error(error: rusqlite::Error) -> AppError {

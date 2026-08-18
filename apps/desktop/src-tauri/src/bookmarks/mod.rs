@@ -2,6 +2,7 @@ pub mod model;
 pub mod repository;
 pub mod search;
 pub mod service;
+mod sql;
 pub mod transfer;
 
 pub use crate::error::{AppError, AppResult};

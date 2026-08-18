@@ -5,14 +5,17 @@ import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { useHotkeys } from '@tanstack/react-hotkeys';
 
 import { Button } from '@/components/ui/button';
-import type { Bookmark, BookmarkBaseView } from '@/types';
+import type { Bookmark, BookmarkBaseView, BookmarkPageRequest } from '@/types';
 import AddBookmarkDialog from './AddBookmarkDialog';
 import {
   BkQueryApiKey,
   bookmarkQueryKey,
   getNextBookmarkPageParam,
+  invalidateNonRandomBookmarkQueries,
   queryBookmarksApi,
   setBookmarkStarredApi,
+  updateBookmarkAccessQueries,
+  updateRandomBookmarkQuery,
 } from './bookmarks.api';
 import ResultList from './ResultList';
 import SearchBar from './SearchBar';
@@ -24,12 +27,16 @@ import { useTauriEvent } from '@/lib/use-tauri-event';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 
 const PAGE_SIZE = 50;
+const RANDOM_LIMIT = 7;
+const RANDOM_ANIMATION_MS = 700;
 
 export default function BookmarkView() {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [baseView, setBaseView] = useState<BookmarkBaseView>('all');
+  const [randomDrawId, setRandomDrawId] = useState(() => Date.now());
+  const [randomDrawing, setRandomDrawing] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [previewBookmark, setPreviewBookmark] = useState<Bookmark | null>(null);
   const [activeBookmarkId, setActiveBookmarkId] = useState<number | null>(null);
@@ -40,19 +47,50 @@ export default function BookmarkView() {
   const previewTriggerRef = useRef<HTMLElement | null>(null);
   const isSearchMode = query.length > 0 || selectedTags.length > 0;
   const starredView = !isSearchMode && baseView === 'starred';
-
-  const bookmarksQuery = useInfiniteQuery({
-    queryKey: bookmarkQueryKey(query, selectedTags, PAGE_SIZE, starredView),
-    initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) =>
-      queryBookmarksApi({
+  const randomView = !isSearchMode && baseView === 'random';
+  const bookmarkRequest = useMemo<BookmarkPageRequest>(() => {
+    if (isSearchMode) {
+      return {
+        mode: 'search',
         query,
         tags: selectedTags,
-        cursor: pageParam,
+        cursor: null,
         page_size: PAGE_SIZE,
-        starred_only: starredView,
-      }),
+      };
+    }
+    if (randomView) return { mode: 'random', limit: RANDOM_LIMIT };
+    return {
+      mode: 'browse',
+      starred: starredView,
+      cursor: null,
+      page_size: PAGE_SIZE,
+    };
+  }, [isSearchMode, query, randomView, selectedTags, starredView]);
+
+  const bookmarksQuery = useInfiniteQuery({
+    queryKey: bookmarkQueryKey(bookmarkRequest, randomDrawId),
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      const request =
+        bookmarkRequest.mode === 'random'
+          ? bookmarkRequest
+          : { ...bookmarkRequest, cursor: pageParam };
+      const response = queryBookmarksApi(request);
+      if (bookmarkRequest.mode !== 'random') return response;
+      const [page] = await Promise.all([
+        response,
+        new Promise<void>((resolve) => window.setTimeout(resolve, RANDOM_ANIMATION_MS)),
+      ]);
+      return page;
+    },
     getNextPageParam: getNextBookmarkPageParam,
+    placeholderData: randomView
+      ? (previousData, previousQuery) =>
+          (previousQuery?.queryKey[1] as BookmarkPageRequest | undefined)?.mode === 'random'
+            ? previousData
+            : undefined
+      : undefined,
+    refetchOnWindowFocus: !randomView,
   });
 
   const bookmarks = useMemo(
@@ -64,18 +102,52 @@ export default function BookmarkView() {
   const singleKeyLocked = showAddDialog || resultListInteractionLocked;
   const starMutation = useMutation({
     mutationFn: setBookmarkStarredApi,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+    onSuccess: (updatedBookmark) => {
+      updateRandomBookmarkQuery(queryClient, updatedBookmark);
+      void invalidateNonRandomBookmarkQueries(queryClient);
     },
   });
 
-  const handleSearch = useCallback((value: string) => {
-    setQuery(value.trim());
-  }, []);
+  const startRandomDraw = useCallback(() => {
+    if (randomDrawing) return false;
+    setRandomDrawing(true);
+    setRandomDrawId((current) => current + 1);
+    return true;
+  }, [randomDrawing]);
 
-  const handleTagsChange = useCallback((tags: string[]) => {
-    setSelectedTags(tags);
-  }, []);
+  const handleSearch = useCallback(
+    (value: string) => {
+      const nextQuery = value.trim();
+      if (baseView === 'random' && isSearchMode && !nextQuery && selectedTags.length === 0) {
+        startRandomDraw();
+      }
+      setQuery(nextQuery);
+    },
+    [baseView, isSearchMode, selectedTags.length, startRandomDraw],
+  );
+
+  const handleTagsChange = useCallback(
+    (tags: string[]) => {
+      if (baseView === 'random' && isSearchMode && query.length === 0 && tags.length === 0) {
+        startRandomDraw();
+      }
+      setSelectedTags(tags);
+    },
+    [baseView, isSearchMode, query.length, startRandomDraw],
+  );
+
+  const handleBaseViewChange = useCallback(
+    (view: BookmarkBaseView) => {
+      if (view === 'random' && !startRandomDraw()) return;
+      if (view !== 'random') setRandomDrawing(false);
+      setBaseView(view);
+    },
+    [startRandomDraw],
+  );
+
+  useEffect(() => {
+    if (!randomView || !bookmarksQuery.isFetching) setRandomDrawing(false);
+  }, [bookmarksQuery.isFetching, randomView]);
 
   useEffect(() => {
     setActiveBookmarkId((currentId) => {
@@ -92,8 +164,12 @@ export default function BookmarkView() {
   }, [activeBookmarkId]);
 
   useTauriEvent('bookmarks-changed', () => {
-    queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+    void invalidateNonRandomBookmarkQueries(queryClient);
     queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
+  });
+
+  useTauriEvent<Bookmark>('bookmark-accessed', ({ payload }) => {
+    updateBookmarkAccessQueries(queryClient, payload);
   });
 
   const recordAccess = useCallback(async (bookmark: Bookmark) => {
@@ -239,7 +315,8 @@ export default function BookmarkView() {
           selectedTags={selectedTags}
           onTagsChange={handleTagsChange}
           baseView={baseView}
-          onBaseViewChange={setBaseView}
+          onBaseViewChange={handleBaseViewChange}
+          randomDrawing={randomDrawing}
         />
       </CollapsibleSidebar>
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
@@ -273,7 +350,9 @@ export default function BookmarkView() {
             bookmarks={bookmarks}
             initialLoading={bookmarksQuery.isLoading}
             initialError={
-              bookmarksQuery.isError && !bookmarksQuery.data ? bookmarksQuery.error.message : null
+              bookmarksQuery.isError && (randomView || !bookmarksQuery.data)
+                ? bookmarksQuery.error.message
+                : null
             }
             hasMore={bookmarksQuery.hasNextPage}
             isFetchingNextPage={bookmarksQuery.isFetchingNextPage}
@@ -288,7 +367,9 @@ export default function BookmarkView() {
                 ? '暂无星标书签。在搜索结果中点击星形按钮，即可将常用书签显示在这里。'
                 : isSearchMode
                   ? '暂无匹配的书签'
-                  : '暂无书签'
+                  : randomView
+                    ? '暂无书签可供随机查看'
+                    : '暂无书签'
             }
             starPendingId={starMutation.isPending ? (starMutation.variables?.id ?? null) : null}
             onToggleStarred={(bookmark, starred) =>

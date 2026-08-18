@@ -1,17 +1,34 @@
 import { useEffect } from 'react';
-import type { Bookmark } from "../types";
+import type { Bookmark } from '../types';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
-import { deleteBookmarksApi, BkQueryApiKey } from "./bookmarks.api";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  deleteBookmarksApi,
+  BkQueryApiKey,
+  invalidateNonRandomBookmarkQueries,
+  removeRandomBookmarksFromQuery,
+} from './bookmarks.api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-export default function DeleteBkDialog({ deleteTarget, setDeleteTarget }: { deleteTarget: Bookmark | null, setDeleteTarget: (bookmark: Bookmark | null) => void }) {
+export default function DeleteBkDialog({
+  deleteTarget,
+  setDeleteTarget,
+}: {
+  deleteTarget: Bookmark | null;
+  setDeleteTarget: (bookmark: Bookmark | null) => void;
+}) {
   const queryClient = useQueryClient();
 
-  const { mutate: handleDelete, isPending: isDeleting, error: deleteError, reset } = useMutation({
+  const {
+    mutate: handleDelete,
+    isPending: isDeleting,
+    error: deleteError,
+    reset,
+  } = useMutation({
     mutationFn: deleteBookmarksApi,
-    onSuccess: () => {
+    onSuccess: (_, ids) => {
       setDeleteTarget(null);
-      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+      removeRandomBookmarksFromQuery(queryClient, ids);
+      void invalidateNonRandomBookmarkQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
     },
   });

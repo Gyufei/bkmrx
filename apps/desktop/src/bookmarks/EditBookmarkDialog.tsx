@@ -6,7 +6,14 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import type { Bookmark } from '../types';
-import { BkQueryApiKey, getTagsApi, tagQueryKey, updateBookmarkApi } from './bookmarks.api';
+import {
+  BkQueryApiKey,
+  getTagsApi,
+  invalidateNonRandomBookmarkQueries,
+  tagQueryKey,
+  updateBookmarkApi,
+  updateRandomBookmarkQuery,
+} from './bookmarks.api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import BookmarkForm, { type BookmarkFormValues } from './BookmarkForm';
 
@@ -28,9 +35,10 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
     error: updateError,
   } = useMutation({
     mutationFn: updateBookmarkApi,
-    onSuccess: () => {
+    onSuccess: (updatedBookmark) => {
       setEditTarget(null);
-      queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
+      updateRandomBookmarkQuery(queryClient, updatedBookmark);
+      void invalidateNonRandomBookmarkQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
     },
   });

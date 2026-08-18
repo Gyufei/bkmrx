@@ -65,15 +65,26 @@ export interface TagQueryRequest {
   limit: number | null;
 }
 
-export type BookmarkBaseView = 'all' | 'starred';
+export type BookmarkBaseView = 'all' | 'starred' | 'random';
 
-export interface BookmarkPageRequest {
-  query: string;
-  tags: string[];
-  cursor: string | null;
-  page_size: number;
-  starred_only: boolean;
-}
+export type BookmarkPageRequest =
+  | {
+      mode: 'browse';
+      starred: boolean;
+      cursor: string | null;
+      page_size: number;
+    }
+  | {
+      mode: 'search';
+      query: string;
+      tags: string[];
+      cursor: string | null;
+      page_size: number;
+    }
+  | {
+      mode: 'random';
+      limit: number;
+    };
 
 export interface BookmarkPage {
   items: Bookmark[];

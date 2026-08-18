@@ -24,6 +24,7 @@ fn main() {
                 bkmrx_lib::settings::RuntimePaths::new(app_data_dir, database.schema_version()?);
 
             let notify_handle = handle.clone();
+            let access_handle = handle.clone();
             let service = Arc::new(
                 BookmarkService::new(
                     SqliteBookmarkRepository::new(Arc::clone(&database)),
@@ -31,6 +32,9 @@ fn main() {
                 )
                 .with_change_notifier(Arc::new(move || {
                     let _ = notify_handle.emit("bookmarks-changed", ());
+                }))
+                .with_access_notifier(Arc::new(move |bookmark| {
+                    let _ = access_handle.emit("bookmark-accessed", bookmark);
                 })),
             );
 

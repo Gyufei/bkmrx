@@ -19,7 +19,7 @@ vi.mock('./bookmarks.api', async (importOriginal) => {
   };
 });
 
-function renderSidebar() {
+function renderSidebar(randomDrawing = false) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -35,6 +35,7 @@ function renderSidebar() {
             onTagsChange={setSelectedTags}
             baseView={baseView}
             onBaseViewChange={setBaseView}
+            randomDrawing={randomDrawing}
           />
         </CollapsibleSidebar>
       </QueryClientProvider>
@@ -74,6 +75,15 @@ describe('BookmarkSidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: '展开侧边栏' }));
 
     expect(queryTagsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the random entry and animates its dice while drawing', async () => {
+    queryTagsMock.mockResolvedValue([]);
+    renderSidebar(true);
+
+    const randomButton = screen.getByRole('button', { name: '随便看看' });
+    expect((randomButton as HTMLButtonElement).disabled).toBe(true);
+    expect(randomButton.querySelector('svg')?.classList.contains('animate-dice-roll')).toBe(true);
   });
 
   it('debounces tag search and trims the request', async () => {

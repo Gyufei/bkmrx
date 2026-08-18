@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Search, SquareLibrary, Star, X } from 'lucide-react';
+import { Dice5, Search, SquareLibrary, Star, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ interface Props {
   onTagsChange: (tags: string[]) => void;
   baseView: BookmarkBaseView;
   onBaseViewChange: (view: BookmarkBaseView) => void;
+  randomDrawing: boolean;
 }
 
 export default function BookmarkSidebar({
@@ -23,6 +24,7 @@ export default function BookmarkSidebar({
   onTagsChange,
   baseView,
   onBaseViewChange,
+  randomDrawing,
 }: Props) {
   const [tagQuery, setTagQuery] = useState('');
   const [debouncedTagQuery, setDebouncedTagQuery] = useState('');
@@ -161,6 +163,13 @@ export default function BookmarkSidebar({
           label="星标"
           onClick={() => onBaseViewChange('starred')}
         />
+        <ViewButton
+          active={baseView === 'random'}
+          disabled={randomDrawing}
+          icon={<Dice5 className={`size-4 ${randomDrawing ? 'animate-dice-roll' : ''}`} />}
+          label="随便看看"
+          onClick={() => onBaseViewChange('random')}
+        />
       </div>
     </div>
   );
@@ -171,16 +180,19 @@ function ViewButton({
   icon,
   label,
   onClick,
+  disabled = false,
 }: {
   active: boolean;
   icon: ReactNode;
   label: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       aria-current={active ? 'page' : undefined}
+      disabled={disabled}
       className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
         active
           ? 'bg-accent font-medium text-accent-foreground'
