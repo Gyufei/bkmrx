@@ -6,6 +6,10 @@ use crate::bookmarks::{
 };
 use crate::notes::SharedNoteService;
 use crate::preview::{BookmarkPreview, PrepareBookmarkPreviewRequest, SharedPreviewService};
+use crate::rss::{
+    CreateFeed, EntryPage, EntryPageRequest, FeedPreview, RefreshResult, RssEntry, RssFeed,
+    SharedRssService,
+};
 use crate::todos::{
     CreateTodo, SharedTodoService, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
 };
@@ -83,6 +87,71 @@ pub async fn prepare_bookmark_preview(
     force_refresh: bool,
 ) -> AppResult<BookmarkPreview> {
     Ok(service.prepare(request, force_refresh).await)
+}
+
+#[tauri::command]
+pub async fn preview_rss_feed(
+    service: State<'_, SharedRssService>,
+    url: String,
+) -> AppResult<FeedPreview> {
+    service.preview(&url).await
+}
+
+#[tauri::command]
+pub async fn create_rss_feed(
+    service: State<'_, SharedRssService>,
+    input: CreateFeed,
+) -> AppResult<RssFeed> {
+    service.create(input).await
+}
+
+#[tauri::command]
+pub fn list_rss_feeds(service: State<'_, SharedRssService>) -> AppResult<Vec<RssFeed>> {
+    service.list_feeds()
+}
+
+#[tauri::command]
+pub fn list_rss_entries(
+    service: State<'_, SharedRssService>,
+    request: EntryPageRequest,
+) -> AppResult<EntryPage> {
+    service.list_entries(&request)
+}
+
+#[tauri::command]
+pub async fn refresh_rss_feed(service: State<'_, SharedRssService>, id: i64) -> AppResult<RssFeed> {
+    service.refresh_feed(id).await
+}
+
+#[tauri::command]
+pub async fn refresh_all_rss_feeds(
+    service: State<'_, SharedRssService>,
+    stale_only: bool,
+) -> AppResult<RefreshResult> {
+    service.refresh_all(stale_only).await
+}
+
+#[tauri::command]
+pub fn mark_rss_entry_read(
+    service: State<'_, SharedRssService>,
+    id: i64,
+    is_read: bool,
+) -> AppResult<RssEntry> {
+    service.mark_entry_read(id, is_read)
+}
+
+#[tauri::command]
+pub fn rename_rss_feed(
+    service: State<'_, SharedRssService>,
+    id: i64,
+    custom_title: Option<String>,
+) -> AppResult<RssFeed> {
+    service.rename_feed(id, custom_title.as_deref())
+}
+
+#[tauri::command]
+pub fn delete_rss_feed(service: State<'_, SharedRssService>, id: i64) -> AppResult<()> {
+    service.delete_feed(id)
 }
 
 #[tauri::command]

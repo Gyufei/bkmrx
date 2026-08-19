@@ -111,6 +111,51 @@ export interface AppError {
   details: unknown | null;
 }
 
+export interface RssFeed {
+  id: number;
+  source_url: string;
+  feed_url: string;
+  site_url: string | null;
+  title: string;
+  custom_title: string | null;
+  entry_count: number;
+  unread_count: number;
+  last_successful_fetched_at: number | null;
+  last_failed_at: number | null;
+  last_error: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface RssEntry {
+  id: number;
+  feed_id: number;
+  feed_title: string;
+  title: string;
+  link: string | null;
+  author: string | null;
+  content_html: string;
+  summary: string;
+  published_at: number | null;
+  fetched_at: number;
+  is_read: boolean;
+}
+
+export type RssEntryScope =
+  { mode: 'all' } | { mode: 'unread' } | { mode: 'feed'; feed_id: number };
+export interface RssEntryPage {
+  entries: RssEntry[];
+  next_cursor: string | null;
+}
+export interface FeedCandidate {
+  title: string | null;
+  feed_url: string;
+}
+export interface FeedPreview {
+  source_url: string;
+  candidates: FeedCandidate[];
+}
+
 export interface ImportPreview {
   file_hash: string;
   total: number;

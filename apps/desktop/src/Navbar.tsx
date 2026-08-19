@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { invokeGetServerStatus } from './lib/invoke';
 import { Button } from './components/ui/button';
-import { Bookmark, ListTodo, Notebook, Settings } from 'lucide-react';
+import { Bookmark, ListTodo, Notebook, Rss, Settings } from 'lucide-react';
 
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
 
@@ -9,6 +9,7 @@ export enum PATHS {
   BOOKMARKS = 'bookmarks',
   NOTES = 'notes',
   TODOS = 'todos',
+  RSS = 'rss',
   SETTINGS = 'settings',
 }
 
@@ -16,6 +17,7 @@ const TABS = [
   { id: PATHS.BOOKMARKS, label: '书签', icon: <Bookmark /> },
   { id: PATHS.NOTES, label: '笔记', icon: <Notebook /> },
   { id: PATHS.TODOS, label: 'Todo', icon: <ListTodo /> },
+  { id: PATHS.RSS, label: 'RSS', icon: <Rss /> },
 ] as const;
 
 export default function NavBar({

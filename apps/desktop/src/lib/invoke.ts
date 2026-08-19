@@ -18,6 +18,11 @@ import type {
   TodoStatus,
   TodoTag,
   UpdateTodo,
+  RssFeed,
+  RssEntry,
+  RssEntryPage,
+  RssEntryScope,
+  FeedPreview,
 } from '../types';
 
 /* ───── Bookmarks ───── */
@@ -60,6 +65,24 @@ export function invokePrepareBookmarkPreview(
 ): Promise<BookmarkPreview> {
   return invoke<BookmarkPreview>('prepare_bookmark_preview', { request, forceRefresh });
 }
+
+/* ───── RSS ───── */
+
+export const invokePreviewRssFeed = (url: string) =>
+  invoke<FeedPreview>('preview_rss_feed', { url });
+export const invokeCreateRssFeed = (input: { source_url: string; feed_url: string }) =>
+  invoke<RssFeed>('create_rss_feed', { input });
+export const invokeListRssFeeds = () => invoke<RssFeed[]>('list_rss_feeds');
+export const invokeListRssEntries = (scope: RssEntryScope, cursor: string | null) =>
+  invoke<RssEntryPage>('list_rss_entries', { request: { scope, cursor } });
+export const invokeRefreshRssFeed = (id: number) => invoke<RssFeed>('refresh_rss_feed', { id });
+export const invokeRefreshAllRssFeeds = (staleOnly: boolean) =>
+  invoke<{ refreshed: number; failed: number }>('refresh_all_rss_feeds', { staleOnly });
+export const invokeMarkRssEntryRead = (id: number, isRead: boolean) =>
+  invoke<RssEntry>('mark_rss_entry_read', { id, isRead });
+export const invokeRenameRssFeed = (id: number, customTitle: string | null) =>
+  invoke<RssFeed>('rename_rss_feed', { id, customTitle });
+export const invokeDeleteRssFeed = (id: number) => invoke<void>('delete_rss_feed', { id });
 
 export function invokeExportBookmarks(path: string): Promise<string> {
   return invoke<string>('export_bookmarks', { path });

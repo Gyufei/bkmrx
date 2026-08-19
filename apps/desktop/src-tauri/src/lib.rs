@@ -5,5 +5,7 @@ pub mod error;
 pub mod http_server;
 pub mod notes;
 pub mod preview;
+pub mod rss;
+pub mod safe_http;
 pub mod settings;
 pub mod todos;

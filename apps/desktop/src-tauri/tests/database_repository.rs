@@ -5,10 +5,10 @@ use bkmrx_lib::database::Database;
 use std::sync::Arc;
 
 #[test]
-fn creates_v1_schema_and_enables_fts5_trigram() {
+fn creates_latest_schema_and_enables_fts5_trigram() {
     let db = Database::open_in_memory().unwrap();
 
-    assert_eq!(db.schema_version().unwrap(), 1);
+    assert_eq!(db.schema_version().unwrap(), 2);
     for table in [
         "bookmarks",
         "tags",
@@ -17,6 +17,8 @@ fn creates_v1_schema_and_enables_fts5_trigram() {
         "todos",
         "todo_tags",
         "todo_tag_relations",
+        "rss_feeds",
+        "rss_entries",
     ] {
         assert!(db.has_table(table).unwrap(), "missing table {table}");
     }
@@ -26,6 +28,8 @@ fn creates_v1_schema_and_enables_fts5_trigram() {
         "idx_bookmarks_updated",
         "idx_todos_status_sort",
         "idx_todo_tag_relations_tag_todo",
+        "idx_rss_entries_feed_sort",
+        "idx_rss_entries_unread_sort",
     ] {
         assert_eq!(
             db.query_i64_for_test(&format!(
@@ -64,11 +68,16 @@ fn creates_v1_schema_and_enables_fts5_trigram() {
         1
     );
     assert_eq!(db.query_i64_for_test("PRAGMA foreign_keys").unwrap(), 1);
+    assert_eq!(
+        db.query_i64_for_test("SELECT count(*) FROM pragma_foreign_key_list('rss_entries')")
+            .unwrap(),
+        1
+    );
     db.assert_fts5_trigram().unwrap();
 }
 
 #[test]
-fn reopens_existing_v1_database_without_changing_data() {
+fn reopens_existing_database_without_changing_data() {
     let directory = tempfile::TempDir::new().unwrap();
     let path = directory.path().join("bookmarks.db");
     let database = Database::open(&path).unwrap();
@@ -83,7 +92,7 @@ fn reopens_existing_v1_database_without_changing_data() {
 
     let database = Database::open(&path).unwrap();
 
-    assert_eq!(database.schema_version().unwrap(), 1);
+    assert_eq!(database.schema_version().unwrap(), 2);
     assert_eq!(
         database
             .query_i64_for_test("SELECT count(*) FROM bookmarks WHERE id = 7")
@@ -93,8 +102,8 @@ fn reopens_existing_v1_database_without_changing_data() {
 }
 
 #[test]
-fn rejects_every_non_baseline_schema_version() {
-    for version in [2, 3, 4] {
+fn rejects_every_newer_schema_version() {
+    for version in [3, 4, 5] {
         let directory = tempfile::TempDir::new().unwrap();
         let path = directory.path().join("bookmarks.db");
         let connection = rusqlite::Connection::open(&path).unwrap();
@@ -108,9 +117,42 @@ fn rejects_every_non_baseline_schema_version() {
         assert_eq!(error.code(), "unsupported_schema_version");
         assert_eq!(
             error.details,
-            Some(serde_json::json!({ "found": version, "supported": 1 }))
+            Some(serde_json::json!({ "found": version, "supported": 2 }))
         );
     }
+}
+
+#[test]
+fn rss_schema_enforces_uniqueness_and_cascade_delete() {
+    let database = Database::open_in_memory().unwrap();
+    database
+        .execute_batch_for_test(
+            "INSERT INTO rss_feeds
+             (id, source_url, feed_url, title, created_at, updated_at)
+             VALUES (1, 'https://example.com', 'https://example.com/feed.xml', 'Example', 1, 1);
+             INSERT INTO rss_entries
+             (feed_id, dedupe_key, title, fetched_at, created_at, updated_at)
+             VALUES (1, 'guid:one', 'Entry', 1, 1, 1);",
+        )
+        .unwrap();
+
+    assert!(database
+        .execute_batch_for_test(
+            "INSERT INTO rss_entries
+             (feed_id, dedupe_key, title, fetched_at, created_at, updated_at)
+             VALUES (1, 'guid:one', 'Duplicate', 2, 2, 2);"
+        )
+        .is_err());
+
+    database
+        .execute_batch_for_test("DELETE FROM rss_feeds WHERE id = 1;")
+        .unwrap();
+    assert_eq!(
+        database
+            .query_i64_for_test("SELECT count(*) FROM rss_entries")
+            .unwrap(),
+        0
+    );
 }
 
 fn repository() -> (Arc<Database>, SqliteBookmarkRepository) {

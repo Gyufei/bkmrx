@@ -102,6 +102,10 @@ impl AppError {
         Self::new(code, message, None)
     }
 
+    pub fn rss_error(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::new(code, message, None)
+    }
+
     fn new(
         code: impl Into<String>,
         message: impl Into<String>,

@@ -4,6 +4,7 @@ import NotesPanel from './notes/NotesPanel';
 import SettingsPage from './settings/SettingsPage';
 import BookmarkView from './bookmarks/BookmarkView';
 import TodoPage from './todos/TodoPage';
+import RssPage from './rss/RssPage';
 
 import NavBar, { PATHS } from './Navbar';
 
@@ -26,6 +27,11 @@ export default function AppHome() {
       callback: () => setCurrentPath(PATHS.TODOS),
       options: { meta: { name: '打开 Todo', description: '切换到 Todo 工作区' } },
     },
+    {
+      hotkey: 'Mod+4',
+      callback: () => setCurrentPath(PATHS.RSS),
+      options: { meta: { name: '打开 RSS', description: '切换到 RSS 阅读工作区' } },
+    },
   ]);
 
   return (
@@ -38,6 +44,8 @@ export default function AppHome() {
         <BookmarkView />
       ) : currentPath === PATHS.NOTES ? (
         <NotesPanel />
+      ) : currentPath === PATHS.RSS ? (
+        <RssPage />
       ) : (
         <TodoPage />
       )}

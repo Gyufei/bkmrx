@@ -4,6 +4,7 @@ use bkmrx_lib::{
     bookmarks::{BookmarkService, SqliteBookmarkRepository, SqliteFtsSearch},
     database::Database,
     preview::PreviewService,
+    rss::{RssRepository, RssService},
     todos::{SqliteTodoRepository, TodoService},
 };
 use tauri::{Emitter, Manager};
@@ -40,6 +41,14 @@ fn main() {
 
             app.manage(Arc::clone(&service));
             app.manage(Arc::new(PreviewService::new(None)?));
+            let rss_handle = handle.clone();
+            app.manage(Arc::new(
+                RssService::new(RssRepository::new(Arc::clone(&database))).with_change_notifier(
+                    Arc::new(move || {
+                        let _ = rss_handle.emit("rss-changed", ());
+                    }),
+                ),
+            ));
             let todo_handle = handle.clone();
             let todo_service = Arc::new(
                 TodoService::new(SqliteTodoRepository::new(Arc::clone(&database)))
@@ -74,6 +83,15 @@ fn main() {
             bkmrx_lib::commands::record_bookmark_access,
             bkmrx_lib::commands::set_bookmark_starred,
             bkmrx_lib::commands::prepare_bookmark_preview,
+            bkmrx_lib::commands::preview_rss_feed,
+            bkmrx_lib::commands::create_rss_feed,
+            bkmrx_lib::commands::list_rss_feeds,
+            bkmrx_lib::commands::list_rss_entries,
+            bkmrx_lib::commands::refresh_rss_feed,
+            bkmrx_lib::commands::refresh_all_rss_feeds,
+            bkmrx_lib::commands::mark_rss_entry_read,
+            bkmrx_lib::commands::rename_rss_feed,
+            bkmrx_lib::commands::delete_rss_feed,
             bkmrx_lib::commands::query_todos,
             bkmrx_lib::commands::get_todo_tags,
             bkmrx_lib::commands::create_todo,
