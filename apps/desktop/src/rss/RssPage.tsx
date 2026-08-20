@@ -367,18 +367,40 @@ function EntryReader({ entry, onToggleRead }: { entry: RssEntry; onToggleRead: (
   const contentRef = useRef<HTMLDivElement>(null);
   const contextImageUrl = useRef<string | null>(null);
   useEffect(() => {
-    contentRef.current?.querySelectorAll('img').forEach((image) => {
+    const content = contentRef.current;
+    content?.querySelectorAll('img').forEach((image) => {
       image.loading = 'lazy';
       image.decoding = 'async';
     });
-  }, [entry.id, entry.content_html]);
-  const handleClick = (event: React.MouseEvent) => {
-    const anchor = (event.target as HTMLElement).closest('a');
-    if (anchor?.href) {
+    const handleContentLink = (event: MouseEvent) => {
+      if (event.type === 'auxclick' && event.button !== 1) return;
+      if (!(event.target instanceof Element)) return;
+      const articleContent = event.target.closest('[data-rss-entry-content]');
+      const anchor = event.target.closest('a');
+      if (!articleContent || !anchor || !articleContent.contains(anchor)) return;
+
       event.preventDefault();
-      void open(anchor.href);
-    }
-  };
+      let url: URL;
+      try {
+        url = new URL(anchor.href);
+      } catch {
+        return;
+      }
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+      void open(url.href).catch((reason) => {
+        const error = reason instanceof Error ? reason : new Error(String(reason));
+        console.error('Failed to open external RSS link', { href: url.href, error });
+      });
+    };
+    document.addEventListener('click', handleContentLink, true);
+    document.addEventListener('auxclick', handleContentLink, true);
+
+    return () => {
+      document.removeEventListener('click', handleContentLink, true);
+      document.removeEventListener('auxclick', handleContentLink, true);
+    };
+  }, [entry.id, entry.content_html]);
   const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
     const image = event.target instanceof Element ? event.target.closest('img') : null;
     if (!image || !event.currentTarget.contains(image)) {
@@ -436,12 +458,11 @@ function EntryReader({ entry, onToggleRead }: { entry: RssEntry; onToggleRead: (
         <div onContextMenuCapture={handleContextMenu}>
           <ContextMenu onOpenChange={(open) => !open && (contextImageUrl.current = null)}>
             <ContextMenuTrigger
+              ref={contentRef}
               render={
                 <div
-                  ref={contentRef}
                   data-rss-entry-content
                   className="prose prose-neutral max-w-none dark:prose-invert prose-img:h-auto prose-img:max-w-full"
-                  onClick={handleClick}
                   dangerouslySetInnerHTML={{ __html: entry.content_html }}
                 />
               }

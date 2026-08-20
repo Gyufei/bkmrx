@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { save } from '@tauri-apps/plugin-dialog';
+import { open } from '@tauri-apps/plugin-shell';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import RssPage from './RssPage';
 
@@ -74,6 +75,7 @@ beforeEach(() => {
   refreshAllFeedsApi.mockResolvedValue({ refreshed: 0, added: 0, failed: 0 });
   downloadRssImageApi.mockResolvedValue(undefined);
   vi.mocked(save).mockResolvedValue('/tmp/photo.jpg');
+  vi.mocked(open).mockResolvedValue(undefined);
 });
 
 afterEach(cleanup);
@@ -158,4 +160,123 @@ it('downloads a right-clicked article image through the shadcn context menu', as
       '/tmp/photo.jpg',
     ),
   );
+});
+
+it('opens article links externally for left and middle clicks without navigating the webview', async () => {
+  refreshAllFeedsApi.mockReturnValue(new Promise(() => {}));
+  listEntriesApi.mockResolvedValue({
+    entries: [
+      {
+        id: 7,
+        feed_id: 1,
+        feed_title: 'Feed',
+        title: 'Unread article',
+        link: null,
+        author: null,
+        content_html:
+          '<a href="https://example.com/article"><span>External article</span></a>',
+        summary: 'Body',
+        published_at: 100,
+        fetched_at: 100,
+        is_read: false,
+      },
+    ],
+    next_cursor: null,
+  });
+  markEntryReadApi.mockResolvedValue({
+    id: 7,
+    feed_id: 1,
+    feed_title: 'Feed',
+    title: 'Unread article',
+    link: null,
+    author: null,
+    content_html: '<a href="https://example.com/article"><span>External article</span></a>',
+    summary: 'Body',
+    published_at: 100,
+    fetched_at: 100,
+    is_read: true,
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /Unread article/ }));
+  await waitFor(() => expect(markEntryReadApi).toHaveBeenCalled());
+  await act(async () => {});
+  const nestedLinkContent = await waitFor(() => {
+    const content = document.querySelector<HTMLElement>('[data-rss-entry-content]');
+    const nested = content?.querySelector<HTMLElement>('a span');
+    expect(nested).toBeTruthy();
+    return nested!;
+  });
+  const leftClick = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+  const middleClick = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 });
+
+  nestedLinkContent.dispatchEvent(leftClick);
+  nestedLinkContent.dispatchEvent(middleClick);
+
+  expect(leftClick.defaultPrevented).toBe(true);
+  expect(middleClick.defaultPrevented).toBe(true);
+  expect(open).toHaveBeenNthCalledWith(1, 'https://example.com/article');
+  expect(open).toHaveBeenNthCalledWith(2, 'https://example.com/article');
+});
+
+it('blocks non-http article links', async () => {
+  refreshAllFeedsApi.mockReturnValue(new Promise(() => {}));
+  listEntriesApi.mockResolvedValue({
+    entries: [
+      {
+        id: 7,
+        feed_id: 1,
+        feed_title: 'Feed',
+        title: 'Unread article',
+        link: null,
+        author: null,
+        content_html: '<a href="mailto:test@example.com">Email link</a>',
+        summary: 'Body',
+        published_at: 100,
+        fetched_at: 100,
+        is_read: false,
+      },
+    ],
+    next_cursor: null,
+  });
+  markEntryReadApi.mockResolvedValue({
+    id: 7,
+    feed_id: 1,
+    feed_title: 'Feed',
+    title: 'Unread article',
+    link: null,
+    author: null,
+    content_html: '<a href="mailto:test@example.com">Email link</a>',
+    summary: 'Body',
+    published_at: 100,
+    fetched_at: 100,
+    is_read: true,
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /Unread article/ }));
+  await waitFor(() => expect(markEntryReadApi).toHaveBeenCalled());
+  await act(async () => {});
+  const emailLink = await waitFor(() => {
+    const content = document.querySelector<HTMLElement>('[data-rss-entry-content]');
+    const anchor = content?.querySelector<HTMLElement>('a');
+    expect(anchor).toBeTruthy();
+    return anchor!;
+  });
+  const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+
+  emailLink.dispatchEvent(click);
+
+  expect(click.defaultPrevented).toBe(true);
+  expect(open).not.toHaveBeenCalled();
 });

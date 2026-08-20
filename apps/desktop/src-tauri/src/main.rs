@@ -9,11 +9,30 @@ use bkmrx_lib::{
 };
 use tauri::{Emitter, Manager};
 
+fn is_allowed_app_navigation(url: &tauri::Url) -> bool {
+    if url.scheme() == "tauri" && url.host_str() == Some("localhost") {
+        return true;
+    }
+    if matches!(url.scheme(), "http" | "https") && url.host_str() == Some("tauri.localhost") {
+        return true;
+    }
+
+    tauri::is_dev()
+        && url.scheme() == "http"
+        && url.host_str() == Some("localhost")
+        && url.port() == Some(1420)
+}
+
 fn main() {
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
     let shutdown_tx = Mutex::new(Some(shutdown_tx));
 
     tauri::Builder::default()
+        .plugin(
+            tauri::plugin::Builder::<tauri::Wry>::new("navigation-guard")
+                .on_navigation(|_webview, url| is_allowed_app_navigation(url))
+                .build(),
+        )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -127,4 +146,32 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error while running bkmrx");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_allowed_app_navigation;
+
+    #[test]
+    fn allows_application_urls() {
+        assert!(is_allowed_app_navigation(
+            &"tauri://localhost".parse().unwrap()
+        ));
+        assert!(is_allowed_app_navigation(
+            &"http://tauri.localhost".parse().unwrap()
+        ));
+        assert!(is_allowed_app_navigation(
+            &"https://tauri.localhost/path".parse().unwrap()
+        ));
+    }
+
+    #[test]
+    fn rejects_external_navigation() {
+        assert!(!is_allowed_app_navigation(
+            &"https://example.com/article".parse().unwrap()
+        ));
+        assert!(!is_allowed_app_navigation(
+            &"file:///tmp/article.html".parse().unwrap()
+        ));
+    }
 }
