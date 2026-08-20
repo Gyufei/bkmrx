@@ -150,10 +150,25 @@ export interface RssEntryPage {
 export interface FeedCandidate {
   title: string | null;
   feed_url: string;
+  site_url: string | null;
+  recent_entries: FeedPreviewEntry[];
+}
+export interface FeedPreviewEntry {
+  title: string;
+  published_at: number | null;
 }
 export interface FeedPreview {
   source_url: string;
   candidates: FeedCandidate[];
+}
+export interface FeedRefreshResult {
+  feed: RssFeed;
+  added: number;
+}
+export interface RefreshResult {
+  refreshed: number;
+  added: number;
+  failed: number;
 }
 
 export interface ImportPreview {

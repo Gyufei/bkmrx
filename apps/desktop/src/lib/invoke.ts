@@ -23,6 +23,8 @@ import type {
   RssEntryPage,
   RssEntryScope,
   FeedPreview,
+  FeedRefreshResult,
+  RefreshResult,
 } from '../types';
 
 /* ───── Bookmarks ───── */
@@ -70,19 +72,25 @@ export function invokePrepareBookmarkPreview(
 
 export const invokePreviewRssFeed = (url: string) =>
   invoke<FeedPreview>('preview_rss_feed', { url });
-export const invokeCreateRssFeed = (input: { source_url: string; feed_url: string }) =>
-  invoke<RssFeed>('create_rss_feed', { input });
+export const invokeCreateRssFeed = (input: {
+  source_url: string;
+  feed_url: string;
+  custom_title: string | null;
+}) => invoke<RssFeed>('create_rss_feed', { input });
 export const invokeListRssFeeds = () => invoke<RssFeed[]>('list_rss_feeds');
 export const invokeListRssEntries = (scope: RssEntryScope, cursor: string | null) =>
   invoke<RssEntryPage>('list_rss_entries', { request: { scope, cursor } });
-export const invokeRefreshRssFeed = (id: number) => invoke<RssFeed>('refresh_rss_feed', { id });
+export const invokeRefreshRssFeed = (id: number) =>
+  invoke<FeedRefreshResult>('refresh_rss_feed', { id });
 export const invokeRefreshAllRssFeeds = (staleOnly: boolean) =>
-  invoke<{ refreshed: number; failed: number }>('refresh_all_rss_feeds', { staleOnly });
+  invoke<RefreshResult>('refresh_all_rss_feeds', { staleOnly });
 export const invokeMarkRssEntryRead = (id: number, isRead: boolean) =>
   invoke<RssEntry>('mark_rss_entry_read', { id, isRead });
 export const invokeRenameRssFeed = (id: number, customTitle: string | null) =>
   invoke<RssFeed>('rename_rss_feed', { id, customTitle });
 export const invokeDeleteRssFeed = (id: number) => invoke<void>('delete_rss_feed', { id });
+export const invokeDownloadRssImage = (url: string, referer: string | null, destination: string) =>
+  invoke<void>('download_rss_image', { url, referer, destination });
 
 export function invokeExportBookmarks(path: string): Promise<string> {
   return invoke<string>('export_bookmarks', { path });
@@ -139,8 +147,13 @@ export function invokeGetServerStatus(): Promise<{ running: boolean; url: string
 /* ───── Settings ───── */
 
 export interface AppSettings {
-  backup_dir: string | null;
-  notes_dir: string | null;
+  common: Record<string, never>;
+  bookmark: { backup_dir: string | null };
+  note: { notes_dir: string | null };
+  rss: {
+    rsshub_base_url: string | null;
+    rsshub_access_key: string | null;
+  };
 }
 
 export function invokeGetSettings(): Promise<AppSettings> {

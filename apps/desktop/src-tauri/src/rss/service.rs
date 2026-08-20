@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -10,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{AppError, AppResult};
 
 use super::{
-    fetcher::FeedFetcher,
+    fetcher::{is_official_rsshub_url, FeedFetcher},
     model::{CreateFeed, EntryPage, EntryPageRequest, FeedPreview, RssEntry, RssFeed},
     repository::RssRepository,
 };
@@ -18,21 +19,28 @@ use super::{
 const STALE_AFTER: Duration = Duration::from_secs(15 * 60);
 
 pub type SharedRssService = Arc<RssService>;
-type SharedRefresh = futures_util::future::Shared<BoxFuture<'static, AppResult<RssFeed>>>;
+type SharedRefresh = futures_util::future::Shared<BoxFuture<'static, AppResult<FeedRefreshResult>>>;
 type InflightRefreshes = Arc<Mutex<HashMap<i64, SharedRefresh>>>;
 
 #[derive(Clone)]
 pub struct RssService {
     repository: RssRepository,
     fetcher: FeedFetcher,
-    change_notifier: Option<Arc<dyn Fn() + Send + Sync>>,
     inflight: InflightRefreshes,
+    settings_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RefreshResult {
     pub refreshed: u32,
+    pub added: u32,
     pub failed: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FeedRefreshResult {
+    pub feed: RssFeed,
+    pub added: u32,
 }
 
 impl RssService {
@@ -40,26 +48,37 @@ impl RssService {
         Self {
             repository,
             fetcher: FeedFetcher,
-            change_notifier: None,
             inflight: Arc::new(Mutex::new(HashMap::new())),
+            settings_path: None,
         }
     }
 
-    pub fn with_change_notifier(mut self, notifier: Arc<dyn Fn() + Send + Sync>) -> Self {
-        self.change_notifier = Some(notifier);
+    pub fn with_settings_path(mut self, settings_path: PathBuf) -> Self {
+        self.settings_path = Some(settings_path);
         self
     }
 
+    fn rss_settings(&self) -> AppResult<crate::settings::RssSettings> {
+        self.settings_path
+            .as_deref()
+            .map(crate::settings::load)
+            .transpose()
+            .map(|settings| settings.unwrap_or_default().rss)
+    }
+
     pub async fn preview(&self, url: &str) -> AppResult<FeedPreview> {
-        self.fetcher.preview(url).await
+        self.fetcher.preview(url, &self.rss_settings()?).await
     }
 
     pub async fn create(&self, input: CreateFeed) -> AppResult<RssFeed> {
-        let (feed_url, parsed) = self.fetcher.fetch_and_parse(&input.feed_url).await?;
+        let settings = self.rss_settings()?;
+        let (feed_url, parsed) = self
+            .fetcher
+            .fetch_and_parse(&input.feed_url, &settings)
+            .await?;
         let feed = self
             .repository
             .create(&CreateFeed { feed_url, ..input }, &parsed)?;
-        self.notify();
         Ok(feed)
     }
 
@@ -70,7 +89,7 @@ impl RssService {
         self.repository.list_entries(request)
     }
 
-    pub async fn refresh_feed(&self, id: i64) -> AppResult<RssFeed> {
+    pub async fn refresh_feed(&self, id: i64) -> AppResult<FeedRefreshResult> {
         let future = {
             let mut inflight = self
                 .inflight
@@ -96,20 +115,31 @@ impl RssService {
         future.await
     }
 
-    async fn refresh_feed_once(&self, id: i64) -> AppResult<RssFeed> {
+    async fn refresh_feed_once(&self, id: i64) -> AppResult<FeedRefreshResult> {
         let feed = self
             .repository
             .get_feed(id)?
             .ok_or_else(|| feed_not_found(id))?;
-        match self.fetcher.fetch_and_parse(&feed.feed_url).await {
+        let settings = self.rss_settings()?;
+        let source_is_rsshub = url::Url::parse(&feed.source_url)
+            .ok()
+            .is_some_and(|url| is_official_rsshub_url(&url));
+        let refresh_url = if source_is_rsshub {
+            &feed.source_url
+        } else {
+            &feed.feed_url
+        };
+        match self.fetcher.fetch_and_parse(refresh_url, &settings).await {
             Ok((url, parsed)) => {
-                let feed = self.repository.apply_refresh(id, &url, &parsed)?;
-                self.notify();
-                Ok(feed)
+                let (feed, added) = self.repository.apply_refresh(id, &url, &parsed)?;
+                Ok(FeedRefreshResult { feed, added })
             }
             Err(error) => {
-                self.repository.record_failure(id, &error.message)?;
-                self.notify();
+                if let Err(record_error) = self.repository.record_failure(id, &error.message) {
+                    if record_error.code != "rss_feed_not_found" {
+                        return Err(record_error);
+                    }
+                }
                 Err(error)
             }
         }
@@ -129,33 +159,29 @@ impl RssService {
                 .collect::<Vec<_>>()
                 .await;
         Ok(RefreshResult {
-            refreshed: results.iter().filter(|result| result.is_ok()).count() as u32,
+            refreshed: results.len() as u32,
+            added: results
+                .iter()
+                .filter_map(|result| result.as_ref().ok())
+                .map(|result| result.added)
+                .sum(),
             failed: results.iter().filter(|result| result.is_err()).count() as u32,
         })
     }
 
     pub fn mark_entry_read(&self, id: i64, is_read: bool) -> AppResult<RssEntry> {
         let entry = self.repository.mark_entry_read(id, is_read)?;
-        self.notify();
         Ok(entry)
     }
 
     pub fn rename_feed(&self, id: i64, custom_title: Option<&str>) -> AppResult<RssFeed> {
         let feed = self.repository.rename(id, custom_title)?;
-        self.notify();
         Ok(feed)
     }
 
     pub fn delete_feed(&self, id: i64) -> AppResult<()> {
         self.repository.delete(id)?;
-        self.notify();
         Ok(())
-    }
-
-    fn notify(&self) {
-        if let Some(notifier) = &self.change_notifier {
-            notifier();
-        }
     }
 }
 

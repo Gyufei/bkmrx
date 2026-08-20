@@ -15,6 +15,7 @@ use super::{
 pub fn parse_feed(source: &[u8], feed_url: &str, fetched_at: i64) -> AppResult<ParsedFeed> {
     let feed = Builder::new()
         .base_uri(Some(feed_url))
+        // Keep missing source IDs empty so our link/title hash fallback owns deduplication.
         .id_generator(|_, _, source_id| source_id.unwrap_or_default().trim().to_owned())
         .build()
         .parse(source)

@@ -15,7 +15,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 vi.mock('@/settings/settings.api', () => ({
   SettingsQueryApiKey: { SETTINGS: 'settings' },
-  getSettingsApi: vi.fn().mockResolvedValue({ notes_dir: '/notes' }),
+  getSettingsApi: vi.fn().mockResolvedValue({ note: { notes_dir: '/notes' } }),
 }));
 
 vi.mock('./notes.api', () => ({

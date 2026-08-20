@@ -90,7 +90,9 @@ describe('TodoPage', () => {
   it('combines a selected tag with a status filter', async () => {
     renderPage();
     expect(await screen.findByText('写测试')).toBeTruthy();
-    fireEvent.click(screen.getByText('工作', { selector: 'span.truncate' }));
+    const tag = screen.getByText('工作', { selector: 'span.truncate' });
+    fireEvent.click(tag);
+    expect(tag.closest('.text-sm')?.classList.contains('bg-primary/15')).toBe(true);
     fireEvent.click(screen.getByText('已完成'));
     await waitFor(() =>
       expect(mocks.query).toHaveBeenLastCalledWith({ status: 'completed', tag_id: 4 }),

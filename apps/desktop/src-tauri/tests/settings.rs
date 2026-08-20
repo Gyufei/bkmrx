@@ -6,7 +6,9 @@ fn settings_round_trip_at_explicit_app_data_path() {
     let app_data = TempDir::new().unwrap();
     let path = app_data.path().join("settings.json");
     let settings = Settings {
-        notes_dir: Some("/tmp/notes".to_owned()),
+        note: bkmrx_lib::settings::NoteSettings {
+            notes_dir: Some("/tmp/notes".to_owned()),
+        },
         ..Settings::default()
     };
 
@@ -47,15 +49,34 @@ fn save_replaces_settings_without_leaving_temp_files() {
     save(
         &path,
         &Settings {
-            notes_dir: Some("/tmp/notes".into()),
-            backup_dir: None,
+            note: bkmrx_lib::settings::NoteSettings {
+                notes_dir: Some("/tmp/notes".into()),
+            },
+            ..Settings::default()
         },
     )
     .unwrap();
 
     assert_eq!(
-        load(&path).unwrap().notes_dir.as_deref(),
+        load(&path).unwrap().note.notes_dir.as_deref(),
         Some("/tmp/notes")
     );
     assert_eq!(std::fs::read_dir(app_data.path()).unwrap().count(), 1);
+}
+
+#[test]
+fn loads_legacy_flat_settings_and_saves_grouped_json() {
+    let app_data = TempDir::new().unwrap();
+    let path = app_data.path().join("settings.json");
+    std::fs::write(&path, br#"{"backup_dir":"/backup","notes_dir":"/notes"}"#).unwrap();
+
+    let settings = load(&path).unwrap();
+    assert_eq!(settings.bookmark.backup_dir.as_deref(), Some("/backup"));
+    assert_eq!(settings.note.notes_dir.as_deref(), Some("/notes"));
+    save(&path, &settings).unwrap();
+
+    let json = std::fs::read_to_string(path).unwrap();
+    assert!(json.contains("\"bookmark\""));
+    assert!(json.contains("\"note\""));
+    assert!(!json.contains("\"backup_dir\": null"));
 }

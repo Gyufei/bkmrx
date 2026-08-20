@@ -21,7 +21,7 @@ interface TodoSidebarProps {
 const tagButtonClass = (selected: boolean) =>
   cn(
     'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm',
-    selected ? 'bg-muted font-medium' : 'hover:bg-muted/60',
+    selected ? 'bg-primary/15 font-medium' : 'hover:bg-muted/60',
   );
 
 export default function TodoSidebar({

@@ -8,6 +8,7 @@ use url::Url;
 use crate::{
     error::{AppError, AppResult},
     safe_http::{parse_http_url, resolve_public_target},
+    settings::RssSettings,
 };
 
 use super::{
@@ -24,23 +25,32 @@ const USER_AGENT: &str = concat!("bkmrx/", env!("CARGO_PKG_VERSION"), " RSS read
 pub struct FeedFetcher;
 
 impl FeedFetcher {
-    pub async fn preview(&self, raw_url: &str) -> AppResult<FeedPreview> {
+    pub async fn preview(&self, raw_url: &str, settings: &RssSettings) -> AppResult<FeedPreview> {
         let source_url = parse_http_url(raw_url)
             .map_err(safe_http_error)?
             .to_string();
-        let fetched = self.fetch(&source_url).await?;
-        if parse_feed(
+        let request_url = resolve_rsshub_url(&source_url, settings)?;
+        let fetched = self.fetch(&request_url, settings).await?;
+        if let Ok(parsed) = parse_feed(
             &fetched.body,
             fetched.url.as_str(),
             chrono::Utc::now().timestamp(),
-        )
-        .is_ok()
-        {
+        ) {
             return Ok(FeedPreview {
                 source_url,
                 candidates: vec![FeedCandidate {
-                    title: None,
+                    title: Some(parsed.title),
                     feed_url: fetched.url.to_string(),
+                    site_url: parsed.site_url,
+                    recent_entries: parsed
+                        .entries
+                        .into_iter()
+                        .take(3)
+                        .map(|entry| super::model::FeedPreviewEntry {
+                            title: entry.title,
+                            published_at: entry.published_at,
+                        })
+                        .collect(),
                 }],
             });
         }
@@ -58,8 +68,13 @@ impl FeedFetcher {
         })
     }
 
-    pub async fn fetch_and_parse(&self, feed_url: &str) -> AppResult<(String, ParsedFeed)> {
-        let fetched = self.fetch(feed_url).await?;
+    pub async fn fetch_and_parse(
+        &self,
+        feed_url: &str,
+        settings: &RssSettings,
+    ) -> AppResult<(String, ParsedFeed)> {
+        let request_url = resolve_rsshub_url(feed_url, settings)?;
+        let fetched = self.fetch(&request_url, settings).await?;
         let parsed = parse_feed(
             &fetched.body,
             fetched.url.as_str(),
@@ -68,13 +83,13 @@ impl FeedFetcher {
         Ok((fetched.url.to_string(), parsed))
     }
 
-    async fn fetch(&self, raw_url: &str) -> AppResult<FetchedBody> {
-        tokio::time::timeout(REQUEST_TIMEOUT, self.fetch_inner(raw_url))
+    async fn fetch(&self, raw_url: &str, settings: &RssSettings) -> AppResult<FetchedBody> {
+        tokio::time::timeout(REQUEST_TIMEOUT, self.fetch_inner(raw_url, settings))
             .await
             .map_err(|_| AppError::rss_error("rss_request_timeout", "The feed request timed out"))?
     }
 
-    async fn fetch_inner(&self, raw_url: &str) -> AppResult<FetchedBody> {
+    async fn fetch_inner(&self, raw_url: &str, settings: &RssSettings) -> AppResult<FetchedBody> {
         let mut url = parse_http_url(raw_url).map_err(safe_http_error)?;
         for redirect_count in 0..=MAX_REDIRECTS {
             let addresses = resolve_public_target(&url).await.map_err(safe_http_error)?;
@@ -88,7 +103,7 @@ impl FeedFetcher {
                 .build()
                 .map_err(request_error)?;
             let response = client
-                .get(url.clone())
+                .get(authenticated_rsshub_url(&url, settings))
                 .header(header::ACCEPT, "application/atom+xml, application/rss+xml, application/xml, text/xml, text/html;q=0.8, */*;q=0.1")
                 .send()
                 .await
@@ -145,6 +160,47 @@ impl FeedFetcher {
     }
 }
 
+fn resolve_rsshub_url(raw_url: &str, settings: &RssSettings) -> AppResult<String> {
+    let source = parse_http_url(raw_url).map_err(safe_http_error)?;
+    if !is_official_rsshub_url(&source) {
+        return Ok(source.to_string());
+    }
+    let Some(base) = settings.rsshub_base_url.as_deref() else {
+        return Ok(source.to_string());
+    };
+    let mut target = parse_http_url(base).map_err(safe_http_error)?;
+    target.set_path(source.path());
+    target.set_query(source.query());
+    Ok(target.to_string())
+}
+
+pub(super) fn is_official_rsshub_url(url: &Url) -> bool {
+    url.host_str() == Some("rsshub.app")
+}
+
+fn authenticated_rsshub_url(url: &Url, settings: &RssSettings) -> Url {
+    let Some(base) = settings
+        .rsshub_base_url
+        .as_deref()
+        .and_then(|raw| Url::parse(raw).ok())
+    else {
+        return url.clone();
+    };
+    if url.origin() != base.origin() {
+        return url.clone();
+    }
+    let Some(key) = settings
+        .rsshub_access_key
+        .as_deref()
+        .filter(|key| !key.is_empty())
+    else {
+        return url.clone();
+    };
+    let mut authenticated = url.clone();
+    authenticated.query_pairs_mut().append_pair("key", key);
+    authenticated
+}
+
 struct FetchedBody {
     url: Url,
     body: Vec<u8>,
@@ -195,6 +251,8 @@ fn discover_feed_links(body: &[u8], base_url: &Url) -> Vec<FeedCandidate> {
                 .filter(|value| !value.is_empty())
                 .map(str::to_owned),
             feed_url,
+            site_url: None,
+            recent_entries: Vec::new(),
         });
     }
     candidates
@@ -210,7 +268,8 @@ fn request_error(error: reqwest::Error) -> AppError {
 
 #[cfg(test)]
 mod tests {
-    use super::discover_feed_links;
+    use super::{authenticated_rsshub_url, discover_feed_links, resolve_rsshub_url};
+    use crate::settings::RssSettings;
     use url::Url;
 
     #[test]
@@ -225,5 +284,21 @@ mod tests {
         assert_eq!(links.len(), 2);
         assert_eq!(links[0].feed_url, "https://example.com/feed.xml");
         assert_eq!(links[1].feed_url, "https://example.com/blog/atom.xml");
+    }
+
+    #[test]
+    fn resolves_official_rsshub_urls_through_configured_service() {
+        let settings = RssSettings {
+            rsshub_base_url: Some("https://rss.example.com".into()),
+            rsshub_access_key: Some("secret".into()),
+        };
+        let resolved = resolve_rsshub_url("https://rsshub.app/dedao?limit=10", &settings).unwrap();
+        assert_eq!(resolved, "https://rss.example.com/dedao?limit=10");
+        let authenticated = authenticated_rsshub_url(&Url::parse(&resolved).unwrap(), &settings);
+        assert_eq!(
+            authenticated.as_str(),
+            "https://rss.example.com/dedao?limit=10&key=secret"
+        );
+        assert!(!resolved.contains("secret"));
     }
 }

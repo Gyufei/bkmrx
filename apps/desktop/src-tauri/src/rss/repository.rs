@@ -49,24 +49,45 @@ impl RssRepository {
     }
 
     pub fn get_feed(&self, id: i64) -> AppResult<Option<RssFeed>> {
-        Ok(self.list_feeds()?.into_iter().find(|feed| feed.id == id))
+        self.database
+            .connection()?
+            .query_row(
+                "SELECT f.id, f.source_url, f.feed_url, f.site_url, f.title, f.custom_title,
+                    (SELECT count(*) FROM rss_entries e WHERE e.feed_id = f.id),
+                    (SELECT count(*) FROM rss_entries e WHERE e.feed_id = f.id AND e.is_read = 0),
+                    f.last_successful_fetched_at, f.last_failed_at, f.last_error,
+                    f.created_at, f.updated_at
+                 FROM rss_feeds f WHERE f.id = ?1",
+                [id],
+                feed_from_row,
+            )
+            .optional()
+            .map_err(database_error)
     }
 
     pub fn create(&self, input: &CreateFeed, parsed: &ParsedFeed) -> AppResult<RssFeed> {
         let now = Utc::now().timestamp();
         let mut connection = self.database.connection()?;
         let transaction = connection.transaction().map_err(database_error)?;
+        if let Some(id) = find_conflicting_feed(&transaction, &input.source_url, &input.feed_url)? {
+            return Err(AppError::rss_feed_conflict(id));
+        }
         transaction
             .execute(
                 "INSERT INTO rss_feeds (
-                source_url, feed_url, site_url, title, last_successful_fetched_at,
+                source_url, feed_url, site_url, title, custom_title, last_successful_fetched_at,
                 created_at, updated_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?5)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?6)",
                 params![
                     input.source_url,
                     input.feed_url,
                     parsed.site_url,
                     parsed.title,
+                    input
+                        .custom_title
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty()),
                     now
                 ],
             )
@@ -84,7 +105,7 @@ impl RssRepository {
         id: i64,
         feed_url: &str,
         parsed: &ParsedFeed,
-    ) -> AppResult<RssFeed> {
+    ) -> AppResult<(RssFeed, u32)> {
         let now = Utc::now().timestamp();
         let mut connection = self.database.connection()?;
         let transaction = connection.transaction().map_err(database_error)?;
@@ -100,10 +121,11 @@ impl RssRepository {
         if changed == 0 {
             return Err(feed_not_found(id));
         }
-        upsert_entries(&transaction, id, &parsed.entries, now)?;
+        let added = upsert_entries(&transaction, id, &parsed.entries, now)?;
         transaction.commit().map_err(database_error)?;
         drop(connection);
         self.get_feed(id)?
+            .map(|feed| (feed, added))
             .ok_or_else(|| AppError::internal_error("refreshed feed could not be reloaded"))
     }
 
@@ -242,38 +264,77 @@ fn upsert_entries(
     feed_id: i64,
     entries: &[ParsedEntry],
     now: i64,
-) -> AppResult<()> {
-    let mut statement = transaction
+) -> AppResult<u32> {
+    let mut insert = transaction
         .prepare(
             "INSERT INTO rss_entries (
             feed_id, dedupe_key, guid, title, link, author, content_html, summary,
             published_at, fetched_at, created_at, updated_at
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)
-         ON CONFLICT(feed_id, dedupe_key) DO UPDATE SET
-            guid = excluded.guid, title = excluded.title, link = excluded.link,
-            author = excluded.author, content_html = excluded.content_html,
-            summary = excluded.summary, published_at = excluded.published_at,
-            fetched_at = excluded.fetched_at, updated_at = excluded.updated_at",
+         ON CONFLICT(feed_id, dedupe_key) DO NOTHING",
         )
         .map_err(database_error)?;
+    let mut update = transaction
+        .prepare(
+            "UPDATE rss_entries SET
+                guid = ?3, title = ?4, link = ?5, author = ?6, content_html = ?7,
+                summary = ?8, published_at = ?9, fetched_at = ?10, updated_at = ?11
+             WHERE feed_id = ?1 AND dedupe_key = ?2",
+        )
+        .map_err(database_error)?;
+    let mut added = 0;
     for entry in entries {
-        statement
-            .execute(params![
-                feed_id,
-                entry.dedupe_key,
-                entry.guid,
-                entry.title,
-                entry.link,
-                entry.author,
-                entry.content_html,
-                entry.summary,
-                entry.published_at,
-                entry.fetched_at,
-                now
-            ])
-            .map_err(database_error)?;
+        let values = params![
+            feed_id,
+            entry.dedupe_key,
+            entry.guid,
+            entry.title,
+            entry.link,
+            entry.author,
+            entry.content_html,
+            entry.summary,
+            entry.published_at,
+            entry.fetched_at,
+            now
+        ];
+        if insert.execute(values).map_err(database_error)? == 1 {
+            added += 1;
+        } else {
+            update
+                .execute(params![
+                    feed_id,
+                    entry.dedupe_key,
+                    entry.guid,
+                    entry.title,
+                    entry.link,
+                    entry.author,
+                    entry.content_html,
+                    entry.summary,
+                    entry.published_at,
+                    entry.fetched_at,
+                    now
+                ])
+                .map_err(database_error)?;
+        }
     }
-    Ok(())
+    Ok(added)
+}
+
+fn find_conflicting_feed(
+    transaction: &Transaction<'_>,
+    source_url: &str,
+    feed_url: &str,
+) -> AppResult<Option<i64>> {
+    transaction
+        .query_row(
+            "SELECT id FROM rss_feeds
+             WHERE source_url IN (?1, ?2) OR feed_url IN (?1, ?2)
+             ORDER BY id LIMIT 1",
+            params![source_url, feed_url],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(database_error)
 }
 
 fn feed_from_row(row: &Row<'_>) -> rusqlite::Result<RssFeed> {
@@ -382,6 +443,7 @@ mod tests {
         let input = CreateFeed {
             source_url: "https://example.com".into(),
             feed_url: "https://example.com/feed".into(),
+            custom_title: None,
         };
         let feed = repository.create(&input, &parsed("first", 1)).unwrap();
         assert_eq!(feed.entry_count, 1);
@@ -395,9 +457,10 @@ mod tests {
         repository
             .mark_entry_read(page.entries[0].id, true)
             .unwrap();
-        repository
+        let (_, added) = repository
             .apply_refresh(feed.id, &input.feed_url, &parsed("updated", 2))
             .unwrap();
+        assert_eq!(added, 0);
         let page = repository
             .list_entries(&EntryPageRequest {
                 scope: EntryQueryScope::All,
@@ -409,5 +472,36 @@ mod tests {
         let refreshed_feed = repository.get_feed(feed.id).unwrap().unwrap();
         assert_eq!(refreshed_feed.entry_count, 1);
         assert_eq!(refreshed_feed.unread_count, 0);
+    }
+
+    #[test]
+    fn rejects_duplicate_source_and_redirect_urls_with_existing_feed_id() {
+        let repository = RssRepository::new(Arc::new(Database::open_in_memory().unwrap()));
+        let input = CreateFeed {
+            source_url: "https://example.com/blog".into(),
+            feed_url: "https://cdn.example.com/feed".into(),
+            custom_title: Some("Custom".into()),
+        };
+        let feed = repository.create(&input, &parsed("first", 1)).unwrap();
+
+        for duplicate in [
+            CreateFeed {
+                source_url: input.source_url.clone(),
+                feed_url: "https://cdn.example.com/new-feed".into(),
+                custom_title: None,
+            },
+            CreateFeed {
+                source_url: input.feed_url.clone(),
+                feed_url: "https://elsewhere.example.com/feed".into(),
+                custom_title: None,
+            },
+        ] {
+            let error = repository
+                .create(&duplicate, &parsed("duplicate", 2))
+                .unwrap_err();
+            assert_eq!(error.code, "rss_feed_conflict");
+            assert_eq!(error.details, Some(serde_json::json!({ "id": feed.id })));
+        }
+        assert_eq!(feed.custom_title.as_deref(), Some("Custom"));
     }
 }

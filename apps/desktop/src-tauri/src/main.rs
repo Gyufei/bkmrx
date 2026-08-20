@@ -41,13 +41,9 @@ fn main() {
 
             app.manage(Arc::clone(&service));
             app.manage(Arc::new(PreviewService::new(None)?));
-            let rss_handle = handle.clone();
             app.manage(Arc::new(
-                RssService::new(RssRepository::new(Arc::clone(&database))).with_change_notifier(
-                    Arc::new(move || {
-                        let _ = rss_handle.emit("rss-changed", ());
-                    }),
-                ),
+                RssService::new(RssRepository::new(Arc::clone(&database)))
+                    .with_settings_path(runtime_paths.settings_path().to_path_buf()),
             ));
             let todo_handle = handle.clone();
             let todo_service = Arc::new(
@@ -92,6 +88,7 @@ fn main() {
             bkmrx_lib::commands::mark_rss_entry_read,
             bkmrx_lib::commands::rename_rss_feed,
             bkmrx_lib::commands::delete_rss_feed,
+            bkmrx_lib::commands::download_rss_image,
             bkmrx_lib::commands::query_todos,
             bkmrx_lib::commands::get_todo_tags,
             bkmrx_lib::commands::create_todo,

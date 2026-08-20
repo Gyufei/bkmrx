@@ -1,6 +1,7 @@
 import {
   invokeCreateRssFeed,
   invokeDeleteRssFeed,
+  invokeDownloadRssImage,
   invokeListRssEntries,
   invokeListRssFeeds,
   invokeMarkRssEntryRead,
@@ -23,3 +24,4 @@ export const refreshAllFeedsApi = invokeRefreshAllRssFeeds;
 export const markEntryReadApi = invokeMarkRssEntryRead;
 export const renameFeedApi = invokeRenameRssFeed;
 export const deleteFeedApi = invokeDeleteRssFeed;
+export const downloadRssImageApi = invokeDownloadRssImage;

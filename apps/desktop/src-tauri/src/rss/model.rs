@@ -24,6 +24,14 @@ pub struct ParsedEntry {
 pub struct FeedCandidate {
     pub title: Option<String>,
     pub feed_url: String,
+    pub site_url: Option<String>,
+    pub recent_entries: Vec<FeedPreviewEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FeedPreviewEntry {
+    pub title: String,
+    pub published_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -94,4 +102,5 @@ pub struct EntryPageRequest {
 pub struct CreateFeed {
     pub source_url: String,
     pub feed_url: String,
+    pub custom_title: Option<String>,
 }

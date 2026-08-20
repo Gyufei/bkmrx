@@ -106,6 +106,14 @@ impl AppError {
         Self::new(code, message, None)
     }
 
+    pub fn rss_feed_conflict(id: i64) -> Self {
+        Self::new(
+            "rss_feed_conflict",
+            "This RSS subscription already exists",
+            Some(serde_json::json!({ "id": id })),
+        )
+    }
+
     fn new(
         code: impl Into<String>,
         message: impl Into<String>,

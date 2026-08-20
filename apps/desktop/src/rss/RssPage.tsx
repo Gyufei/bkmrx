@@ -1,18 +1,47 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { open } from '@tauri-apps/plugin-shell';
-import { Circle, CircleCheck, Plus, RefreshCw, Rss, Settings2, TriangleAlert } from 'lucide-react';
+import { save } from '@tauri-apps/plugin-dialog';
+import {
+  Circle,
+  CircleCheck,
+  Download,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Rss,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { Button } from '@/components/ui/button';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { toast } from '@/components/ui/toast';
-import type { RssEntry, RssEntryScope, RssFeed } from '@/types';
+import type { RssEntry, RssEntryPage, RssEntryScope, RssFeed } from '@/types';
+import { cn } from '@/lib/utils';
 import AddFeedDialog from './AddFeedDialog';
-import ManageFeedDialog from './ManageFeedDialog';
+import RenameFeedDialog from './RenameFeedDialog';
 import {
   listEntriesApi,
   listFeedsApi,
+  deleteFeedApi,
+  downloadRssImageApi,
   markEntryReadApi,
   refreshAllFeedsApi,
+  refreshFeedApi,
   RSS_ENTRIES_KEY,
   RSS_FEEDS_KEY,
   rssEntriesKey,
@@ -23,7 +52,8 @@ export default function RssPage() {
   const [scope, setScope] = useState<RssEntryScope>({ mode: 'all' });
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [managedFeed, setManagedFeed] = useState<RssFeed | null>(null);
+  const [renamingFeed, setRenamingFeed] = useState<RssFeed | null>(null);
+  const [deletingFeed, setDeletingFeed] = useState<RssFeed | null>(null);
   const feeds = useQuery({ queryKey: RSS_FEEDS_KEY, queryFn: listFeedsApi });
   const entries = useInfiniteQuery({
     queryKey: rssEntriesKey(scope),
@@ -44,13 +74,45 @@ export default function RssPage() {
   };
   const markRead = useMutation({
     mutationFn: ({ id, isRead }: { id: number; isRead: boolean }) => markEntryReadApi(id, isRead),
-    onSuccess: invalidate,
+    onSuccess: (updated) => {
+      client.setQueriesData<InfiniteData<RssEntryPage>>(
+        { queryKey: RSS_ENTRIES_KEY },
+        (data) =>
+          data && {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              entries: page.entries.map((entry) => (entry.id === updated.id ? updated : entry)),
+            })),
+          },
+      );
+      void client.invalidateQueries({ queryKey: RSS_FEEDS_KEY });
+    },
   });
   const refresh = useMutation({
     mutationFn: refreshAllFeedsApi,
+    onSuccess: (result, staleOnly) => {
+      invalidate();
+      if (!staleOnly)
+        toast.add({
+          type: result.failed ? 'warning' : 'success',
+          title: `刷新 ${result.refreshed} 个订阅，新增 ${result.added} 篇，${result.failed} 个失败`,
+        });
+    },
+  });
+  const refreshOne = useMutation({
+    mutationFn: refreshFeedApi,
     onSuccess: (result) => {
       invalidate();
-      if (result.failed) toast.add({ type: 'warning', title: `${result.failed} 个订阅刷新失败` });
+      toast.add({ type: 'success', title: `刷新完成，新增 ${result.added} 篇` });
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (id: number) => deleteFeedApi(id),
+    onSuccess: (_, id) => {
+      invalidate();
+      if (scope.mode === 'feed' && scope.feed_id === id) setScope({ mode: 'all' });
+      setDeletingFeed(null);
     },
   });
   useEffect(() => {
@@ -94,7 +156,10 @@ export default function RssPage() {
               feed={feed}
               active={scope.mode === 'feed' && scope.feed_id === feed.id}
               onClick={() => setScope({ mode: 'feed', feed_id: feed.id })}
-              onManage={() => setManagedFeed(feed)}
+              refreshing={refreshOne.isPending && refreshOne.variables === feed.id}
+              onRename={() => setRenamingFeed(feed)}
+              onRefresh={() => refreshOne.mutate(feed.id)}
+              onDelete={() => setDeletingFeed(feed)}
             />
           ))}
         </div>
@@ -116,7 +181,19 @@ export default function RssPage() {
           <span className="text-sm font-semibold">文章</span>
           <span className="text-xs text-muted-foreground">{items.length}</span>
         </header>
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div
+          className="min-h-0 flex-1 overflow-auto"
+          onScroll={(event) => {
+            const element = event.currentTarget;
+            if (
+              entries.hasNextPage &&
+              !entries.isFetchingNextPage &&
+              element.scrollHeight - element.scrollTop - element.clientHeight < 120
+            ) {
+              void entries.fetchNextPage();
+            }
+          }}
+        >
           {items.map((entry) => (
             <button
               key={entry.id}
@@ -129,11 +206,18 @@ export default function RssPage() {
                   {entry.is_read ? (
                     <CircleCheck className="size-3 text-muted-foreground" />
                   ) : (
-                    <Circle className="size-3 fill-primary text-primary" />
+                    <Circle className="size-3 fill-chart-5 text-chart-5" />
                   )}
                 </span>
                 <div className="min-w-0">
-                  <div className="line-clamp-2 text-sm font-medium">{entry.title}</div>
+                  <div
+                    className={cn(
+                      'line-clamp-2 text-sm',
+                      entry.is_read ? 'font-normal text-muted-foreground' : 'font-semibold',
+                    )}
+                  >
+                    {entry.title}
+                  </div>
                   <div className="mt-1 truncate text-xs text-muted-foreground">
                     {entry.feed_title} · {formatDate(entry.published_at ?? entry.fetched_at)}
                   </div>
@@ -142,18 +226,13 @@ export default function RssPage() {
               </div>
             </button>
           ))}
-          {entries.hasNextPage && (
-            <Button
-              variant="ghost"
-              className="m-2 w-[calc(100%-1rem)]"
-              onClick={() => entries.fetchNextPage()}
-              disabled={entries.isFetchingNextPage}
-            >
-              加载更多
-            </Button>
+          {entries.isFetchingNextPage && (
+            <p className="p-3 text-center text-xs text-muted-foreground">正在加载更多…</p>
           )}
           {!entries.isLoading && items.length === 0 && (
-            <div className="p-8 text-center text-sm text-muted-foreground">暂无文章</div>
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              {scope.mode === 'unread' ? '暂无未读文章' : '暂无文章'}
+            </div>
           )}
         </div>
       </section>
@@ -170,12 +249,21 @@ export default function RssPage() {
           </div>
         )}
       </article>
-      <AddFeedDialog open={addOpen} onOpenChange={setAddOpen} />
-      <ManageFeedDialog
-        feed={managedFeed}
-        onClose={() => setManagedFeed(null)}
-        onDeleted={(id) => {
-          if (scope.mode === 'feed' && scope.feed_id === id) setScope({ mode: 'all' });
+      <AddFeedDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onExistingFeed={(id) => setScope({ mode: 'feed', feed_id: id })}
+      />
+      <RenameFeedDialog feed={renamingFeed} onClose={() => setRenamingFeed(null)} />
+      <ConfirmDeleteDialog
+        open={!!deletingFeed}
+        title={`删除订阅“${deletingFeed?.custom_title || deletingFeed?.title}”？`}
+        description={`将永久删除该订阅及本地保存的 ${deletingFeed?.entry_count ?? 0} 篇文章。`}
+        pending={remove.isPending}
+        error={remove.error}
+        onOpenChange={(open) => !open && setDeletingFeed(null)}
+        onConfirm={() => {
+          if (deletingFeed) remove.mutate(deletingFeed.id);
         }}
       />
     </div>
@@ -186,41 +274,64 @@ function FeedItem({
   feed,
   active,
   onClick,
-  onManage,
+  refreshing,
+  onRename,
+  onRefresh,
+  onDelete,
 }: {
   feed: RssFeed;
   active: boolean;
   onClick: () => void;
-  onManage: () => void;
+  refreshing: boolean;
+  onRename: () => void;
+  onRefresh: () => void;
+  onDelete: () => void;
 }) {
   return (
-    <div
-      className={`group flex items-center rounded-md ${active ? 'bg-accent' : 'hover:bg-accent/60'}`}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-sm"
+    <ContextMenu>
+      <ContextMenuTrigger
+        render={
+          <div
+            className={cn(
+              'flex items-center rounded-md',
+              active ? 'bg-primary/15' : 'hover:bg-accent/60',
+            )}
+          />
+        }
       >
-        <span className={`min-w-0 flex-1 truncate text-left ${active ? 'font-medium' : ''}`}>
-          {feed.custom_title || feed.title}
-        </span>
-        {feed.last_error && (
-          <span title={feed.last_error}>
-            <TriangleAlert className="size-3 shrink-0 text-destructive" />
+        <button
+          type="button"
+          onClick={onClick}
+          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-sm"
+        >
+          <span className={`min-w-0 flex-1 truncate text-left ${active ? 'font-medium' : ''}`}>
+            {feed.custom_title || feed.title}
           </span>
-        )}
-        <span className="text-xs text-muted-foreground">{feed.unread_count}</span>
-      </button>
-      <button
-        type="button"
-        aria-label={`管理 ${feed.custom_title || feed.title}`}
-        onClick={onManage}
-        className="mr-1 rounded p-1 text-muted-foreground opacity-0 hover:bg-background hover:text-foreground group-hover:opacity-100 focus:opacity-100"
-      >
-        <Settings2 className="size-3.5" />
-      </button>
-    </div>
+          {feed.last_error && (
+            <span title={feed.last_error}>
+              <TriangleAlert className="size-3 shrink-0 text-destructive" />
+            </span>
+          )}
+          {refreshing && <RefreshCw className="size-3 animate-spin text-muted-foreground" />}
+          <span className="text-xs text-muted-foreground">{formatCount(feed.unread_count)}</span>
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={onRename}>
+          <Pencil />
+          <span>编辑名称</span>
+        </ContextMenuItem>
+        <ContextMenuItem onClick={onRefresh} disabled={refreshing}>
+          <RefreshCw />
+          <span>刷新订阅</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onClick={onDelete}>
+          <Trash2 />
+          <span>删除订阅</span>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -241,21 +352,66 @@ function SidebarItem({
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm ${active ? 'bg-accent font-medium' : 'hover:bg-accent/60'}`}
+      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm ${active ? 'bg-primary/15 font-medium' : 'hover:bg-accent/60'}`}
     >
       <span className="min-w-0 flex-1 truncate text-left">{label}</span>
       {failed && <TriangleAlert className="size-3 text-destructive" />}
-      {count !== undefined && <span className="text-xs text-muted-foreground">{count}</span>}
+      {count !== undefined && (
+        <span className="text-xs text-muted-foreground">{formatCount(count)}</span>
+      )}
     </button>
   );
 }
 
 function EntryReader({ entry, onToggleRead }: { entry: RssEntry; onToggleRead: () => void }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const contextImageUrl = useRef<string | null>(null);
+  useEffect(() => {
+    contentRef.current?.querySelectorAll('img').forEach((image) => {
+      image.loading = 'lazy';
+      image.decoding = 'async';
+    });
+  }, [entry.id, entry.content_html]);
   const handleClick = (event: React.MouseEvent) => {
     const anchor = (event.target as HTMLElement).closest('a');
     if (anchor?.href) {
       event.preventDefault();
       void open(anchor.href);
+    }
+  };
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    const image = event.target instanceof Element ? event.target.closest('img') : null;
+    if (!image || !event.currentTarget.contains(image)) {
+      contextImageUrl.current = null;
+      event.preventDefault();
+      return;
+    }
+    const imageElement = image as HTMLImageElement;
+    contextImageUrl.current = imageElement.currentSrc || imageElement.src;
+  };
+  const saveImage = async () => {
+    const imageUrl = contextImageUrl.current;
+    if (!imageUrl) return;
+    const destination = await save({
+      title: '保存图片',
+      defaultPath: suggestedImageName(imageUrl),
+      filters: [
+        {
+          name: '图片',
+          extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'svg'],
+        },
+      ],
+    });
+    if (!destination) return;
+    try {
+      await downloadRssImageApi(imageUrl, entry.link, destination);
+      toast.add({ type: 'success', title: '图片已保存', description: destination });
+    } catch (error) {
+      toast.add({
+        type: 'error',
+        title: '图片保存失败',
+        description: error instanceof Error ? error.message : String(error),
+      });
     }
   };
   return (
@@ -277,11 +433,27 @@ function EntryReader({ entry, onToggleRead }: { entry: RssEntry; onToggleRead: (
         </div>
       </header>
       {entry.content_html ? (
-        <div
-          className="prose prose-neutral max-w-none dark:prose-invert prose-img:max-w-full"
-          onClick={handleClick}
-          dangerouslySetInnerHTML={{ __html: entry.content_html }}
-        />
+        <div onContextMenuCapture={handleContextMenu}>
+          <ContextMenu onOpenChange={(open) => !open && (contextImageUrl.current = null)}>
+            <ContextMenuTrigger
+              render={
+                <div
+                  ref={contentRef}
+                  data-rss-entry-content
+                  className="prose prose-neutral max-w-none dark:prose-invert prose-img:h-auto prose-img:max-w-full"
+                  onClick={handleClick}
+                  dangerouslySetInnerHTML={{ __html: entry.content_html }}
+                />
+              }
+            />
+            <ContextMenuContent>
+              <ContextMenuItem onClick={() => void saveImage()}>
+                <Download />
+                保存图片…
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        </div>
       ) : (
         <p className="leading-7 text-muted-foreground">{entry.summary}</p>
       )}
@@ -289,8 +461,22 @@ function EntryReader({ entry, onToggleRead }: { entry: RssEntry; onToggleRead: (
   );
 }
 
+function suggestedImageName(rawUrl: string) {
+  try {
+    const candidate = decodeURIComponent(new URL(rawUrl).pathname.split('/').pop() || 'rss-image');
+    const sanitized = candidate.replace(/[\\/:*?"<>|]/g, '-').trim();
+    return sanitized || 'rss-image';
+  } catch {
+    return 'rss-image';
+  }
+}
+
 function formatDate(timestamp: number) {
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium' }).format(
     new Date(timestamp * 1000),
   );
+}
+
+function formatCount(count: number) {
+  return count > 999 ? '999+' : count;
 }

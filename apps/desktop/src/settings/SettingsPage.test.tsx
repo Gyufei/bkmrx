@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SettingsPage from './SettingsPage';
 import {
   applyBookmarkImportApi,
+  getSettingsApi,
   previewBookmarkImportApi,
   updateSettingsApi,
 } from './settings.api';
@@ -23,8 +24,10 @@ vi.mock('./settings.api', () => ({
     SETTINGS: 'settings',
   },
   getSettingsApi: vi.fn().mockResolvedValue({
-    backup_dir: '/old/backup',
-    notes_dir: '/old/notes',
+    common: {},
+    bookmark: { backup_dir: '/old/backup' },
+    note: { notes_dir: '/old/notes' },
+    rss: { rsshub_base_url: null, rsshub_access_key: null },
   }),
   getSystemInfoApi: vi.fn().mockResolvedValue({
     app_data_dir: '/app',
@@ -84,8 +87,10 @@ describe('SettingsPage', () => {
 
     await waitFor(() =>
       expect(vi.mocked(updateSettingsApi).mock.calls[0]?.[0]).toEqual({
-        backup_dir: '/new/backup',
-        notes_dir: '/old/notes',
+        common: {},
+        bookmark: { backup_dir: '/new/backup' },
+        note: { notes_dir: '/old/notes' },
+        rss: { rsshub_base_url: null, rsshub_access_key: null },
       }),
     );
     await waitFor(() =>
@@ -104,8 +109,10 @@ describe('SettingsPage', () => {
 
     await waitFor(() =>
       expect(vi.mocked(updateSettingsApi).mock.calls[0]?.[0]).toEqual({
-        backup_dir: '/old/backup',
-        notes_dir: '/new/notes',
+        common: {},
+        bookmark: { backup_dir: '/old/backup' },
+        note: { notes_dir: '/new/notes' },
+        rss: { rsshub_base_url: null, rsshub_access_key: null },
       }),
     );
   });
@@ -134,8 +141,10 @@ describe('SettingsPage', () => {
 
     await waitFor(() =>
       expect(vi.mocked(updateSettingsApi).mock.calls[0]?.[0]).toEqual({
-        backup_dir: '/enter/backup',
-        notes_dir: '/old/notes',
+        common: {},
+        bookmark: { backup_dir: '/enter/backup' },
+        note: { notes_dir: '/old/notes' },
+        rss: { rsshub_base_url: null, rsshub_access_key: null },
       }),
     );
     await waitFor(() =>
@@ -149,6 +158,54 @@ describe('SettingsPage', () => {
 
     expect(screen.queryByPlaceholderText('输入 Obsidian 笔记目录路径')).toBeNull();
     expect(screen.getByText('/old/notes')).toBeTruthy();
+  });
+
+  it('saves an RSSHub service with an optional access key', async () => {
+    renderPage();
+    await screen.findByText('/old/backup');
+    fireEvent.click(screen.getByRole('button', { name: '编辑 RSS 设置' }));
+    const baseUrl = screen.getByLabelText('RSSHub 服务地址');
+    fireEvent.change(baseUrl, { target: { value: 'https://rss.example.com/' } });
+    fireEvent.change(screen.getByLabelText('Access Key（可选）'), {
+      target: { value: 'secret' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存 RSS 设置' }));
+
+    await waitFor(() =>
+      expect(vi.mocked(updateSettingsApi).mock.calls[0]?.[0]).toEqual({
+        common: {},
+        bookmark: { backup_dir: '/old/backup' },
+        note: { notes_dir: '/old/notes' },
+        rss: {
+          rsshub_base_url: 'https://rss.example.com',
+          rsshub_access_key: 'secret',
+        },
+      }),
+    );
+  });
+
+  it('masks the RSSHub key and can toggle its visibility while editing', async () => {
+    vi.mocked(getSettingsApi).mockResolvedValueOnce({
+      common: {},
+      bookmark: { backup_dir: '/old/backup' },
+      note: { notes_dir: '/old/notes' },
+      rss: { rsshub_base_url: 'https://rss.example.com', rsshub_access_key: 'secret' },
+    });
+    renderPage();
+    await screen.findByText('/old/backup');
+    expect(screen.getByText('https://rss.example.com')).toBeTruthy();
+    expect(screen.getByText('**********')).toBeTruthy();
+
+    const editButton = screen.getByRole('button', { name: '编辑 RSS 设置' });
+    expect(editButton.closest('[data-slot="card-header"]')).toBeTruthy();
+    fireEvent.click(editButton);
+    const keyInput = screen.getByLabelText('Access Key（可选）') as HTMLInputElement;
+    fireEvent.change(keyInput, { target: { value: 'secret' } });
+    expect(keyInput.type).toBe('password');
+    fireEvent.click(screen.getByRole('button', { name: '显示 Access Key' }));
+    expect(keyInput.type).toBe('text');
+    fireEvent.click(screen.getByRole('button', { name: '隐藏 Access Key' }));
+    expect(keyInput.type).toBe('password');
   });
 
   it('keeps the directory editor open and shows an error when saving fails', async () => {

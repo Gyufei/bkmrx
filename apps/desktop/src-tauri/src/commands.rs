@@ -7,8 +7,8 @@ use crate::bookmarks::{
 use crate::notes::SharedNoteService;
 use crate::preview::{BookmarkPreview, PrepareBookmarkPreviewRequest, SharedPreviewService};
 use crate::rss::{
-    CreateFeed, EntryPage, EntryPageRequest, FeedPreview, RefreshResult, RssEntry, RssFeed,
-    SharedRssService,
+    CreateFeed, EntryPage, EntryPageRequest, FeedPreview, FeedRefreshResult, RefreshResult,
+    RssEntry, RssFeed, SharedRssService,
 };
 use crate::todos::{
     CreateTodo, SharedTodoService, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
@@ -119,7 +119,10 @@ pub fn list_rss_entries(
 }
 
 #[tauri::command]
-pub async fn refresh_rss_feed(service: State<'_, SharedRssService>, id: i64) -> AppResult<RssFeed> {
+pub async fn refresh_rss_feed(
+    service: State<'_, SharedRssService>,
+    id: i64,
+) -> AppResult<FeedRefreshResult> {
     service.refresh_feed(id).await
 }
 
@@ -152,6 +155,15 @@ pub fn rename_rss_feed(
 #[tauri::command]
 pub fn delete_rss_feed(service: State<'_, SharedRssService>, id: i64) -> AppResult<()> {
     service.delete_feed(id)
+}
+
+#[tauri::command]
+pub async fn download_rss_image(
+    url: String,
+    referer: Option<String>,
+    destination: String,
+) -> AppResult<()> {
+    crate::rss::download_image(&url, referer.as_deref(), std::path::Path::new(&destination)).await
 }
 
 #[tauri::command]

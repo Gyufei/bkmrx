@@ -79,7 +79,7 @@ export default function BookmarkTransferCard({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>JSON 导入与导出</CardTitle>
+          <CardTitle>书签导入与导出</CardTitle>
         </CardHeader>
         <CardContent>{directoryField}</CardContent>
         <CardFooter className="gap-2">
