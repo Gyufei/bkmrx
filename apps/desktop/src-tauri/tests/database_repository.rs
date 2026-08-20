@@ -8,7 +8,7 @@ use std::sync::Arc;
 fn creates_latest_schema_and_enables_fts5_trigram() {
     let db = Database::open_in_memory().unwrap();
 
-    assert_eq!(db.schema_version().unwrap(), 2);
+    assert_eq!(db.schema_version().unwrap(), 1);
     for table in [
         "bookmarks",
         "tags",
@@ -92,7 +92,7 @@ fn reopens_existing_database_without_changing_data() {
 
     let database = Database::open(&path).unwrap();
 
-    assert_eq!(database.schema_version().unwrap(), 2);
+    assert_eq!(database.schema_version().unwrap(), 1);
     assert_eq!(
         database
             .query_i64_for_test("SELECT count(*) FROM bookmarks WHERE id = 7")
@@ -103,7 +103,7 @@ fn reopens_existing_database_without_changing_data() {
 
 #[test]
 fn rejects_every_newer_schema_version() {
-    for version in [3, 4, 5] {
+    for version in [2, 3, 4] {
         let directory = tempfile::TempDir::new().unwrap();
         let path = directory.path().join("bookmarks.db");
         let connection = rusqlite::Connection::open(&path).unwrap();
@@ -117,7 +117,7 @@ fn rejects_every_newer_schema_version() {
         assert_eq!(error.code(), "unsupported_schema_version");
         assert_eq!(
             error.details,
-            Some(serde_json::json!({ "found": version, "supported": 2 }))
+            Some(serde_json::json!({ "found": version, "supported": 1 }))
         );
     }
 }

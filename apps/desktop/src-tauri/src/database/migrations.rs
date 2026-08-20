@@ -3,9 +3,8 @@ use rusqlite::{Connection, Transaction, TransactionBehavior};
 use crate::bookmarks::{AppError, AppResult};
 
 mod v1_baseline;
-mod v2_rss;
 
-pub(super) const LATEST_SCHEMA_VERSION: i64 = 2;
+pub(super) const LATEST_SCHEMA_VERSION: i64 = 1;
 
 type ApplyMigration = fn(&Transaction<'_>) -> AppResult<()>;
 
@@ -20,18 +19,11 @@ struct Migration {
 // 2. Append one contiguous step to MIGRATIONS.
 // 3. Advance LATEST_SCHEMA_VERSION.
 // The runner owns transactions and user_version updates; migration functions must not.
-const MIGRATIONS: &[Migration] = &[
-    Migration {
-        from: 0,
-        to: 1,
-        apply: v1_baseline::apply,
-    },
-    Migration {
-        from: 1,
-        to: 2,
-        apply: v2_rss::apply,
-    },
-];
+const MIGRATIONS: &[Migration] = &[Migration {
+    from: 0,
+    to: 1,
+    apply: v1_baseline::apply,
+}];
 
 pub(super) fn run(connection: &mut Connection) -> AppResult<()> {
     run_pending(connection, LATEST_SCHEMA_VERSION, MIGRATIONS)
