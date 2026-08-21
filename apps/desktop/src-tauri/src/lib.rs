@@ -9,3 +9,4 @@ pub mod rss;
 pub mod safe_http;
 pub mod settings;
 pub mod todos;
+pub mod translation;

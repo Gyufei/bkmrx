@@ -20,7 +20,11 @@ declare module '@yaireo/tagify' {
   export default class Tagify {
     constructor(input: HTMLInputElement, options?: TagifyOptions)
     readonly value: readonly TagifyValue[]
+    readonly settings: {
+      whitelist: string[]
+    }
     addTags(tags: readonly string[]): void
+    removeAllTags(): void
     on(event: 'change', callback: () => void): void
     destroy(): void
   }

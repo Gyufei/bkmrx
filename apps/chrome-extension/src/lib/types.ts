@@ -15,4 +15,11 @@ export interface BookmarkPayload {
 
 export interface Tag {
   readonly name: string
+  readonly count: number
+}
+
+export interface Translation {
+  readonly text: string
+  readonly source_language: string
+  readonly provider: string
 }

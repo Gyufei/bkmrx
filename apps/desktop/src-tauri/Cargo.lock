@@ -216,16 +216,18 @@ dependencies = [
 
 [[package]]
 name = "bkmrx"
-version = "1.9.0"
+version = "1.10.0"
 dependencies = [
  "ammonia",
  "axum",
  "base64 0.22.1",
  "chrono",
  "dirs",
+ "dotenvy",
  "feed-rs",
  "futures-util",
  "http-body-util",
+ "md5",
  "notify",
  "reqwest",
  "rusqlite",
@@ -792,6 +794,12 @@ dependencies = [
  "selectors 0.36.1",
  "tendril",
 ]
+
+[[package]]
+name = "dotenvy"
+version = "0.15.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "dpi"
@@ -2119,6 +2127,12 @@ name = "matchit"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
+
+[[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "mediatype"

@@ -43,6 +43,7 @@
     <div class="route">PATCH /api/bookmarks/:id</div>
     <div class="route">DELETE /api/bookmarks/:id</div>
     <div class="route">GET /api/tags</div>
+    <div class="route">POST /api/translations</div>
 
     <h3>创建</h3>
     <pre>{
@@ -58,6 +59,14 @@
     <pre>{
   "items": [],
   "next_cursor": null
+}</pre>
+
+    <h3>描述翻译</h3>
+    <pre>{ "text": "An English description" }</pre>
+    <pre>{
+  "text": "一段英文描述",
+  "source_language": "en",
+  "provider": "niutrans"
 }</pre>
 
     <h2>错误</h2>
@@ -76,6 +85,9 @@
       <tr><td>import_validation_failed</td><td>400</td></tr>
       <tr><td>bookmark_not_found</td><td>404</td></tr>
       <tr><td>bookmark_url_conflict</td><td>409</td></tr>
+      <tr><td>translation_validation_error</td><td>400</td></tr>
+      <tr><td>translation_unavailable</td><td>503</td></tr>
+      <tr><td>translation_failed</td><td>502</td></tr>
       <tr><td>database_error</td><td>500</td></tr>
       <tr><td>internal_error</td><td>500</td></tr>
     </table>

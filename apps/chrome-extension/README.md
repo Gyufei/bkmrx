@@ -1,8 +1,8 @@
-# bkmr-ext
+# bkmrx-ext
 
-bkmr-ext 是 bkmrx 的浏览器快捷入口，可以读取当前页面的 URL 和标题、添加标签，并通过本机 HTTP API 保存到桌面应用。
+bkmrx-ext 是 bkmrx 的浏览器快捷入口，可以读取当前页面的 URL 和标题、添加标签，并通过本机 HTTP API 保存到桌面应用。
 
-[返回项目首页](../../README.md) · [桌面端](../desktop/README.md) · [HTTP API](../../docs/reference/2026-07-24-http-api.md)
+[返回项目首页](../../README.md) · [桌面端](../desktop/README.md) · [HTTP API](../../docs/features/2026-07-24-http-api.md)
 
 ```text
 当前网页 ── Chrome 扩展 ── HTTP API ── bkmrx Desktop ── SQLite
@@ -32,7 +32,7 @@ bkmr-ext 是 bkmrx 的浏览器快捷入口，可以读取当前页面的 URL �
 4. 按需编辑标题，并输入或选择标签。
 5. 点击“添加书签”。
 
-输入标签后可按回车添加，也可用逗号分隔，例如 `fe,rust,前端`。扩展也会从桌面端获取已有标签，展示使用频率最高的 30 个供快速选择。
+输入标签后可按回车添加，也可用逗号分隔，例如 `fe,rust,前端`。扩展会从桌面端获取按使用频率排序的已有标签，并在下拉框中最多展示 20 个匹配项供快速选择。
 
 ## 功能
 
@@ -40,10 +40,11 @@ bkmr-ext 是 bkmrx 的浏览器快捷入口，可以读取当前页面的 URL �
 |---|---|
 | 自动获取页面信息 | 读取当前活动标签页的 URL 和标题 |
 | 编辑与校验 | 提交前可修改 URL、标题和标签，并校验必填项 |
-| 标签建议 | 获取已有标签及其书签数量 |
+| 标签建议 | 按使用频率获取已有标签供快速选择 |
 | 重复检测 | 按完整 URL 查询已有书签 |
 | 编辑书签 | 更新已存在书签的标题、描述和标签 |
 | 连接提示 | 桌面端未运行时显示明确的连接错误 |
+| 描述翻译 | 自动翻译不含中文的纯外文网页描述；请求中可直接保存原文，失败时显示悬浮提示 |
 
 ## API 依赖
 
@@ -55,8 +56,9 @@ bkmr-ext 是 bkmrx 的浏览器快捷入口，可以读取当前页面的 URL �
 | GET | `/api/bookmarks/by-url?url=` | 查询当前 URL |
 | PATCH | `/api/bookmarks/:id` | 更新书签 |
 | GET | `/api/tags` | 获取标签建议 |
+| POST | `/api/translations` | 翻译英文描述 |
 
-扩展使用服务端统一的 REST 响应和错误结构，向用户展示 `error.message`。完整契约见 [HTTP API 文档](../../docs/reference/2026-07-24-http-api.md)。
+扩展使用服务端统一的 REST 响应和错误结构，向用户展示 `error.message`。完整契约见 [HTTP API 文档](../../docs/features/2026-07-24-http-api.md)。
 
 ## 目录结构
 
@@ -86,13 +88,13 @@ apps/chrome-extension/
 
 ```bash
 pnpm install
-pnpm --filter bkmr-ext build
+pnpm --filter bkmrx-ext build
 ```
 
 开发时运行监听构建，修改源码后在 `chrome://extensions/` 中点击扩展卡片的刷新按钮：
 
 ```bash
-pnpm --filter bkmr-ext dev
+pnpm --filter bkmrx-ext dev
 ```
 
 API 地址由 `VITE_BKMRX_API_URL` 控制。复制 `.env.example` 为 `.env.local` 可进行本机覆盖。所有 `VITE_` 变量都会进入浏览器构建产物，因此不能用于保存密钥。构建过程会根据该地址同步生成 Manifest 的 `host_permissions`。

@@ -56,6 +56,10 @@ function renderPage() {
   };
 }
 
+async function selectTab(name: '通用' | '书签' | '笔记' | 'RSS' | '关于') {
+  fireEvent.click(await screen.findByRole('tab', { name }));
+}
+
 describe('SettingsPage', () => {
   afterEach(cleanup);
 
@@ -64,24 +68,37 @@ describe('SettingsPage', () => {
     vi.mocked(updateSettingsApi).mockResolvedValue(undefined);
   });
 
+  it('opens the general tab by default and switches between setting sections', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('tab', { name: '通用', selected: true })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '通用' })).toBeTruthy();
+
+    await selectTab('书签');
+    expect(screen.getByRole('heading', { name: '书签' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: '书签', selected: true })).toBeTruthy();
+  });
+
   it('shows complete path text until the user starts editing', async () => {
     renderPage();
+    await selectTab('书签');
     expect(await screen.findByText('/old/backup')).toBeTruthy();
-    expect(screen.getByText('/old/notes')).toBeTruthy();
     expect(screen.queryByPlaceholderText('/Users/me/CloudDrive/bookmarks')).toBeNull();
+    expect(screen.getByRole('button', { name: '编辑' })).toBeTruthy();
+
+    await selectTab('笔记');
+    expect(screen.getByText('/old/notes')).toBeTruthy();
     expect(screen.queryByPlaceholderText('输入 Obsidian 笔记目录路径')).toBeNull();
-    expect(screen.getAllByRole('button', { name: '编辑' })).toHaveLength(2);
   });
 
   it('edits and saves the backup directory in place', async () => {
     renderPage();
+    await selectTab('书签');
     await screen.findByText('/old/backup');
-    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
 
     const input = screen.getByPlaceholderText('/Users/me/CloudDrive/bookmarks');
     expect((input as HTMLInputElement).value).toBe('/old/backup');
-    expect((screen.getByRole('button', { name: '编辑' }) as HTMLButtonElement).disabled).toBe(true);
-
     fireEvent.change(input, { target: { value: '/new/backup' } });
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
@@ -100,8 +117,9 @@ describe('SettingsPage', () => {
 
   it('edits and saves the notes directory in place', async () => {
     renderPage();
+    await selectTab('笔记');
     await screen.findByText('/old/notes');
-    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[1]);
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
 
     const input = screen.getByPlaceholderText('输入 Obsidian 笔记目录路径');
     fireEvent.change(input, { target: { value: '/new/notes' } });
@@ -119,8 +137,9 @@ describe('SettingsPage', () => {
 
   it('cancels an in-place edit without saving the draft', async () => {
     renderPage();
+    await selectTab('书签');
     await screen.findByText('/old/backup');
-    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
 
     const input = screen.getByPlaceholderText('/Users/me/CloudDrive/bookmarks');
     fireEvent.change(input, { target: { value: '/discarded/backup' } });
@@ -132,8 +151,9 @@ describe('SettingsPage', () => {
 
   it('saves with Enter and cancels with Escape', async () => {
     renderPage();
+    await selectTab('书签');
     await screen.findByText('/old/backup');
-    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
 
     const backupInput = screen.getByPlaceholderText('/Users/me/CloudDrive/bookmarks');
     fireEvent.change(backupInput, { target: { value: '/enter/backup' } });
@@ -151,7 +171,8 @@ describe('SettingsPage', () => {
       expect(screen.queryByPlaceholderText('/Users/me/CloudDrive/bookmarks')).toBeNull(),
     );
 
-    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[1]);
+    await selectTab('笔记');
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
     const notesInput = screen.getByPlaceholderText('输入 Obsidian 笔记目录路径');
     fireEvent.change(notesInput, { target: { value: '/discarded/notes' } });
     fireEvent.keyDown(notesInput, { key: 'Escape' });
@@ -162,7 +183,7 @@ describe('SettingsPage', () => {
 
   it('saves an RSSHub service with an optional access key', async () => {
     renderPage();
-    await screen.findByText('/old/backup');
+    await selectTab('RSS');
     fireEvent.click(screen.getByRole('button', { name: '编辑 RSS 设置' }));
     const baseUrl = screen.getByLabelText('RSSHub 服务地址');
     fireEvent.change(baseUrl, { target: { value: 'https://rss.example.com/' } });
@@ -192,7 +213,7 @@ describe('SettingsPage', () => {
       rss: { rsshub_base_url: 'https://rss.example.com', rsshub_access_key: 'secret' },
     });
     renderPage();
-    await screen.findByText('/old/backup');
+    await selectTab('RSS');
     expect(screen.getByText('https://rss.example.com')).toBeTruthy();
     expect(screen.getByText('**********')).toBeTruthy();
 
@@ -211,8 +232,9 @@ describe('SettingsPage', () => {
   it('keeps the directory editor open and shows an error when saving fails', async () => {
     vi.mocked(updateSettingsApi).mockRejectedValueOnce(new Error('无法写入设置'));
     renderPage();
+    await selectTab('书签');
     await screen.findByText('/old/backup');
-    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
     expect(await screen.findByText('保存失败：无法写入设置')).toBeTruthy();
@@ -237,6 +259,7 @@ describe('SettingsPage', () => {
     });
     const { queryClient } = renderPage();
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    await selectTab('书签');
 
     fireEvent.click(await screen.findByRole('button', { name: '导入 JSON' }));
     expect(await screen.findByRole('heading', { name: '确认导入书签？' })).toBeTruthy();
@@ -252,5 +275,22 @@ describe('SettingsPage', () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['bookmarks'] });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['tags'] });
     });
+  });
+
+  it('keeps an unsaved RSS draft while switching tabs', async () => {
+    renderPage();
+    await selectTab('RSS');
+    fireEvent.click(screen.getByRole('button', { name: '编辑 RSS 设置' }));
+    fireEvent.change(screen.getByLabelText('RSSHub 服务地址'), {
+      target: { value: 'https://draft.example.com' },
+    });
+
+    await selectTab('书签');
+    await selectTab('RSS');
+
+    expect((screen.getByLabelText('RSSHub 服务地址') as HTMLInputElement).value).toBe(
+      'https://draft.example.com',
+    );
+    expect(screen.getByTitle('RSS有未保存的更改')).toBeTruthy();
   });
 });

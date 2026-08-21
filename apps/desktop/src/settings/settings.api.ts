@@ -11,7 +11,7 @@ import {
 export const SettingsQueryApiKey = {
   SYSTEM_INFO: 'systemInfo',
   SETTINGS: 'settings',
-}
+};
 
 export async function getSystemInfoApi() {
   return await invokeGetSystemInfo();
@@ -22,7 +22,7 @@ export async function getSettingsApi() {
 }
 
 export async function updateSettingsApi(settings: AppSettings) {
-  return await invokeUpdateSettings(settings)
+  return await invokeUpdateSettings(settings);
 }
 
 export function exportBookmarksApi(path: string) {
@@ -33,12 +33,6 @@ export function previewBookmarkImportApi(path: string) {
   return invokePreviewBookmarkImport(path);
 }
 
-export function applyBookmarkImportApi({
-  path,
-  fileHash,
-}: {
-  path: string;
-  fileHash: string;
-}) {
+export function applyBookmarkImportApi({ path, fileHash }: { path: string; fileHash: string }) {
   return invokeApplyBookmarkImport(path, fileHash);
 }

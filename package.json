@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "pnpm --filter bkmrx dev",
     "dev:desktop": "pnpm --filter bkmrx dev",
-    "dev:extension": "pnpm --filter bkmr-ext dev",
+    "dev:extension": "pnpm --filter bkmrx-ext dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "check": "pnpm -r --if-present check",

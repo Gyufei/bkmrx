@@ -1,4 +1,5 @@
-import { Copy } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -7,10 +8,12 @@ import type { SystemInfo } from '@/lib/invoke';
 
 interface SystemInfoCardProps {
   info?: SystemInfo;
-  onCopy: (value: string) => void;
+  onCopy: (value: string) => Promise<void>;
 }
 
 export default function SystemInfoCard({ info, onCopy }: SystemInfoCardProps) {
+  const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState(false);
   const rows = info
     ? [
         ['App Data', info.app_data_dir],
@@ -37,11 +40,20 @@ export default function SystemInfoCard({ info, onCopy }: SystemInfoCardProps) {
                   size="icon-xs"
                   variant="ghost"
                   className="shrink-0"
-                  onClick={() => onCopy(value)}
+                  onClick={async () => {
+                    try {
+                      await onCopy(value);
+                      setCopyError(false);
+                      setCopiedLabel(label);
+                    } catch {
+                      setCopiedLabel(null);
+                      setCopyError(true);
+                    }
+                  }}
                   title="复制"
                   aria-label={`复制${label}`}
                 >
-                  <Copy />
+                  {copiedLabel === label ? <Check /> : <Copy />}
                 </Button>
               </div>
             </div>
@@ -52,6 +64,12 @@ export default function SystemInfoCard({ info, onCopy }: SystemInfoCardProps) {
             加载中...
           </div>
         )}
+        {copiedLabel && (
+          <p role="status" className="text-xs text-muted-foreground">
+            已复制{copiedLabel}
+          </p>
+        )}
+        {copyError && <p className="text-xs text-destructive">复制失败，请手动复制。</p>}
       </CardContent>
     </Card>
   );

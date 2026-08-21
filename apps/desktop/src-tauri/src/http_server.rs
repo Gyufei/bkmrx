@@ -5,8 +5,12 @@ use crate::bookmarks::{
     AppError, Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, SharedBookmarkService,
     TagQueryRequest, TagSummary, UpdateBookmark,
 };
+use crate::translation::{TranslationRequest, TranslationService};
 use axum::{
-    extract::{Path, Query, State},
+    extract::{
+        rejection::{JsonRejection, PathRejection, QueryRejection},
+        Path, Query, State,
+    },
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::get,
@@ -16,6 +20,12 @@ use serde::{Deserialize, Serialize};
 
 static SERVER_URL: OnceLock<String> = OnceLock::new();
 static SERVER_RUNNING: AtomicBool = AtomicBool::new(false);
+
+#[derive(Clone)]
+struct HttpState {
+    bookmarks: SharedBookmarkService,
+    translation: TranslationService,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ServerStatus {
@@ -34,6 +44,13 @@ pub fn status() -> ServerStatus {
 }
 
 pub fn router(service: SharedBookmarkService) -> Router {
+    router_with_translation(service, TranslationService::unavailable())
+}
+
+pub fn router_with_translation(
+    bookmarks: SharedBookmarkService,
+    translation: TranslationService,
+) -> Router {
     Router::new()
         .route("/api/health", get(health_handler))
         .route(
@@ -48,8 +65,12 @@ pub fn router(service: SharedBookmarkService) -> Router {
                 .delete(delete_bookmark_handler),
         )
         .route("/api/tags", get(get_tags_handler))
+        .route("/api/translations", axum::routing::post(translate_handler))
         .route("/api/docs", get(docs_handler))
-        .with_state(service)
+        .with_state(HttpState {
+            bookmarks,
+            translation,
+        })
 }
 
 pub async fn start_server(
@@ -69,7 +90,8 @@ pub async fn start_server(
 
     let _ = SERVER_URL.set("http://127.0.0.1:8733".to_owned());
     SERVER_RUNNING.store(true, Ordering::SeqCst);
-    if let Err(error) = axum::serve(listener, router(service))
+    let translation = TranslationService::from_env();
+    if let Err(error) = axum::serve(listener, router_with_translation(service, translation))
         .with_graceful_shutdown(async {
             let _ = shutdown_rx.await;
         })
@@ -101,9 +123,10 @@ async fn health_handler() -> Json<serde_json::Value> {
 }
 
 async fn list_bookmarks_handler(
-    State(service): State<SharedBookmarkService>,
-    Query(query): Query<BookmarkListQuery>,
+    State(state): State<HttpState>,
+    query: Result<Query<BookmarkListQuery>, QueryRejection>,
 ) -> Result<Json<BookmarkPage>, ApiError> {
+    let Query(query) = query.map_err(|error| ApiError::Request(error.status()))?;
     let tags: Vec<String> = query
         .tags
         .split(',')
@@ -125,65 +148,109 @@ async fn list_bookmarks_handler(
             page_size: query.page_size,
         }
     };
-    service.query(request).map(Json).map_err(ApiError)
+    state
+        .bookmarks
+        .query(request)
+        .map(Json)
+        .map_err(ApiError::App)
 }
 
 async fn create_bookmark_handler(
-    State(service): State<SharedBookmarkService>,
-    Json(input): Json<CreateBookmark>,
+    State(state): State<HttpState>,
+    input: Result<Json<CreateBookmark>, JsonRejection>,
 ) -> Result<(StatusCode, Json<Bookmark>), ApiError> {
-    service
+    let Json(input) = input.map_err(ApiError::Json)?;
+    state
+        .bookmarks
         .create(input)
         .map(|bookmark| (StatusCode::CREATED, Json(bookmark)))
-        .map_err(ApiError)
+        .map_err(ApiError::App)
 }
 
 async fn get_bookmark_by_url_handler(
-    State(service): State<SharedBookmarkService>,
-    Query(query): Query<BookmarkUrlQuery>,
+    State(state): State<HttpState>,
+    query: Result<Query<BookmarkUrlQuery>, QueryRejection>,
 ) -> Result<Json<Bookmark>, ApiError> {
+    let Query(query) = query.map_err(|error| ApiError::Request(error.status()))?;
     let url = query.url;
-    service
+    state
+        .bookmarks
         .get_by_url(url.clone())
         .and_then(|bookmark| bookmark.ok_or_else(|| AppError::bookmark_url_not_found(url)))
         .map(Json)
-        .map_err(ApiError)
+        .map_err(ApiError::App)
 }
 
 async fn get_bookmark_handler(
-    State(service): State<SharedBookmarkService>,
-    Path(id): Path<i64>,
+    State(state): State<HttpState>,
+    id: Result<Path<i64>, PathRejection>,
 ) -> Result<Json<Bookmark>, ApiError> {
-    service.get_by_id(id).map(Json).map_err(ApiError)
+    let Path(id) = id.map_err(|error| ApiError::Request(error.status()))?;
+    state
+        .bookmarks
+        .get_by_id(id)
+        .map(Json)
+        .map_err(ApiError::App)
 }
 
 async fn update_bookmark_handler(
-    State(service): State<SharedBookmarkService>,
-    Path(id): Path<i64>,
-    Json(input): Json<UpdateBookmark>,
+    State(state): State<HttpState>,
+    id: Result<Path<i64>, PathRejection>,
+    input: Result<Json<UpdateBookmark>, JsonRejection>,
 ) -> Result<Json<Bookmark>, ApiError> {
-    service.update(id, input).map(Json).map_err(ApiError)
+    let Path(id) = id.map_err(|error| ApiError::Request(error.status()))?;
+    let Json(input) = input.map_err(ApiError::Json)?;
+    state
+        .bookmarks
+        .update(id, input)
+        .map(Json)
+        .map_err(ApiError::App)
 }
 
 async fn delete_bookmark_handler(
-    State(service): State<SharedBookmarkService>,
-    Path(id): Path<i64>,
+    State(state): State<HttpState>,
+    id: Result<Path<i64>, PathRejection>,
 ) -> Result<StatusCode, ApiError> {
-    service.get_by_id(id).map_err(ApiError)?;
-    service.delete_many(vec![id]).map_err(ApiError)?;
+    let Path(id) = id.map_err(|error| ApiError::Request(error.status()))?;
+    state.bookmarks.get_by_id(id).map_err(ApiError::App)?;
+    state
+        .bookmarks
+        .delete_many(vec![id])
+        .map_err(ApiError::App)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn get_tags_handler(
-    State(service): State<SharedBookmarkService>,
+    State(state): State<HttpState>,
 ) -> Result<Json<Vec<TagSummary>>, ApiError> {
-    service
+    state
+        .bookmarks
         .get_tags(TagQueryRequest {
             query: String::new(),
             limit: None,
         })
         .map(Json)
-        .map_err(ApiError)
+        .map_err(ApiError::App)
+}
+
+async fn translate_handler(
+    State(state): State<HttpState>,
+    request: Result<Json<TranslationRequest>, JsonRejection>,
+) -> Result<Json<crate::translation::Translation>, ApiError> {
+    let Json(request) = request.map_err(ApiError::Json)?;
+    let provider = state.translation.provider_name();
+    state
+        .translation
+        .translate(request)
+        .await
+        .map(Json)
+        .map_err(|error| {
+            ApiError::App(AppError::translation_error(
+                error.code(),
+                error.to_string(),
+                provider,
+            ))
+        })
 }
 
 async fn docs_handler() -> Html<&'static str> {
@@ -194,20 +261,41 @@ fn default_page_size() -> u32 {
     50
 }
 
-struct ApiError(AppError);
+enum ApiError {
+    App(AppError),
+    Json(JsonRejection),
+    Request(StatusCode),
+}
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let status = match self.0.code.as_str() {
-            "validation_error"
-            | "invalid_cursor"
-            | "unsupported_import_format"
-            | "import_validation_failed" => StatusCode::BAD_REQUEST,
-            "bookmark_not_found" => StatusCode::NOT_FOUND,
-            "bookmark_url_conflict" => StatusCode::CONFLICT,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        let (status, error) = match self {
+            Self::App(error) => (status_for_error(&error), error),
+            Self::Json(rejection) => (
+                rejection.status(),
+                AppError::validation_error("Request body is invalid"),
+            ),
+            Self::Request(status) => (
+                status,
+                AppError::validation_error("Request parameters are invalid"),
+            ),
         };
-        (status, Json(serde_json::json!({ "error": self.0 }))).into_response()
+        (status, Json(serde_json::json!({ "error": error }))).into_response()
+    }
+}
+
+fn status_for_error(error: &AppError) -> StatusCode {
+    match error.code.as_str() {
+        "validation_error"
+        | "invalid_cursor"
+        | "unsupported_import_format"
+        | "import_validation_failed" => StatusCode::BAD_REQUEST,
+        "bookmark_not_found" => StatusCode::NOT_FOUND,
+        "bookmark_url_conflict" => StatusCode::CONFLICT,
+        "translation_validation_error" => StatusCode::BAD_REQUEST,
+        "translation_unavailable" => StatusCode::SERVICE_UNAVAILABLE,
+        "translation_failed" => StatusCode::BAD_GATEWAY,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 
@@ -219,6 +307,7 @@ mod tests {
         body::Body,
         http::{header, Method, Request, StatusCode},
     };
+    use http_body_util::BodyExt;
     use tower::ServiceExt;
 
     use super::router;
@@ -299,5 +388,45 @@ mod tests {
             .expect("serve request");
 
         assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"]["code"], "validation_error");
+    }
+
+    #[tokio::test]
+    async fn translation_route_uses_the_standard_error_envelope() {
+        let response = test_router()
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/api/translations")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"text":"Hello"}"#))
+                    .expect("build request"),
+            )
+            .await
+            .expect("serve request");
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"]["code"], "translation_unavailable");
+    }
+
+    #[tokio::test]
+    async fn invalid_query_parameters_use_the_standard_error_envelope() {
+        let response = test_router()
+            .oneshot(
+                Request::get("/api/bookmarks/by-url")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("serve request");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"]["code"], "validation_error");
     }
 }

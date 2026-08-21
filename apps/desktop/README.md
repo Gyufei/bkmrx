@@ -14,6 +14,7 @@ bkmrx Desktop 是仅在 macOS 本机运行的 Tauri 书签与 Markdown 笔记应
 - 提供 Markdown 笔记的创建、编辑、重命名与删除。
 - 支持 JSON v1 原子导出、严格预检、SHA-256 确认和事务合并导入。
 - 在 `127.0.0.1:8733` 提供本机 HTTP API，供 Chrome 扩展调用。
+- 通过可替换的翻译 Provider 为扩展提供描述翻译，第三方密钥仅保留在 Rust 进程环境中。
 
 项目不包含语义搜索、向量索引、ONNX、`sqlite-vec` 或 WebView SQL 权限。
 
@@ -50,6 +51,22 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
+描述翻译使用小牛翻译 v2。可以在 shell 中配置：
+
+```bash
+export NIUTRANS_API_KEY="your-api-key"
+export NIUTRANS_APP_ID="your-app-id"
+```
+
+本地开发也可以写入不受版本控制的 `apps/desktop/.env.local`：
+
+```dotenv
+NIUTRANS_API_KEY=your-api-key
+NIUTRANS_APP_ID=your-app-id
+```
+
+未配置时桌面端仍可正常使用，只有翻译端点返回 `translation_unavailable`。`TranslationProvider` 是第三方服务边界，后续更换供应商或增加日志/指标包装不需要修改 HTTP handler。
+
 ## 架构
 
 ```text
@@ -83,6 +100,7 @@ Rust 书签代码位于 `src-tauri/src/bookmarks/`：
 | PATCH | `/api/bookmarks/:id` | 局部更新 |
 | DELETE | `/api/bookmarks/:id` | 删除书签 |
 | GET | `/api/tags` | 查询标签与计数 |
+| POST | `/api/translations` | 翻译网页描述 |
 
 完整参数、响应与错误格式见 [HTTP API 文档](../../docs/reference/2026-07-24-http-api.md)。
 

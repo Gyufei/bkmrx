@@ -1,4 +1,5 @@
-import { useId, type KeyboardEvent } from 'react';
+import { useId, useState, type KeyboardEvent } from 'react';
+import { FolderOpen } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ interface EditableDirectoryFieldProps {
   pending: boolean;
   error?: string;
   onChange: (value: string) => void;
+  onBrowse?: () => Promise<string | null>;
   onEdit: () => void;
   onSave: () => void;
   onCancel: () => void;
@@ -32,11 +34,13 @@ export default function EditableDirectoryField({
   pending,
   error,
   onChange,
+  onBrowse,
   onEdit,
   onSave,
   onCancel,
 }: EditableDirectoryFieldProps) {
   const inputId = useId();
+  const [browsing, setBrowsing] = useState(false);
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter') {
@@ -49,6 +53,17 @@ export default function EditableDirectoryField({
     }
   }
 
+  async function handleBrowse() {
+    if (!onBrowse || browsing) return;
+    setBrowsing(true);
+    try {
+      const selected = await onBrowse();
+      if (selected) onChange(selected);
+    } finally {
+      setBrowsing(false);
+    }
+  }
+
   return (
     <Field data-invalid={Boolean(error) || undefined}>
       <FieldLabel htmlFor={editing ? inputId : undefined} className="text-xs text-muted-foreground">
@@ -56,16 +71,31 @@ export default function EditableDirectoryField({
       </FieldLabel>
       {editing ? (
         <div className="flex flex-col gap-2">
-          <Input
-            id={inputId}
-            autoFocus
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            placeholder={placeholder}
-            onKeyDown={handleKeyDown}
-            aria-invalid={Boolean(error)}
-            disabled={pending}
-          />
+          <div className="flex gap-2">
+            <Input
+              id={inputId}
+              autoFocus
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              placeholder={placeholder}
+              onKeyDown={handleKeyDown}
+              aria-invalid={Boolean(error)}
+              disabled={pending || browsing}
+            />
+            {onBrowse && (
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                aria-label="选择目录"
+                title="选择目录"
+                disabled={pending || browsing}
+                onClick={handleBrowse}
+              >
+                {browsing ? <Spinner /> : <FolderOpen />}
+              </Button>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button size="sm" onClick={onSave} disabled={pending || saveDisabled}>
               {pending && <Spinner data-icon="inline-start" />}

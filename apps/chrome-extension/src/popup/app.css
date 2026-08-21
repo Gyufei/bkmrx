@@ -81,6 +81,22 @@ body {
   color: #a8a29e;
 }
 
+.retry-button {
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.retry-button:focus-visible {
+  outline: 2px solid rgba(var(--color-primary-rgb), 0.35);
+  outline-offset: 2px;
+}
+
 /* ==============================
    View: connected
    ============================== */
@@ -172,8 +188,53 @@ body {
 }
 
 .field textarea {
-  resize: vertical;
-  min-height: 48px;
+  resize: none;
+  overflow-y: hidden;
+}
+
+.description-control {
+  position: relative;
+}
+
+.description-control textarea {
+  display: block;
+  padding-right: 38px;
+}
+
+.translation-spinner,
+.translation-error {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+}
+
+.translation-spinner {
+  border: 2px solid #e7e5e4;
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.translation-error {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: help;
+  border: 0;
+  padding: 0;
+}
+
+.translation-error:focus-visible {
+  outline: 2px solid #fecaca;
+  outline-offset: 2px;
 }
 
 .field input::placeholder,

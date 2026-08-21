@@ -19,11 +19,11 @@ function normalizedApiUrl(value: string | undefined): URL {
 
 function extensionManifest(apiUrl: URL): Plugin {
   return {
-    name: 'bkmr-ext-manifest',
+    name: 'bkmrx-ext-manifest',
     generateBundle() {
       const manifest = {
         manifest_version: 3,
-        name: 'bkmr-ext',
+        name: 'bkmrx-ext',
         version: packageJson.version,
         description: '通过 bkmrx 快速添加当前页面为书签',
         icons: {

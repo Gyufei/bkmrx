@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { checkHealth, createBookmark, findBookmarkByUrl, getTags, updateBookmark } from '../lib/api'
+  import { checkHealth, createBookmark, findBookmarkByUrl, getTags, translateDescription, updateBookmark } from '../lib/api'
   import { bookmarkPayload, emptyBookmarkForm, formFromBookmark } from '../lib/bookmark'
   import { getActivePage, getPageDescription } from '../lib/chrome'
   import type { Bookmark } from '../lib/types'
+  import { isForeignTranslationCandidate } from '../lib/translation'
   import TagInput from './TagInput.svelte'
 
   type ViewState = 'checking' | 'disconnected' | 'connected'
@@ -15,6 +16,9 @@
   let submitting = $state(false)
   let errorMessage = $state('')
   let successMessage = $state('')
+  let translatingDescription = $state(false)
+  let translationError = $state(false)
+  let translationRequestId = 0
 
   const isUpdateMode = $derived(existingBookmark !== null)
   const buttonText = $derived(
@@ -34,15 +38,17 @@
     try {
       const page = await getActivePage()
       if (page) {
-        const description = page.id === undefined ? '' : await getPageDescription(page.id)
-        form = { url: page.url, title: page.title, description, tags: [] }
+        form = { url: page.url, title: page.title, description: '', tags: [] }
+        const bookmark = await findBookmarkByUrl(page.url)
+        if (bookmark) {
+          setExistingBookmark(bookmark)
+        } else if (page.id !== undefined) {
+          const description = await getPageDescription(page.id)
+          form = { ...form, description }
+          void translateFetchedDescription(description)
+        }
       }
-
       suggestions = (await getTags()).map(({ name }) => name)
-      if (form.url) {
-        const bookmark = await findBookmarkByUrl(form.url)
-        if (bookmark) setExistingBookmark(bookmark)
-      }
     } catch (error) {
       errorMessage = messageFromError(error)
     } finally {
@@ -51,16 +57,57 @@
   }
 
   function setExistingBookmark(bookmark: Bookmark): void {
+    cancelDescriptionTranslation()
     existingBookmark = bookmark
     form = formFromBookmark(bookmark)
   }
 
   function updateForm(field: 'url' | 'title' | 'description', value: string): void {
+    if (field === 'description') cancelDescriptionTranslation()
     form = { ...form, [field]: value }
+  }
+
+  async function translateFetchedDescription(description: string): Promise<void> {
+    if (!isForeignTranslationCandidate(description)) return
+
+    const requestId = ++translationRequestId
+    translatingDescription = true
+    translationError = false
+    try {
+      const translation = await translateDescription(description)
+      if (
+        requestId === translationRequestId
+        && form.description === description
+      ) {
+        form = { ...form, description: translation.text }
+      }
+    } catch {
+      if (requestId === translationRequestId && form.description === description) {
+        translationError = true
+      }
+    } finally {
+      if (requestId === translationRequestId) translatingDescription = false
+    }
+  }
+
+  function cancelDescriptionTranslation(): void {
+    translationRequestId += 1
+    translatingDescription = false
+    translationError = false
   }
 
   function updateTags(tags: readonly string[]): void {
     form = { ...form, tags: [...tags] }
+  }
+
+  function autoGrow(node: HTMLTextAreaElement, _value: string) {
+    const resize = () => {
+      node.style.height = 'auto'
+      const borderHeight = node.offsetHeight - node.clientHeight
+      node.style.height = `${node.scrollHeight + borderHeight}px`
+    }
+    resize()
+    return { update: resize }
   }
 
   async function submit(): Promise<void> {
@@ -73,6 +120,8 @@
       errorMessage = messageFromError(error)
       return
     }
+
+    cancelDescriptionTranslation()
 
     submitting = true
     errorMessage = ''
@@ -97,7 +146,13 @@
   function messageFromError(error: unknown): string {
     return error instanceof Error
       ? error.message
-      : '无法连接到 bkmrx，请确认应用已启动'
+      : '发生未知错误，请稍后重试'
+  }
+
+  function retryConnection(): void {
+    errorMessage = ''
+    viewState = 'checking'
+    void initialize()
   }
 </script>
 
@@ -115,6 +170,7 @@
     </svg>
     <h2 class="disco-title">请连接 bkmrx</h2>
     <p class="disco-desc">确保后端应用已启动</p>
+    <button type="button" class="retry-button" onclick={retryConnection}>重试</button>
   </div>
 {:else}
   <div class="view-connected">
@@ -144,7 +200,14 @@
 
       <div class="field">
         <label for="description" class="field-label">描述（可选）</label>
-        <textarea id="description" value={form.description} oninput={(event) => updateForm('description', event.currentTarget.value)} rows="2" placeholder="添加备注或描述"></textarea>
+        <div class="description-control">
+          <textarea id="description" value={form.description} oninput={(event) => updateForm('description', event.currentTarget.value)} use:autoGrow={form.description} rows="3" placeholder="添加备注或描述"></textarea>
+          {#if translatingDescription}
+            <span class="translation-spinner" role="status" aria-label="正在翻译描述"></span>
+          {:else if translationError}
+            <button class="translation-error" type="button" aria-label="翻译 API 调用失败" title="翻译 API 调用失败">!</button>
+          {/if}
+        </div>
       </div>
 
       <button type="submit" id="submit-btn" disabled={submitting} class:update-mode={isUpdateMode}>

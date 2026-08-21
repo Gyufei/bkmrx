@@ -83,6 +83,18 @@ impl AppError {
         Self::new("internal_error", message, None)
     }
 
+    pub fn translation_error(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        provider: Option<&str>,
+    ) -> Self {
+        Self::new(
+            code,
+            message,
+            provider.map(|provider| serde_json::json!({ "provider": provider })),
+        )
+    }
+
     pub fn unsupported_schema_version(found: i64, supported: i64) -> Self {
         Self::new(
             "unsupported_schema_version",
