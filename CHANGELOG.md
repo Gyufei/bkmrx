@@ -2,6 +2,23 @@
 
 本项目的主要版本变更记录在此文件中。
 
+## [1.9.0] - 2026-08-21
+
+### Added
+
+- Chrome 扩展增加 Vite、Svelte 5、TypeScript 与 Vitest 工程化支持，并纳入 pnpm workspace 的统一开发、构建、检查和测试流程。
+- 支持通过 `.env` 配置本地 API 地址；构建时会同步生成与 API origin 一致的 Manifest `host_permissions`。
+
+### Changed
+
+- Chrome 扩展更名为 `bkmr-ext`，并将桌面端、Tauri 应用、Rust crate 和扩展版本统一更新到 1.9.0。
+- 将扩展 popup 重构为 Svelte 组件，并拆分 API 客户端、Chrome API 适配层、书签表单模型和领域类型。
+- 将 Tagify 改为 npm 依赖，生产构建统一输出到 `apps/chrome-extension/dist`。
+
+### Removed
+
+- 移除扩展原有的 Alpine.js 页面实现、仓库内压缩版第三方库，以及没有实际业务任务的 Manifest V3 background service worker。
+
 ## [1.8.0] - 2026-08-19
 
 ### Added

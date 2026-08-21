@@ -1,6 +1,6 @@
-# bkmrx Chrome Extension
+# bkmr-ext
 
-bkmrx Chrome Extension 是 bkmrx 的浏览器快捷入口，可以读取当前页面的 URL 和标题、添加标签，并通过本机 HTTP API 保存到桌面应用。
+bkmr-ext 是 bkmrx 的浏览器快捷入口，可以读取当前页面的 URL 和标题、添加标签，并通过本机 HTTP API 保存到桌面应用。
 
 [返回项目首页](../../README.md) · [桌面端](../desktop/README.md) · [HTTP API](../../docs/reference/2026-07-24-http-api.md)
 
@@ -8,7 +8,7 @@ bkmrx Chrome Extension 是 bkmrx 的浏览器快捷入口，可以读取当前�
 当前网页 ── Chrome 扩展 ── HTTP API ── bkmrx Desktop ── SQLite
 ```
 
-扩展不维护独立书签数据，也不需要构建工具。
+扩展不维护独立书签数据。界面使用 Svelte 和 TypeScript 开发，并通过 Vite 构建。
 
 ## 前置条件
 
@@ -20,8 +20,9 @@ bkmrx Chrome Extension 是 bkmrx 的浏览器快捷入口，可以读取当前�
 1. 在浏览器地址栏打开 `chrome://extensions/`。
 2. 开启“开发者模式”。
 3. 点击“加载已解压的扩展程序”。
-4. 选择仓库中的 `apps/chrome-extension` 目录。
-5. 将 bkmrx 图标固定到浏览器工具栏。
+4. 先按下文说明生成构建产物。
+5. 选择仓库中的 `apps/chrome-extension/dist` 目录。
+6. 将 bkmrx 图标固定到浏览器工具栏。
 
 ## 使用
 
@@ -61,21 +62,40 @@ bkmrx Chrome Extension 是 bkmrx 的浏览器快捷入口，可以读取当前�
 
 ```text
 apps/chrome-extension/
-├── manifest.json
-├── background.js
+├── package.json
+├── vite.config.ts
+├── .env.example
 ├── icons/
 │   ├── icon16.png
 │   ├── icon48.png
 │   └── icon128.png
-├── lib/
-│   └── README.md
-└── popup/
-    ├── popup.html
-    ├── popup.css
-    └── popup.js
+└── src/
+    ├── lib/
+    │   ├── api.ts
+    │   ├── bookmark.ts
+    │   ├── chrome.ts
+    │   └── types.ts
+    └── popup/
+        ├── index.html
+        ├── main.ts
+        ├── App.svelte
+        └── TagInput.svelte
 ```
 
-扩展使用原生 HTML、CSS 和 JavaScript，没有 npm 构建依赖。运行时第三方库直接存放在 `lib/`，版本、来源和许可证见 [`lib/README.md`](lib/README.md)。修改源码后，在 `chrome://extensions/` 中点击扩展卡片的刷新按钮即可生效。
+安装依赖并生成生产构建：
+
+```bash
+pnpm install
+pnpm --filter bkmr-ext build
+```
+
+开发时运行监听构建，修改源码后在 `chrome://extensions/` 中点击扩展卡片的刷新按钮：
+
+```bash
+pnpm --filter bkmr-ext dev
+```
+
+API 地址由 `VITE_BKMRX_API_URL` 控制。复制 `.env.example` 为 `.env.local` 可进行本机覆盖。所有 `VITE_` 变量都会进入浏览器构建产物，因此不能用于保存密钥。构建过程会根据该地址同步生成 Manifest 的 `host_permissions`。
 
 ## 调试
 

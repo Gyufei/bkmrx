@@ -16,4 +16,7 @@ Icon
 Thumbs.db
 Desktop.ini
 
-# Don't ignore extension source files — all static, no build output
+# Build output and local environment overrides
+dist/
+.env.local
+.env.*.local
