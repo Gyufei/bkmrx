@@ -51,19 +51,7 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
-描述翻译使用小牛翻译 v2。可以在 shell 中配置：
-
-```bash
-export NIUTRANS_API_KEY="your-api-key"
-export NIUTRANS_APP_ID="your-app-id"
-```
-
-本地开发也可以写入不受版本控制的 `apps/desktop/.env.local`：
-
-```dotenv
-NIUTRANS_API_KEY=your-api-key
-NIUTRANS_APP_ID=your-app-id
-```
+描述翻译使用小牛翻译 v2。请在桌面端“设置 → 服务 → 小牛翻译”中配置 App ID 和 API Key；凭据保存在应用数据目录的 `settings.json` 中，保存后立即生效。
 
 未配置时桌面端仍可正常使用，只有翻译端点返回 `translation_unavailable`。`TranslationProvider` 是第三方服务边界，后续更换供应商或增加日志/指标包装不需要修改 HTTP handler。
 

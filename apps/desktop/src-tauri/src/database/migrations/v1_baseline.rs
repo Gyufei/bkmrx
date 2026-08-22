@@ -1,6 +1,6 @@
 use rusqlite::Transaction;
 
-use crate::bookmarks::{AppError, AppResult};
+use crate::error::{AppError, AppResult};
 
 pub(super) fn apply(transaction: &Transaction<'_>) -> AppResult<()> {
     transaction.execute_batch(SCHEMA).map_err(database_error)

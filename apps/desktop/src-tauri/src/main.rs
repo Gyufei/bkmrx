@@ -72,6 +72,7 @@ fn main() {
                     })),
             );
             app.manage(todo_service);
+            let settings_path = runtime_paths.settings_path().to_path_buf();
             app.manage(runtime_paths);
             let note_handle = handle.clone();
             let note_service = Arc::new(bkmrx_lib::notes::NoteService::new(Arc::new(
@@ -85,7 +86,11 @@ fn main() {
                 },
             )));
             app.manage(Arc::clone(&note_service));
-            tauri::async_runtime::spawn(bkmrx_lib::http_server::start_server(service, shutdown_rx));
+            tauri::async_runtime::spawn(bkmrx_lib::http_server::start_server(
+                service,
+                settings_path,
+                shutdown_rx,
+            ));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

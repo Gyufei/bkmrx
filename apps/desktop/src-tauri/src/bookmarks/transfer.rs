@@ -9,9 +9,10 @@ use rusqlite::{params, OptionalExtension};
 use sha2::{Digest, Sha256};
 
 use crate::database::Database;
+use crate::error::{AppError, AppResult};
 
 use super::repository::{remove_unused_tags, replace_tags, upsert_fts};
-use super::{AppError, AppResult, BookmarkExportV1, BookmarkTransferRecord, ImportPreview};
+use super::{BookmarkExportV1, BookmarkTransferRecord, ImportPreview};
 
 pub(crate) fn export_bookmarks(database: &Database, destination: &Path) -> AppResult<PathBuf> {
     let export = snapshot(database)?;
@@ -113,7 +114,7 @@ pub(crate) fn apply_import(
                             record.created_at,
                             record.updated_at,
                             record.accessed_at,
-                            record.starred_at.flatten(),
+                            record.starred_at,
                         ],
                     )
                     .map_err(database_error)?;
@@ -143,7 +144,7 @@ pub(crate) fn apply_import(
                 let updated_at = existing.updated_at.max(record.updated_at);
                 let accessed_at = latest_optional(existing.accessed_at, record.accessed_at);
                 let starred_at = if content_is_newer {
-                    record.starred_at.unwrap_or(existing.starred_at)
+                    record.starred_at
                 } else {
                     existing.starred_at
                 };
@@ -216,11 +217,10 @@ fn snapshot(database: &Database) -> AppResult<BookmarkExportV1> {
                         .get::<_, Option<i64>>(7)?
                         .map(|timestamp| timestamp_to_string(timestamp, SecondsFormat::Secs))
                         .transpose()?,
-                    starred_at: Some(
-                        row.get::<_, Option<i64>>(8)?
-                            .map(|timestamp| timestamp_to_string(timestamp, SecondsFormat::Millis))
-                            .transpose()?,
-                    ),
+                    starred_at: row
+                        .get::<_, Option<i64>>(8)?
+                        .map(|timestamp| timestamp_to_string(timestamp, SecondsFormat::Millis))
+                        .transpose()?,
                 },
             ))
         })
@@ -303,12 +303,8 @@ fn parse_and_validate(bytes: &[u8]) -> AppResult<ValidatedExport> {
             .map_err(|_| record_error(index, "accessed_at must be RFC 3339"))?;
         let starred_at = record
             .starred_at
-            .map(|value| {
-                value
-                    .as_deref()
-                    .map(|value| parse_timestamp("starred_at", value))
-                    .transpose()
-            })
+            .as_deref()
+            .map(|value| parse_timestamp("starred_at", value))
             .transpose()
             .map_err(|_| record_error(index, "starred_at must be RFC 3339"))?;
         let title = {
@@ -395,7 +391,7 @@ struct ValidatedRecord {
     created_at: i64,
     updated_at: i64,
     accessed_at: Option<i64>,
-    starred_at: Option<Option<i64>>,
+    starred_at: Option<i64>,
 }
 
 struct ExistingBookmark {

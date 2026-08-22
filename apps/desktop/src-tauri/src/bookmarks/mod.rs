@@ -5,7 +5,6 @@ pub mod service;
 mod sql;
 pub mod transfer;
 
-pub use crate::error::{AppError, AppResult};
 pub use model::{
     Bookmark, BookmarkExportV1, BookmarkPage, BookmarkPageRequest, BookmarkTransferRecord,
     CreateBookmark, ImportPreview, TagQueryRequest, TagSummary, UpdateBookmark,

@@ -164,7 +164,7 @@ fn exported_starred_at_preserves_milliseconds_and_import_order() {
 }
 
 #[test]
-fn legacy_import_without_starred_at_preserves_existing_local_star() {
+fn newer_import_without_starred_at_clears_existing_local_star() {
     let (_, service) = service();
     create(&service, "https://example.com");
     let local = service
@@ -175,7 +175,7 @@ fn legacy_import_without_starred_at_preserves_existing_local_star() {
     let directory = TempDir::new().unwrap();
     let path = write_json(
         &directory,
-        "legacy.json",
+        "without-star.json",
         export(vec![record("https://example.com")]),
     );
 
@@ -184,12 +184,14 @@ fn legacy_import_without_starred_at_preserves_existing_local_star() {
         .apply_bookmark_import(&path, &preview.file_hash)
         .unwrap();
 
-    assert!(service
-        .get_by_url("https://example.com".to_owned())
-        .unwrap()
-        .unwrap()
-        .starred_at
-        .is_some());
+    assert_eq!(
+        service
+            .get_by_url("https://example.com".to_owned())
+            .unwrap()
+            .unwrap()
+            .starred_at,
+        None
+    );
 }
 
 #[test]
@@ -270,12 +272,12 @@ fn preview_rejects_invalid_starred_at() {
 }
 
 #[test]
-fn legacy_import_without_starred_at_creates_unstarred_bookmark() {
+fn import_without_starred_at_creates_unstarred_bookmark() {
     let (_, service) = service();
     let directory = TempDir::new().unwrap();
     let path = write_json(
         &directory,
-        "legacy-new.json",
+        "without-star-new.json",
         export(vec![record("https://example.com")]),
     );
 

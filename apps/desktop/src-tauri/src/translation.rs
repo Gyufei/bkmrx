@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    env,
+    path::PathBuf,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -61,24 +61,28 @@ pub trait TranslationProvider: Send + Sync {
 #[derive(Clone)]
 pub struct TranslationService {
     provider: Option<Arc<dyn TranslationProvider>>,
+    settings_path: Option<PathBuf>,
 }
 
 impl TranslationService {
     pub fn new(provider: Arc<dyn TranslationProvider>) -> Self {
         Self {
             provider: Some(provider),
+            settings_path: None,
         }
     }
 
     pub fn unavailable() -> Self {
-        Self { provider: None }
+        Self {
+            provider: None,
+            settings_path: None,
+        }
     }
 
-    pub fn from_env() -> Self {
-        load_local_env();
-        match NiuTransProvider::from_env() {
-            Some(provider) => Self::new(Arc::new(provider)),
-            None => Self::unavailable(),
+    pub fn from_settings_path(settings_path: PathBuf) -> Self {
+        Self {
+            provider: None,
+            settings_path: Some(settings_path),
         }
     }
 
@@ -87,24 +91,27 @@ impl TranslationService {
         request: TranslationRequest,
     ) -> Result<Translation, TranslationError> {
         validate_request(&request)?;
-        let provider = self
-            .provider
+        if let Some(provider) = &self.provider {
+            return provider.translate(&request).await;
+        }
+        let settings_path = self
+            .settings_path
             .as_ref()
+            .ok_or(TranslationError::Unavailable)?;
+        let settings = crate::settings::load(settings_path).map_err(|error| {
+            eprintln!("Failed to load translation settings: {error}");
+            TranslationError::Unavailable
+        })?;
+        let provider = NiuTransProvider::from_settings(&settings.services.niutrans)
             .ok_or(TranslationError::Unavailable)?;
         provider.translate(&request).await
     }
 
     pub fn provider_name(&self) -> Option<&'static str> {
-        self.provider.as_ref().map(|provider| provider.name())
-    }
-}
-
-fn load_local_env() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .map(|desktop_dir| desktop_dir.join(".env.local"));
-    if let Some(path) = path {
-        let _ = dotenvy::from_path(path);
+        self.provider
+            .as_ref()
+            .map(|provider| provider.name())
+            .or(self.settings_path.as_ref().map(|_| "niutrans"))
     }
 }
 
@@ -130,9 +137,9 @@ struct NiuTransProvider {
 }
 
 impl NiuTransProvider {
-    fn from_env() -> Option<Self> {
-        let api_key = env::var("NIUTRANS_API_KEY").ok()?.trim().to_owned();
-        let app_id = env::var("NIUTRANS_APP_ID").ok()?.trim().to_owned();
+    fn from_settings(settings: &crate::settings::NiuTransSettings) -> Option<Self> {
+        let api_key = settings.api_key.as_deref()?.trim().to_owned();
+        let app_id = settings.app_id.as_deref()?.trim().to_owned();
         if api_key.is_empty() || app_id.is_empty() {
             return None;
         }
@@ -249,8 +256,8 @@ mod tests {
     use futures_util::future::BoxFuture;
 
     use super::{
-        sign, validate_request, Translation, TranslationError, TranslationProvider,
-        TranslationRequest, TranslationService,
+        sign, validate_request, NiuTransProvider, Translation, TranslationError,
+        TranslationProvider, TranslationRequest, TranslationService,
     };
 
     struct TestProvider;
@@ -301,6 +308,22 @@ mod tests {
             }),
             Err(TranslationError::InvalidRequest(_))
         ));
+    }
+
+    #[test]
+    fn creates_niutrans_provider_only_with_complete_settings() {
+        let complete = crate::settings::NiuTransSettings {
+            app_id: Some(" app ".into()),
+            api_key: Some(" key ".into()),
+        };
+        assert!(NiuTransProvider::from_settings(&complete).is_some());
+        assert!(
+            NiuTransProvider::from_settings(&crate::settings::NiuTransSettings {
+                app_id: Some("app".into()),
+                api_key: None,
+            })
+            .is_none()
+        );
     }
 
     #[tokio::test]

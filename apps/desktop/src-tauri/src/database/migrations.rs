@@ -1,6 +1,6 @@
 use rusqlite::{Connection, Transaction, TransactionBehavior};
 
-use crate::bookmarks::{AppError, AppResult};
+use crate::error::{AppError, AppResult};
 
 mod v1_baseline;
 

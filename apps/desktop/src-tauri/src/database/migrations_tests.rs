@@ -1,4 +1,6 @@
-use super::{run_pending, AppError, AppResult, Connection, Migration, Transaction};
+use crate::error::{AppError, AppResult};
+
+use super::{run_pending, Connection, Migration, Transaction};
 
 fn create_v1(transaction: &Transaction<'_>) -> AppResult<()> {
     transaction

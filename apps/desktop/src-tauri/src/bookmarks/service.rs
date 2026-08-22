@@ -3,8 +3,10 @@ use std::{
     sync::Arc,
 };
 
+use crate::error::{AppError, AppResult};
+
 use super::{
-    AppResult, Bookmark, BookmarkPage, BookmarkPageRequest, BookmarkRepository, BookmarkSearch,
+    Bookmark, BookmarkPage, BookmarkPageRequest, BookmarkRepository, BookmarkSearch,
     CreateBookmark, ImportPreview, SqliteBookmarkRepository, SqliteFtsSearch, TagQueryRequest,
     TagSummary, UpdateBookmark,
 };
@@ -73,7 +75,7 @@ impl<R: BookmarkRepository, S: BookmarkSearch> BookmarkService<R, S> {
     pub fn get_by_id(&self, id: i64) -> AppResult<Bookmark> {
         self.repository
             .get_by_id(id)?
-            .ok_or_else(|| super::AppError::bookmark_not_found(id))
+            .ok_or_else(|| AppError::bookmark_not_found(id))
     }
 
     pub fn get_by_url(&self, url: String) -> AppResult<Option<Bookmark>> {

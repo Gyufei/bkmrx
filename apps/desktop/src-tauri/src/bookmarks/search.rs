@@ -7,10 +7,11 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::database::Database;
+use crate::error::{AppError, AppResult};
 
 use super::{
     sql::{escape_like, placeholders},
-    AppError, AppResult, BookmarkPageRequest,
+    BookmarkPageRequest,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

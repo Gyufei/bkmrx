@@ -8,6 +8,7 @@ import BookmarkSettings from './sections/BookmarkSettings';
 import GeneralSettings from './sections/GeneralSettings';
 import NoteSettings from './sections/NoteSettings';
 import RssSettings from './sections/RssSettings';
+import ServicesSettings from './sections/ServicesSettings';
 import { getSettingsApi, SettingsQueryApiKey } from './settings.api';
 import SettingsTabs, { type SettingsTab } from './SettingsTabs';
 
@@ -49,6 +50,12 @@ function SettingsPage() {
           </TabsContent>
           <TabsContent value="rss" keepMounted className="data-inactive:hidden">
             <RssSettings settings={settings} onDirtyChange={(dirty) => setTabDirty('rss', dirty)} />
+          </TabsContent>
+          <TabsContent value="services" keepMounted className="data-inactive:hidden">
+            <ServicesSettings
+              settings={settings}
+              onDirtyChange={(dirty) => setTabDirty('services', dirty)}
+            />
           </TabsContent>
           <TabsContent value="about" keepMounted className="data-inactive:hidden">
             <AboutSettings active={activeTab === 'about'} />

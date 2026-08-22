@@ -16,13 +16,12 @@ pub fn load(path: &Path) -> AppResult<Settings> {
         return Ok(Settings::default());
     }
     let json = std::fs::read(path).map_err(settings_io_error)?;
-    let mut value: serde_json::Value = serde_json::from_slice(&json).map_err(|error| {
+    let value: serde_json::Value = serde_json::from_slice(&json).map_err(|error| {
         AppError::settings_error(
             "settings_invalid",
             format!("failed to parse settings: {error}"),
         )
     })?;
-    migrate_flat_settings(&mut value);
     serde_json::from_value(value).map_err(|error| {
         AppError::settings_error(
             "settings_invalid",
@@ -52,21 +51,6 @@ pub fn save(path: &Path, settings: &Settings) -> AppResult<()> {
         let _ = std::fs::remove_file(&temp_path);
     }
     result
-}
-
-fn migrate_flat_settings(value: &mut serde_json::Value) {
-    let Some(object) = value.as_object_mut() else {
-        return;
-    };
-    if let Some(backup_dir) = object.remove("backup_dir") {
-        object.insert(
-            "bookmark".into(),
-            serde_json::json!({ "backup_dir": backup_dir }),
-        );
-    }
-    if let Some(notes_dir) = object.remove("notes_dir") {
-        object.insert("note".into(), serde_json::json!({ "notes_dir": notes_dir }));
-    }
 }
 
 fn validate(settings: &Settings) -> AppResult<()> {

@@ -5,10 +5,11 @@ use chrono::{SecondsFormat, Utc};
 use rusqlite::{params, params_from_iter, OptionalExtension, Transaction};
 
 use crate::database::Database;
+use crate::error::{AppError, AppResult};
 
 use super::{
     sql::{escape_like, placeholders},
-    AppError, AppResult, Bookmark, CreateBookmark, TagQueryRequest, TagSummary, UpdateBookmark,
+    Bookmark, CreateBookmark, TagQueryRequest, TagSummary, UpdateBookmark,
 };
 
 pub trait BookmarkRepository: Send + Sync {

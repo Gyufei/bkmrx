@@ -154,6 +154,12 @@ export interface AppSettings {
     rsshub_base_url: string | null;
     rsshub_access_key: string | null;
   };
+  services: {
+    niutrans: {
+      app_id: string | null;
+      api_key: string | null;
+    };
+  };
 }
 
 export function invokeGetSettings(): Promise<AppSettings> {

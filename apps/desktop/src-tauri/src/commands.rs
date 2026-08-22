@@ -1,9 +1,10 @@
 use tauri::State;
 
 use crate::bookmarks::{
-    AppResult, Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, ImportPreview,
+    Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, ImportPreview,
     SharedBookmarkService, TagQueryRequest, TagSummary, UpdateBookmark,
 };
+use crate::error::AppResult;
 use crate::notes::SharedNoteService;
 use crate::preview::{BookmarkPreview, PrepareBookmarkPreviewRequest, SharedPreviewService};
 use crate::rss::{

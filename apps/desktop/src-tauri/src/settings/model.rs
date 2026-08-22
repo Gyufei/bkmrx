@@ -7,6 +7,7 @@ pub struct Settings {
     pub bookmark: BookmarkSettings,
     pub note: NoteSettings,
     pub rss: RssSettings,
+    pub services: ServiceSettings,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -30,6 +31,19 @@ pub struct NoteSettings {
 pub struct RssSettings {
     pub rsshub_base_url: Option<String>,
     pub rsshub_access_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct ServiceSettings {
+    pub niutrans: NiuTransSettings,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct NiuTransSettings {
+    pub app_id: Option<String>,
+    pub api_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]

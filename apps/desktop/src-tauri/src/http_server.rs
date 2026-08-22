@@ -2,9 +2,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 use crate::bookmarks::{
-    AppError, Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, SharedBookmarkService,
+    Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, SharedBookmarkService,
     TagQueryRequest, TagSummary, UpdateBookmark,
 };
+use crate::error::AppError;
 use crate::translation::{TranslationRequest, TranslationService};
 use axum::{
     extract::{
@@ -75,6 +76,7 @@ pub fn router_with_translation(
 
 pub async fn start_server(
     service: SharedBookmarkService,
+    settings_path: std::path::PathBuf,
     shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) {
     let listener =
@@ -90,7 +92,7 @@ pub async fn start_server(
 
     let _ = SERVER_URL.set("http://127.0.0.1:8733".to_owned());
     SERVER_RUNNING.store(true, Ordering::SeqCst);
-    let translation = TranslationService::from_env();
+    let translation = TranslationService::from_settings_path(settings_path);
     if let Err(error) = axum::serve(listener, router_with_translation(service, translation))
         .with_graceful_shutdown(async {
             let _ = shutdown_rx.await;

@@ -3,7 +3,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::Connection;
 
-use crate::bookmarks::{AppError, AppResult};
+use crate::error::{AppError, AppResult};
 
 mod migrations;
 

@@ -28,6 +28,7 @@ vi.mock('./settings.api', () => ({
     bookmark: { backup_dir: '/old/backup' },
     note: { notes_dir: '/old/notes' },
     rss: { rsshub_base_url: null, rsshub_access_key: null },
+    services: { niutrans: { app_id: null, api_key: null } },
   }),
   getSystemInfoApi: vi.fn().mockResolvedValue({
     app_data_dir: '/app',
@@ -56,7 +57,7 @@ function renderPage() {
   };
 }
 
-async function selectTab(name: '通用' | '书签' | '笔记' | 'RSS' | '关于') {
+async function selectTab(name: '通用' | '书签' | '笔记' | 'RSS' | '服务' | '关于') {
   fireEvent.click(await screen.findByRole('tab', { name }));
 }
 
@@ -108,6 +109,7 @@ describe('SettingsPage', () => {
         bookmark: { backup_dir: '/new/backup' },
         note: { notes_dir: '/old/notes' },
         rss: { rsshub_base_url: null, rsshub_access_key: null },
+        services: { niutrans: { app_id: null, api_key: null } },
       }),
     );
     await waitFor(() =>
@@ -131,6 +133,7 @@ describe('SettingsPage', () => {
         bookmark: { backup_dir: '/old/backup' },
         note: { notes_dir: '/new/notes' },
         rss: { rsshub_base_url: null, rsshub_access_key: null },
+        services: { niutrans: { app_id: null, api_key: null } },
       }),
     );
   });
@@ -165,6 +168,7 @@ describe('SettingsPage', () => {
         bookmark: { backup_dir: '/enter/backup' },
         note: { notes_dir: '/old/notes' },
         rss: { rsshub_base_url: null, rsshub_access_key: null },
+        services: { niutrans: { app_id: null, api_key: null } },
       }),
     );
     await waitFor(() =>
@@ -201,6 +205,7 @@ describe('SettingsPage', () => {
           rsshub_base_url: 'https://rss.example.com',
           rsshub_access_key: 'secret',
         },
+        services: { niutrans: { app_id: null, api_key: null } },
       }),
     );
   });
@@ -211,6 +216,7 @@ describe('SettingsPage', () => {
       bookmark: { backup_dir: '/old/backup' },
       note: { notes_dir: '/old/notes' },
       rss: { rsshub_base_url: 'https://rss.example.com', rsshub_access_key: 'secret' },
+      services: { niutrans: { app_id: null, api_key: null } },
     });
     renderPage();
     await selectTab('RSS');
@@ -227,6 +233,30 @@ describe('SettingsPage', () => {
     expect(keyInput.type).toBe('text');
     fireEvent.click(screen.getByRole('button', { name: '隐藏 Access Key' }));
     expect(keyInput.type).toBe('password');
+  });
+
+  it('saves the NiuTrans credentials from the services tab', async () => {
+    renderPage();
+    await selectTab('服务');
+
+    expect(screen.getByRole('heading', { name: '小牛翻译' })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('App ID'), { target: { value: ' app-id ' } });
+    const apiKeyInput = screen.getByLabelText('API Key') as HTMLInputElement;
+    fireEvent.change(apiKeyInput, { target: { value: ' api-key ' } });
+    expect(apiKeyInput.type).toBe('password');
+    fireEvent.click(screen.getByRole('button', { name: '显示 API Key' }));
+    expect(apiKeyInput.type).toBe('text');
+    fireEvent.click(screen.getByRole('button', { name: '保存服务设置' }));
+
+    await waitFor(() =>
+      expect(vi.mocked(updateSettingsApi).mock.calls[0]?.[0]).toEqual({
+        common: {},
+        bookmark: { backup_dir: '/old/backup' },
+        note: { notes_dir: '/old/notes' },
+        rss: { rsshub_base_url: null, rsshub_access_key: null },
+        services: { niutrans: { app_id: 'app-id', api_key: 'api-key' } },
+      }),
+    );
   });
 
   it('keeps the directory editor open and shows an error when saving fails', async () => {

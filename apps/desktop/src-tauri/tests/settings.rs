@@ -65,18 +65,33 @@ fn save_replaces_settings_without_leaving_temp_files() {
 }
 
 #[test]
-fn loads_legacy_flat_settings_and_saves_grouped_json() {
+fn old_grouped_settings_default_the_services_section() {
     let app_data = TempDir::new().unwrap();
     let path = app_data.path().join("settings.json");
-    std::fs::write(&path, br#"{"backup_dir":"/backup","notes_dir":"/notes"}"#).unwrap();
+    std::fs::write(&path, br#"{"common":{},"bookmark":{},"note":{},"rss":{}}"#).unwrap();
 
     let settings = load(&path).unwrap();
-    assert_eq!(settings.bookmark.backup_dir.as_deref(), Some("/backup"));
-    assert_eq!(settings.note.notes_dir.as_deref(), Some("/notes"));
+
+    assert_eq!(settings.services, Default::default());
+}
+
+#[test]
+fn saves_niutrans_credentials_under_services() {
+    let app_data = TempDir::new().unwrap();
+    let path = app_data.path().join("settings.json");
+    let settings = Settings {
+        services: bkmrx_lib::settings::ServiceSettings {
+            niutrans: bkmrx_lib::settings::NiuTransSettings {
+                app_id: Some("app-id".into()),
+                api_key: Some("api-key".into()),
+            },
+        },
+        ..Settings::default()
+    };
+
     save(&path, &settings).unwrap();
 
-    let json = std::fs::read_to_string(path).unwrap();
-    assert!(json.contains("\"bookmark\""));
-    assert!(json.contains("\"note\""));
-    assert!(!json.contains("\"backup_dir\": null"));
+    let json: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    assert_eq!(json["services"]["niutrans"]["app_id"], "app-id");
+    assert_eq!(json["services"]["niutrans"]["api_key"], "api-key");
 }
