@@ -117,14 +117,22 @@ fn archive_delete_removes_tag_and_its_todos_but_keeps_others() {
 
     repository.archive_delete_tag(work_id).unwrap();
 
-    assert!(repository.tags().unwrap().iter().all(|tag| tag.id != work_id));
+    assert!(repository
+        .tags()
+        .unwrap()
+        .iter()
+        .all(|tag| tag.id != work_id));
     assert!(repository.get(finished).unwrap().is_none());
     assert!(repository.get(suspended).unwrap().is_none());
     assert!(repository.get(canceled).unwrap().is_none());
     assert!(repository.get(shared).unwrap().is_none());
     let kept_todo = repository.get(kept).unwrap().unwrap();
     assert_eq!(kept_todo.tags, vec!["Personal"]);
-    assert!(repository.tags().unwrap().iter().any(|tag| tag.id == personal_id));
+    assert!(repository
+        .tags()
+        .unwrap()
+        .iter()
+        .any(|tag| tag.id == personal_id));
 }
 
 #[test]
@@ -143,7 +151,11 @@ fn archive_delete_is_rejected_while_a_todo_is_in_progress() {
 
     let error = repository.archive_delete_tag(work_id).unwrap_err();
     assert_eq!(error.code(), "todo_tag_has_active_todos");
-    assert!(repository.tags().unwrap().iter().any(|tag| tag.id == work_id));
+    assert!(repository
+        .tags()
+        .unwrap()
+        .iter()
+        .any(|tag| tag.id == work_id));
     assert_eq!(
         repository
             .query(&TodoQuery {
@@ -234,7 +246,7 @@ fn export_writes_markdown_for_all_statuses() {
 }
 
 #[test]
-fn export_empty_tag_produces_an_empty_file() {
+fn export_empty_tag_is_rejected_without_creating_a_file() {
     let repository = repository();
     let id = create(&repository, "disposable", &["Empty"]);
     repository.delete(id).unwrap();
@@ -248,12 +260,12 @@ fn export_empty_tag_produces_an_empty_file() {
     let service = TodoService::new(repository);
     let directory = export_directory();
     let path = directory.join("empty.md");
-    service
+    let error = service
         .export_todos(path.to_string_lossy().into_owned(), Some(tag_id))
-        .unwrap();
+        .unwrap_err();
 
-    let content = std::fs::read_to_string(&path).unwrap();
-    assert!(content.trim().is_empty());
+    assert_eq!(error.code(), "todo_export_empty");
+    assert!(!path.exists());
 
     std::fs::remove_dir_all(&directory).ok();
 }
@@ -265,7 +277,9 @@ fn export_omits_the_date_when_completed_at_is_missing() {
     let id = create(&repository, "legacy", &["Work"]);
     repository.set_status(id, TodoStatus::Completed).unwrap();
     database
-        .execute_batch_for_test(&format!("UPDATE todos SET completed_at = NULL WHERE id = {id}"))
+        .execute_batch_for_test(&format!(
+            "UPDATE todos SET completed_at = NULL WHERE id = {id}"
+        ))
         .unwrap();
     let tag_id = work_tag_id(&repository);
     let service = TodoService::new(repository);

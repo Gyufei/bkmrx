@@ -6,8 +6,11 @@ fn settings_round_trip_at_explicit_app_data_path() {
     let app_data = TempDir::new().unwrap();
     let path = app_data.path().join("settings.json");
     let settings = Settings {
-        note: bkmrx_lib::settings::NoteSettings {
-            notes_dir: Some("/tmp/notes".to_owned()),
+        common: bkmrx_lib::settings::CommonSettings {
+            paths: bkmrx_lib::settings::PathSettings {
+                notes_dir: Some("/tmp/notes".to_owned()),
+                ..Default::default()
+            },
         },
         ..Settings::default()
     };
@@ -49,8 +52,11 @@ fn save_replaces_settings_without_leaving_temp_files() {
     save(
         &path,
         &Settings {
-            note: bkmrx_lib::settings::NoteSettings {
-                notes_dir: Some("/tmp/notes".into()),
+            common: bkmrx_lib::settings::CommonSettings {
+                paths: bkmrx_lib::settings::PathSettings {
+                    notes_dir: Some("/tmp/notes".into()),
+                    ..Default::default()
+                },
             },
             ..Settings::default()
         },
@@ -58,21 +64,21 @@ fn save_replaces_settings_without_leaving_temp_files() {
     .unwrap();
 
     assert_eq!(
-        load(&path).unwrap().note.notes_dir.as_deref(),
+        load(&path).unwrap().common.paths.notes_dir.as_deref(),
         Some("/tmp/notes")
     );
     assert_eq!(std::fs::read_dir(app_data.path()).unwrap().count(), 1);
 }
 
 #[test]
-fn old_grouped_settings_default_the_services_section() {
+fn missing_groups_use_defaults() {
     let app_data = TempDir::new().unwrap();
     let path = app_data.path().join("settings.json");
-    std::fs::write(&path, br#"{"common":{},"bookmark":{},"note":{},"rss":{}}"#).unwrap();
+    std::fs::write(&path, br#"{}"#).unwrap();
 
     let settings = load(&path).unwrap();
 
-    assert_eq!(settings.services, Default::default());
+    assert_eq!(settings, Settings::default());
 }
 
 #[test]
@@ -85,6 +91,7 @@ fn saves_niutrans_credentials_under_services() {
                 app_id: Some("app-id".into()),
                 api_key: Some("api-key".into()),
             },
+            ..Default::default()
         },
         ..Settings::default()
     };
@@ -94,4 +101,38 @@ fn saves_niutrans_credentials_under_services() {
     let json: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     assert_eq!(json["services"]["niutrans"]["app_id"], "app-id");
     assert_eq!(json["services"]["niutrans"]["api_key"], "api-key");
+}
+
+#[test]
+fn saves_only_the_new_grouped_structure() {
+    let app_data = TempDir::new().unwrap();
+    let path = app_data.path().join("settings.json");
+    let settings = Settings {
+        common: bkmrx_lib::settings::CommonSettings {
+            paths: bkmrx_lib::settings::PathSettings {
+                bookmark_export_dir: Some("/tmp/bookmarks".into()),
+                todo_export_dir: Some("/tmp/todos".into()),
+                notes_dir: Some("/tmp/notes".into()),
+            },
+        },
+        services: bkmrx_lib::settings::ServiceSettings {
+            rsshub: bkmrx_lib::settings::RssHubSettings {
+                base_url: Some("https://rss.example.com".into()),
+                access_key: Some("secret".into()),
+            },
+            ..Default::default()
+        },
+    };
+
+    save(&path, &settings).unwrap();
+
+    let json: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    assert_eq!(json["common"]["paths"]["todo_export_dir"], "/tmp/todos");
+    assert_eq!(
+        json["services"]["rsshub"]["base_url"],
+        "https://rss.example.com"
+    );
+    assert!(json.get("bookmark").is_none());
+    assert!(json.get("note").is_none());
+    assert!(json.get("rss").is_none());
 }

@@ -71,6 +71,18 @@ impl AppError {
         )
     }
 
+    pub fn todo_export_empty() -> Self {
+        Self::new("todo_export_empty", "当前标签下没有可导出的待办。", None)
+    }
+
+    pub fn export_write_failed() -> Self {
+        Self::new(
+            "export_write_failed",
+            "导出文件写入失败，请检查保存位置后重试。",
+            None,
+        )
+    }
+
     pub fn unsupported_import_format(version: u64) -> Self {
         Self::new(
             "unsupported_import_format",

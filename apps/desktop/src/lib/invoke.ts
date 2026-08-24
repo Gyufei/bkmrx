@@ -155,14 +155,18 @@ export function invokeGetServerStatus(): Promise<{ running: boolean; url: string
 /* ───── Settings ───── */
 
 export interface AppSettings {
-  common: Record<string, never>;
-  bookmark: { backup_dir: string | null };
-  note: { notes_dir: string | null };
-  rss: {
-    rsshub_base_url: string | null;
-    rsshub_access_key: string | null;
+  common: {
+    paths: {
+      bookmark_export_dir: string | null;
+      todo_export_dir: string | null;
+      notes_dir: string | null;
+    };
   };
   services: {
+    rsshub: {
+      base_url: string | null;
+      access_key: string | null;
+    };
     niutrans: {
       app_id: string | null;
       api_key: string | null;

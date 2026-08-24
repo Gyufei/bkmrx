@@ -54,7 +54,7 @@ pub fn save(path: &Path, settings: &Settings) -> AppResult<()> {
 }
 
 fn validate(settings: &Settings) -> AppResult<()> {
-    let Some(raw_url) = settings.rss.rsshub_base_url.as_deref() else {
+    let Some(raw_url) = settings.services.rsshub.base_url.as_deref() else {
         return Ok(());
     };
     let url = url::Url::parse(raw_url).map_err(|_| invalid_rsshub_url())?;

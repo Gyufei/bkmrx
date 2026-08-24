@@ -31,11 +31,14 @@ pub(crate) fn write_atomically(destination: &Path, bytes: &[u8]) -> AppResult<()
         fs::rename(&temporary, destination).map_err(io_error)
     })();
     if write_result.is_err() {
-        let _ = fs::remove_file(&temporary);
+        if let Err(error) = fs::remove_file(&temporary) {
+            eprintln!("Failed to clean up temporary export file: {error}");
+        }
     }
     write_result
 }
 
 fn io_error(error: std::io::Error) -> AppError {
-    AppError::internal_error(error.to_string())
+    eprintln!("Failed to write export file: {error}");
+    AppError::export_write_failed()
 }

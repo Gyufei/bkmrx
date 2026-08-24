@@ -47,4 +47,20 @@ describe('ConfirmDeleteDialog', () => {
     expect(screen.getByText('删除失败：无法删除')).toBeTruthy();
     expect(screen.getByRole('button', { name: '删除' }).getAttribute('disabled')).toBeNull();
   });
+
+  it('renders a structured backend error', () => {
+    render(
+      <ConfirmDeleteDialog
+        open
+        title="归档删除？"
+        description="此操作不可撤销。"
+        error={{ code: 'todo_tag_has_active_todos', message: '仍有未完成待办', details: null }}
+        errorPrefix="归档删除失败："
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('归档删除失败：仍有未完成待办')).toBeTruthy();
+  });
 });

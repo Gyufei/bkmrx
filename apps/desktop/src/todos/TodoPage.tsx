@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import { save } from '@tauri-apps/plugin-dialog';
 import { toast } from '@/components/ui/toast';
-import { formatPathForDisplay } from '@/lib/path';
+import { getErrorMessage } from '@/lib/error';
 import type { CreateTodo, Todo, TodoStatus, TodoTag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +13,9 @@ import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import { useTauriEvent } from '@/lib/use-tauri-event';
 import {
-  archiveDeleteTodoTagApi,
   createTodoApi,
   deleteTodoApi,
   deleteTodoTagApi,
-  exportTodosApi,
   getTodoTagsApi,
   queryTodosApi,
   renameTodoTagApi,
@@ -32,6 +29,8 @@ import TodoDialog from './TodoDialog';
 import TodoListItem from './TodoListItem';
 import TodoSidebar from './TodoSidebar';
 import TodoTagDialogs from './TodoTagDialogs';
+import { useArchiveDeleteTag } from './use-archive-delete-tag';
+import { useTodoExport } from './use-todo-export';
 
 type StatusFilter = TodoStatus | 'all';
 
@@ -43,14 +42,6 @@ const STATUS_TABS: Array<{ value: StatusFilter; label: string }> = [
   { value: 'canceled', label: '已取消' },
 ];
 
-function todayDate() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 export default function TodoPage() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -61,7 +52,6 @@ export default function TodoPage() {
   const [renaming, setRenaming] = useState<TodoTag | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [deletingTag, setDeletingTag] = useState<TodoTag | null>(null);
-  const [archivingTag, setArchivingTag] = useState<TodoTag | null>(null);
 
   const request = { status: status === 'all' ? null : status, tag_id: tagId };
   const todos = useQuery({
@@ -84,13 +74,7 @@ export default function TodoPage() {
   useTauriEvent('todos-changed', invalidate);
 
   const reportError = (error: unknown) => {
-    const message =
-      error instanceof Error
-        ? error.message
-        : typeof error === 'object' && error !== null && 'message' in error
-          ? String(error.message)
-          : 'Todo 操作失败';
-    toast.add({ title: message, type: 'error' });
+    toast.add({ title: getErrorMessage(error, 'Todo 操作失败'), type: 'error' });
   };
   const createMutation = useMutation({
     mutationFn: createTodoApi,
@@ -128,46 +112,14 @@ export default function TodoPage() {
     },
     onError: reportError,
   });
-  const archiveDeleteMutation = useMutation({
-    mutationFn: (id: number) => archiveDeleteTodoTagApi(id),
-    onSuccess: async (_result, deletedId) => {
+  const { exportTag } = useTodoExport(reportError);
+  const archiveDelete = useArchiveDeleteTag({
+    items: overview.data?.items,
+    invalidate,
+    onDeleted: (deletedId) => {
       setTagId((current) => (current === deletedId ? null : current));
-      await invalidate();
     },
-    onError: reportError,
   });
-  const handleArchiveDeleteTag = (tag: TodoTag) => {
-    const hasActive = overview.data?.items.some(
-      (item) =>
-        item.status === 'in_progress' &&
-        item.tags.some((name) => name.toLowerCase() === tag.name.toLowerCase()),
-    );
-    if (hasActive) {
-      toast.add({ title: '当前标签存在未完成待办，无法归档删除。', type: 'error' });
-      return;
-    }
-    archiveDeleteMutation.reset();
-    setArchivingTag(tag);
-  };
-  const exportMutation = useMutation({
-    mutationFn: ({ path, tagId }: { path: string; tagId: number }) => exportTodosApi(path, tagId),
-    onError: reportError,
-  });
-  const handleExportTag = async (tag: TodoTag) => {
-    if (exportMutation.isPending) return;
-    const defaultPath = `${todayDate()}-待办-${tag.name}.md`;
-    const selected = await save({
-      defaultPath,
-      filters: [{ name: 'Markdown', extensions: ['md'] }],
-    });
-    if (!selected) return;
-    try {
-      const saved = await exportMutation.mutateAsync({ path: selected, tagId: tag.id });
-      toast.add({ type: 'success', title: '导出成功', description: formatPathForDisplay(saved) });
-    } catch {
-      /* toast is handled by mutation */
-    }
-  };
 
   const selectedTag = useMemo(
     () => tags.data?.find((tag) => tag.id === tagId) ?? null,
@@ -192,7 +144,7 @@ export default function TodoPage() {
         total={overview.data?.total ?? 0}
         selectedTagId={tagId}
         onSelectTag={setTagId}
-        onExportTag={handleExportTag}
+        onExportTag={exportTag}
         onRenameTag={(tag) => {
           setRenaming(tag);
           setRenameValue(tag.name);
@@ -201,7 +153,7 @@ export default function TodoPage() {
           deleteTagMutation.reset();
           setDeletingTag(tag);
         }}
-        onArchiveDeleteTag={handleArchiveDeleteTag}
+        onArchiveDeleteTag={archiveDelete.prepareArchive}
       />
 
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
@@ -317,9 +269,9 @@ export default function TodoPage() {
         deleting={deletingTag}
         deletePending={deleteTagMutation.isPending}
         deleteError={deleteTagMutation.error}
-        archiving={archivingTag}
-        archivePending={archiveDeleteMutation.isPending}
-        archiveError={archiveDeleteMutation.error}
+        archiving={archiveDelete.archivingTag}
+        archivePending={archiveDelete.archivePending}
+        archiveError={archiveDelete.archiveError}
         onRenameValueChange={setRenameValue}
         onCloseRename={() => setRenaming(null)}
         onRename={async () => {
@@ -341,16 +293,8 @@ export default function TodoPage() {
             /* toast handled */
           }
         }}
-        onCloseArchive={() => setArchivingTag(null)}
-        onArchive={async () => {
-          if (!archivingTag) return;
-          try {
-            await archiveDeleteMutation.mutateAsync(archivingTag.id);
-            setArchivingTag(null);
-          } catch {
-            /* toast handled */
-          }
-        }}
+        onCloseArchive={archiveDelete.closeArchive}
+        onArchive={archiveDelete.archive}
       />
     </div>
   );

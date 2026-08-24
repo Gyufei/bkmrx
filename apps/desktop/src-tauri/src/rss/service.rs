@@ -58,12 +58,12 @@ impl RssService {
         self
     }
 
-    fn rss_settings(&self) -> AppResult<crate::settings::RssSettings> {
+    fn rss_settings(&self) -> AppResult<crate::settings::RssHubSettings> {
         self.settings_path
             .as_deref()
             .map(crate::settings::load)
             .transpose()
-            .map(|settings| settings.unwrap_or_default().rss)
+            .map(|settings| settings.unwrap_or_default().services.rsshub)
     }
 
     pub async fn preview(&self, url: &str) -> AppResult<FeedPreview> {

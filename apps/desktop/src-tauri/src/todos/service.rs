@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 
 use super::{
     CreateTodo, SqliteTodoRepository, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
@@ -65,6 +65,9 @@ impl TodoService {
             status: None,
             tag_id,
         })?;
+        if list.items.is_empty() {
+            return Err(AppError::todo_export_empty());
+        }
         super::transfer::export_todos(list.items, destination.as_ref())
     }
 

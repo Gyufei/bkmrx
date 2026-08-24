@@ -4,39 +4,35 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct Settings {
     pub common: CommonSettings,
-    pub bookmark: BookmarkSettings,
-    pub note: NoteSettings,
-    pub rss: RssSettings,
     pub services: ServiceSettings,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
-pub struct CommonSettings {}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(default)]
-pub struct BookmarkSettings {
-    pub backup_dir: Option<String>,
+pub struct CommonSettings {
+    pub paths: PathSettings,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
-pub struct NoteSettings {
+pub struct PathSettings {
+    pub bookmark_export_dir: Option<String>,
+    pub todo_export_dir: Option<String>,
     pub notes_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
-pub struct RssSettings {
-    pub rsshub_base_url: Option<String>,
-    pub rsshub_access_key: Option<String>,
+pub struct ServiceSettings {
+    pub rsshub: RssHubSettings,
+    pub niutrans: NiuTransSettings,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
-pub struct ServiceSettings {
-    pub niutrans: NiuTransSettings,
+pub struct RssHubSettings {
+    pub base_url: Option<String>,
+    pub access_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]

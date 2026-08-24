@@ -9,6 +9,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { getErrorMessage } from '@/lib/error';
 
 interface ConfirmDeleteDialogProps {
   open: boolean;
@@ -22,12 +23,6 @@ interface ConfirmDeleteDialogProps {
   onConfirm: () => void | Promise<void>;
 }
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  return null;
-}
-
 export default function ConfirmDeleteDialog({
   open,
   title,
@@ -39,7 +34,7 @@ export default function ConfirmDeleteDialog({
   onOpenChange,
   onConfirm,
 }: ConfirmDeleteDialogProps) {
-  const errorMessage = getErrorMessage(error);
+  const errorMessage = error === undefined ? null : getErrorMessage(error);
 
   return (
     <AlertDialog open={open} onOpenChange={(nextOpen) => !pending && onOpenChange(nextOpen)}>

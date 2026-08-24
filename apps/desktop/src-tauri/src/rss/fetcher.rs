@@ -8,7 +8,7 @@ use url::Url;
 use crate::{
     error::{AppError, AppResult},
     safe_http::{parse_http_url, resolve_public_target},
-    settings::RssSettings,
+    settings::RssHubSettings,
 };
 
 use super::{
@@ -25,7 +25,11 @@ const USER_AGENT: &str = concat!("bkmrx/", env!("CARGO_PKG_VERSION"), " RSS read
 pub struct FeedFetcher;
 
 impl FeedFetcher {
-    pub async fn preview(&self, raw_url: &str, settings: &RssSettings) -> AppResult<FeedPreview> {
+    pub async fn preview(
+        &self,
+        raw_url: &str,
+        settings: &RssHubSettings,
+    ) -> AppResult<FeedPreview> {
         let source_url = parse_http_url(raw_url)
             .map_err(safe_http_error)?
             .to_string();
@@ -71,7 +75,7 @@ impl FeedFetcher {
     pub async fn fetch_and_parse(
         &self,
         feed_url: &str,
-        settings: &RssSettings,
+        settings: &RssHubSettings,
     ) -> AppResult<(String, ParsedFeed)> {
         let request_url = resolve_rsshub_url(feed_url, settings)?;
         let fetched = self.fetch(&request_url, settings).await?;
@@ -83,13 +87,17 @@ impl FeedFetcher {
         Ok((fetched.url.to_string(), parsed))
     }
 
-    async fn fetch(&self, raw_url: &str, settings: &RssSettings) -> AppResult<FetchedBody> {
+    async fn fetch(&self, raw_url: &str, settings: &RssHubSettings) -> AppResult<FetchedBody> {
         tokio::time::timeout(REQUEST_TIMEOUT, self.fetch_inner(raw_url, settings))
             .await
             .map_err(|_| AppError::rss_error("rss_request_timeout", "The feed request timed out"))?
     }
 
-    async fn fetch_inner(&self, raw_url: &str, settings: &RssSettings) -> AppResult<FetchedBody> {
+    async fn fetch_inner(
+        &self,
+        raw_url: &str,
+        settings: &RssHubSettings,
+    ) -> AppResult<FetchedBody> {
         let mut url = parse_http_url(raw_url).map_err(safe_http_error)?;
         for redirect_count in 0..=MAX_REDIRECTS {
             let addresses = resolve_public_target(&url).await.map_err(safe_http_error)?;
@@ -160,12 +168,12 @@ impl FeedFetcher {
     }
 }
 
-fn resolve_rsshub_url(raw_url: &str, settings: &RssSettings) -> AppResult<String> {
+fn resolve_rsshub_url(raw_url: &str, settings: &RssHubSettings) -> AppResult<String> {
     let source = parse_http_url(raw_url).map_err(safe_http_error)?;
     if !is_official_rsshub_url(&source) {
         return Ok(source.to_string());
     }
-    let Some(base) = settings.rsshub_base_url.as_deref() else {
+    let Some(base) = settings.base_url.as_deref() else {
         return Ok(source.to_string());
     };
     let mut target = parse_http_url(base).map_err(safe_http_error)?;
@@ -178,9 +186,9 @@ pub(super) fn is_official_rsshub_url(url: &Url) -> bool {
     url.host_str() == Some("rsshub.app")
 }
 
-fn authenticated_rsshub_url(url: &Url, settings: &RssSettings) -> Url {
+fn authenticated_rsshub_url(url: &Url, settings: &RssHubSettings) -> Url {
     let Some(base) = settings
-        .rsshub_base_url
+        .base_url
         .as_deref()
         .and_then(|raw| Url::parse(raw).ok())
     else {
@@ -189,11 +197,7 @@ fn authenticated_rsshub_url(url: &Url, settings: &RssSettings) -> Url {
     if url.origin() != base.origin() {
         return url.clone();
     }
-    let Some(key) = settings
-        .rsshub_access_key
-        .as_deref()
-        .filter(|key| !key.is_empty())
-    else {
+    let Some(key) = settings.access_key.as_deref().filter(|key| !key.is_empty()) else {
         return url.clone();
     };
     let mut authenticated = url.clone();
@@ -269,7 +273,7 @@ fn request_error(error: reqwest::Error) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::{authenticated_rsshub_url, discover_feed_links, resolve_rsshub_url};
-    use crate::settings::RssSettings;
+    use crate::settings::RssHubSettings;
     use url::Url;
 
     #[test]
@@ -288,9 +292,9 @@ mod tests {
 
     #[test]
     fn resolves_official_rsshub_urls_through_configured_service() {
-        let settings = RssSettings {
-            rsshub_base_url: Some("https://rss.example.com".into()),
-            rsshub_access_key: Some("secret".into()),
+        let settings = RssHubSettings {
+            base_url: Some("https://rss.example.com".into()),
+            access_key: Some("secret".into()),
         };
         let resolved = resolve_rsshub_url("https://rsshub.app/dedao?limit=10", &settings).unwrap();
         assert_eq!(resolved, "https://rss.example.com/dedao?limit=10");

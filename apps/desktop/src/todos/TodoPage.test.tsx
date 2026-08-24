@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   archiveDelete: vi.fn(),
   export: vi.fn(),
   save: vi.fn(),
+  settings: vi.fn(),
   toastAdd: vi.fn(),
   dialog: vi.fn(),
   listen: vi.fn(),
@@ -21,6 +22,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@tauri-apps/api/event', () => ({ listen: mocks.listen }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ save: mocks.save }));
+vi.mock('@/settings/settings.api', () => ({
+  SettingsQueryApiKey: { SETTINGS: 'settings' },
+  getSettingsApi: mocks.settings,
+}));
 vi.mock('@/components/ui/toast', () => ({ toast: { add: mocks.toastAdd } }));
 vi.mock('./todos.api', async (importOriginal) => {
   const original = await importOriginal<typeof import('./todos.api')>();
@@ -77,6 +82,7 @@ describe('TodoPage', () => {
     mocks.archiveDelete.mockResolvedValue(undefined);
     mocks.export.mockResolvedValue('/tmp/2026-08-24-待办-工作.md');
     mocks.save.mockResolvedValue(null);
+    mocks.settings.mockResolvedValue({ common: { paths: { todo_export_dir: null } } });
     mocks.listen.mockResolvedValue(() => {});
   });
 
@@ -241,6 +247,21 @@ describe('TodoPage', () => {
     });
   });
 
+  it('uses the configured Todo export directory as the save default', async () => {
+    mocks.settings.mockResolvedValue({ common: { paths: { todo_export_dir: '/tmp/todos' } } });
+    renderPage();
+    const tag = await screen.findByText('工作', { selector: 'span.truncate' });
+    fireEvent.contextMenu(tag);
+    fireEvent.click(await screen.findByText('导出'));
+
+    await waitFor(() =>
+      expect(mocks.save).toHaveBeenCalledWith({
+        defaultPath: expect.stringMatching(/^\/tmp\/todos\/\d{4}-\d{2}-\d{2}-待办-工作\.md$/),
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
+      }),
+    );
+  });
+
   it('does nothing when the save dialog is cancelled', async () => {
     mocks.save.mockResolvedValue(null);
     renderPage();
@@ -338,7 +359,11 @@ describe('TodoPage', () => {
       total: 1,
       completed: 1,
     });
-    mocks.archiveDelete.mockRejectedValueOnce(new Error('当前标签存在未完成待办，无法归档删除。'));
+    mocks.archiveDelete.mockRejectedValueOnce({
+      code: 'todo_tag_has_active_todos',
+      message: '当前标签存在未完成待办，无法归档删除。',
+      details: null,
+    });
     renderPage();
     const tag = await screen.findByText('工作', { selector: 'span.truncate' });
     fireEvent.contextMenu(tag);
@@ -349,5 +374,6 @@ describe('TodoPage', () => {
       await screen.findByText('归档删除失败：当前标签存在未完成待办，无法归档删除。'),
     ).toBeTruthy();
     expect(screen.getByText('归档删除标签“工作”？')).toBeTruthy();
+    expect(mocks.toastAdd).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,9 @@
-import { Bookmark, Info, Languages, NotebookPen, Rss, Settings2 } from 'lucide-react';
+import { Info, Languages, Settings2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-export type SettingsTab = 'general' | 'bookmark' | 'note' | 'rss' | 'services' | 'about';
+export type SettingsTab = 'general' | 'services' | 'about';
 
 interface SettingsTabsProps {
   dirtyTabs: Partial<Record<SettingsTab, boolean>>;
@@ -11,9 +11,6 @@ interface SettingsTabsProps {
 
 const tabs = [
   { value: 'general', label: '通用', icon: Settings2 },
-  { value: 'bookmark', label: '书签', icon: Bookmark },
-  { value: 'note', label: '笔记', icon: NotebookPen },
-  { value: 'rss', label: 'RSS', icon: Rss },
   { value: 'services', label: '服务', icon: Languages },
   { value: 'about', label: '关于', icon: Info },
 ] satisfies Array<{ value: SettingsTab; label: string; icon: typeof Settings2 }>;

@@ -1,85 +1,33 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Eye, EyeOff } from 'lucide-react';
-
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import { Field, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Spinner } from '@/components/ui/spinner';
+import { Rss } from 'lucide-react';
 import type { AppSettings } from '@/lib/invoke';
-
-import { SettingsQueryApiKey, updateSettingsApi } from '../settings.api';
-import { errorMessage } from '../settings.utils';
+import { cn } from '@/lib/utils';
+import NiuTransServicePanel from '../service-panels/NiuTransServicePanel';
+import RssHubServicePanel from '../service-panels/RssHubServicePanel';
 
 interface ServicesSettingsProps {
   settings?: AppSettings;
   onDirtyChange: (dirty: boolean) => void;
 }
 
+type ServiceId = 'rsshub' | 'niutrans';
+
 export default function ServicesSettings({ settings, onDirtyChange }: ServicesSettingsProps) {
-  const queryClient = useQueryClient();
-  const [appId, setAppId] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [editing, setEditing] = useState(false);
-  const [resetDialogOpen, setResetDialogOpen] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
-  const updateMutation = useMutation({
-    mutationFn: updateSettingsApi,
-    onSuccess: async () => {
-      setShowApiKey(false);
-      setEditing(false);
-      onDirtyChange(false);
-      await queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.SETTINGS] });
-    },
+  const [selected, setSelected] = useState<ServiceId>('rsshub');
+  const [dirty, setDirty] = useState<Record<ServiceId, boolean>>({
+    rsshub: false,
+    niutrans: false,
   });
 
   useEffect(() => {
-    if (editing) return;
-    setAppId(settings?.services.niutrans.app_id ?? '');
-    setApiKey(settings?.services.niutrans.api_key ?? '');
-  }, [editing, settings]);
+    onDirtyChange(dirty.rsshub || dirty.niutrans);
+  }, [dirty, onDirtyChange]);
 
-  function updateDirty(nextAppId: string, nextApiKey: string) {
-    onDirtyChange(
-      nextAppId !== (settings?.services.niutrans.app_id ?? '') ||
-        nextApiKey !== (settings?.services.niutrans.api_key ?? ''),
+  const itemClass = (id: ServiceId) =>
+    cn(
+      'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium',
+      selected === id ? 'bg-accent' : 'hover:bg-accent/60',
     );
-  }
-
-  function resetForm() {
-    updateMutation.reset();
-    setAppId(settings?.services.niutrans.app_id ?? '');
-    setApiKey(settings?.services.niutrans.api_key ?? '');
-    setShowApiKey(false);
-    setResetDialogOpen(false);
-    setEditing(false);
-    onDirtyChange(false);
-  }
-
-  function saveService() {
-    if (!settings || updateMutation.isPending) return;
-    updateMutation.mutate({
-      ...settings,
-      services: {
-        ...settings.services,
-        niutrans: {
-          app_id: appId.trim() || null,
-          api_key: apiKey.trim() || null,
-        },
-      },
-    });
-  }
 
   return (
     <section aria-labelledby="services-settings-title" className="flex flex-col gap-6">
@@ -91,11 +39,29 @@ export default function ServicesSettings({ settings, onDirtyChange }: ServicesSe
       </div>
       <div className="grid min-h-96 overflow-hidden rounded-xl border bg-card sm:grid-cols-[13rem_1fr]">
         <aside className="border-b bg-muted/30 p-3 sm:border-r sm:border-b-0">
-          <p className="px-2 pb-2 text-xs font-medium text-muted-foreground">翻译服务</p>
+          <p className="px-2 pb-2 text-xs font-medium text-muted-foreground">内容服务</p>
           <button
             type="button"
-            aria-current="page"
-            className="flex w-full items-center gap-3 rounded-lg bg-accent px-3 py-2.5 text-left text-sm font-medium"
+            aria-label="选择 RSSHub 服务"
+            className={itemClass('rsshub')}
+            onClick={() => setSelected('rsshub')}
+          >
+            <span className="flex size-8 items-center justify-center rounded-lg bg-orange-500 text-white">
+              <Rss className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block">RSSHub</span>
+              <span className="block text-xs font-normal text-muted-foreground">
+                {settings?.services.rsshub.base_url ? '已配置' : '未配置'}
+              </span>
+            </span>
+          </button>
+          <p className="px-2 pt-5 pb-2 text-xs font-medium text-muted-foreground">翻译服务</p>
+          <button
+            type="button"
+            aria-label="选择小牛翻译服务"
+            className={itemClass('niutrans')}
+            onClick={() => setSelected('niutrans')}
           >
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               牛
@@ -103,139 +69,28 @@ export default function ServicesSettings({ settings, onDirtyChange }: ServicesSe
             <span className="min-w-0 flex-1">
               <span className="block">小牛翻译</span>
               <span className="block text-xs font-normal text-muted-foreground">
-                {appId && apiKey ? '已配置' : '未配置'}
+                {settings?.services.niutrans.app_id && settings.services.niutrans.api_key
+                  ? '已配置'
+                  : '未配置'}
               </span>
             </span>
           </button>
         </aside>
         <div className="p-5 sm:p-6">
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div>
-              <h2 className="font-semibold">小牛翻译</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                配置 App ID 和 API Key 后，网页描述翻译会立即使用该服务。
-              </p>
-            </div>
-            {!editing && (
-              <Button
-                size="sm"
-                variant="outline"
-                aria-label="编辑服务设置"
-                disabled={!settings}
-                onClick={() => {
-                  updateMutation.reset();
-                  setEditing(true);
-                }}
-              >
-                编辑
-              </Button>
-            )}
+          <div className={selected === 'rsshub' ? undefined : 'hidden'}>
+            <RssHubServicePanel
+              settings={settings}
+              onDirtyChange={(next) => setDirty((current) => ({ ...current, rsshub: next }))}
+            />
           </div>
-          {editing ? (
-            <form
-              className="flex max-w-md flex-col gap-5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                saveService();
-              }}
-            >
-              <Field>
-                <FieldLabel htmlFor="niutrans-app-id">App ID</FieldLabel>
-                <Input
-                  id="niutrans-app-id"
-                  value={appId}
-                  onChange={(event) => {
-                    setAppId(event.target.value);
-                    updateDirty(event.target.value, apiKey);
-                  }}
-                  autoComplete="off"
-                  disabled={!settings || updateMutation.isPending}
-                  placeholder="输入小牛翻译 App ID"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="niutrans-api-key">API Key</FieldLabel>
-                <div className="relative">
-                  <Input
-                    id="niutrans-api-key"
-                    type={showApiKey ? 'text' : 'password'}
-                    value={apiKey}
-                    onChange={(event) => {
-                      setApiKey(event.target.value);
-                      updateDirty(appId, event.target.value);
-                    }}
-                    autoComplete="off"
-                    disabled={!settings || updateMutation.isPending}
-                    placeholder="输入小牛翻译 API Key"
-                    className="pr-10"
-                  />
-                  <div className="absolute inset-y-0 right-1 flex items-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={showApiKey ? '隐藏 API Key' : '显示 API Key'}
-                      onClick={() => setShowApiKey((visible) => !visible)}
-                      disabled={!settings || updateMutation.isPending}
-                    >
-                      {showApiKey ? <EyeOff /> : <Eye />}
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  凭据保存在本机应用数据目录的设置文件中。
-                </p>
-              </Field>
-              <div className="flex gap-2">
-                <Button type="submit" disabled={!settings || updateMutation.isPending}>
-                  {updateMutation.isPending && <Spinner data-icon="inline-start" />}
-                  {updateMutation.isPending ? '保存中...' : '保存服务设置'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!settings || updateMutation.isPending}
-                  onClick={() => setResetDialogOpen(true)}
-                >
-                  重置
-                </Button>
-              </div>
-              {updateMutation.isError && (
-                <Alert variant="destructive" className="py-1.5 text-xs">
-                  <AlertDescription>
-                    保存失败：{errorMessage(updateMutation.error)}
-                  </AlertDescription>
-                </Alert>
-              )}
-            </form>
-          ) : (
-            <div className="flex max-w-md flex-col gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">App ID</p>
-                <p className="mt-1 break-all text-sm">{appId || '未设置'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">API Key</p>
-                <p className="mt-1 text-sm">{apiKey ? '**********' : '未设置'}</p>
-              </div>
-            </div>
-          )}
+          <div className={selected === 'niutrans' ? undefined : 'hidden'}>
+            <NiuTransServicePanel
+              settings={settings}
+              onDirtyChange={(next) => setDirty((current) => ({ ...current, niutrans: next }))}
+            />
+          </div>
         </div>
       </div>
-      <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认重置服务设置？</AlertDialogTitle>
-            <AlertDialogDescription>
-              当前未保存的 App ID 和 API Key 更改将被丢弃。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel render={<Button variant="outline" />}>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={resetForm}>确认重置</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </section>
   );
 }

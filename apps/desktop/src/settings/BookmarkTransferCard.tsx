@@ -1,7 +1,7 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 
 import { BkQueryApiKey } from '@/bookmarks/bookmarks.api';
 import {
@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatPathForDisplay } from '@/lib/path';
+import { formatPathForDisplay, joinDirectoryAndFilename } from '@/lib/path';
 import type { ImportPreview } from '@/types';
 
 import {
@@ -29,25 +29,21 @@ import {
 
 interface BookmarkTransferCardProps {
   backupDirectory: string;
-  directoryField: ReactNode;
 }
 
-export default function BookmarkTransferCard({
-  backupDirectory,
-  directoryField,
-}: BookmarkTransferCardProps) {
+export default function BookmarkTransferCard({ backupDirectory }: BookmarkTransferCardProps) {
   const queryClient = useQueryClient();
   const [importCandidate, setImportCandidate] = useState<{
     path: string;
     preview: ImportPreview;
   } | null>(null);
-  const exportMutation = useMutation({ mutationFn: exportBookmarksApi });
+  const exportMutation = useMutation({ mutationFn: (path: string) => exportBookmarksApi(path) });
   const previewMutation = useMutation({
-    mutationFn: previewBookmarkImportApi,
+    mutationFn: (path: string) => previewBookmarkImportApi(path),
     onSuccess: (preview, path) => setImportCandidate({ path, preview }),
   });
   const applyMutation = useMutation({
-    mutationFn: applyBookmarkImportApi,
+    mutationFn: (input: { path: string; fileHash: string }) => applyBookmarkImportApi(input),
     onSuccess: () => {
       setImportCandidate(null);
       queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.BOOKMARKS] });
@@ -82,7 +78,6 @@ export default function BookmarkTransferCard({
         <CardHeader>
           <CardTitle>书签导入与导出</CardTitle>
         </CardHeader>
-        <CardContent>{directoryField}</CardContent>
         <CardFooter className="gap-2">
           <Button variant="outline" onClick={chooseExportPath} disabled={exportMutation.isPending}>
             {exportMutation.isPending ? (
@@ -175,7 +170,7 @@ export default function BookmarkTransferCard({
 function exportDefaultPath(backupDirectory: string) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
   const filename = `bookmarks-${stamp}.json`;
-  return backupDirectory.trim() ? `${backupDirectory.replace(/\/$/, '')}/${filename}` : filename;
+  return joinDirectoryAndFilename(backupDirectory, filename);
 }
 
 function errorMessage(error: unknown) {
