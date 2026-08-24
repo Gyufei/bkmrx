@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { save } from '@tauri-apps/plugin-dialog';
 import { toast } from '@/components/ui/toast';
+import { formatPathForDisplay } from '@/lib/path';
 import type { CreateTodo, Todo, TodoStatus, TodoTag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -162,7 +163,7 @@ export default function TodoPage() {
     if (!selected) return;
     try {
       const saved = await exportMutation.mutateAsync({ path: selected, tagId: tag.id });
-      toast.add({ type: 'success', title: '导出成功', description: saved });
+      toast.add({ type: 'success', title: '导出成功', description: formatPathForDisplay(saved) });
     } catch {
       /* toast is handled by mutation */
     }

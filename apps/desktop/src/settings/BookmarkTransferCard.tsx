@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatPathForDisplay } from '@/lib/path';
 import type { ImportPreview } from '@/types';
 
 import {
@@ -106,7 +107,9 @@ export default function BookmarkTransferCard({
         </CardFooter>
         <CardContent className="flex flex-col gap-2">
           {exportMutation.data && (
-            <p className="break-all text-xs text-muted-foreground">已导出：{exportMutation.data}</p>
+            <p className="break-all text-xs text-muted-foreground">
+              已导出：{formatPathForDisplay(exportMutation.data)}
+            </p>
           )}
           {applyMutation.isSuccess && (
             <p className="text-xs text-muted-foreground">导入完成，书签与标签已刷新。</p>

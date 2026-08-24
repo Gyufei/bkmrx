@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { formatPathForDisplay } from './settings.utils';
+import { formatPathForDisplay } from '@/lib/path';
 
 interface EditableDirectoryFieldProps {
   label: string;
