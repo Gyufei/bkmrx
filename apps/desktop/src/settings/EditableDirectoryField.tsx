@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { formatPathForDisplay } from './settings.utils';
 
 interface EditableDirectoryFieldProps {
   label: string;
@@ -119,7 +120,7 @@ export default function EditableDirectoryField({
               value ? 'text-foreground' : 'text-muted-foreground',
             )}
           >
-            {value || '未配置'}
+            {value ? formatPathForDisplay(value) : '未配置'}
           </p>
           <Button
             size="sm"

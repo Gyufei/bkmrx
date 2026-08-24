@@ -80,15 +80,22 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('tab', { name: '书签', selected: true })).toBeTruthy();
   });
 
-  it('shows complete path text until the user starts editing', async () => {
+  it('shortens long paths until the user starts editing', async () => {
+    vi.mocked(getSettingsApi).mockResolvedValueOnce({
+      common: {},
+      bookmark: { backup_dir: '/Users/me/CloudDrive/projects/archive/bookmarks/backup' },
+      note: { notes_dir: '/Users/me/Documents/knowledge/obsidian/main/vault' },
+      rss: { rsshub_base_url: null, rsshub_access_key: null },
+      services: { niutrans: { app_id: null, api_key: null } },
+    });
     renderPage();
     await selectTab('书签');
-    expect(await screen.findByText('/old/backup')).toBeTruthy();
+    expect(await screen.findByText('/Users/me/CloudDrive/…/archive/bookmarks/backup')).toBeTruthy();
     expect(screen.queryByPlaceholderText('/Users/me/CloudDrive/bookmarks')).toBeNull();
     expect(screen.getByRole('button', { name: '编辑' })).toBeTruthy();
 
     await selectTab('笔记');
-    expect(screen.getByText('/old/notes')).toBeTruthy();
+    expect(screen.getByText('/Users/me/Documents/…/obsidian/main/vault')).toBeTruthy();
     expect(screen.queryByPlaceholderText('输入 Obsidian 笔记目录路径')).toBeNull();
   });
 
@@ -240,6 +247,7 @@ describe('SettingsPage', () => {
     await selectTab('服务');
 
     expect(screen.getByRole('heading', { name: '小牛翻译' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '编辑服务设置' }));
     fireEvent.change(screen.getByLabelText('App ID'), { target: { value: ' app-id ' } });
     const apiKeyInput = screen.getByLabelText('API Key') as HTMLInputElement;
     fireEvent.change(apiKeyInput, { target: { value: ' api-key ' } });
@@ -257,6 +265,30 @@ describe('SettingsPage', () => {
         services: { niutrans: { app_id: 'app-id', api_key: 'api-key' } },
       }),
     );
+  });
+
+  it('shows service settings in view mode and confirms reset before discarding changes', async () => {
+    vi.mocked(getSettingsApi).mockResolvedValueOnce({
+      common: {},
+      bookmark: { backup_dir: '/old/backup' },
+      note: { notes_dir: '/old/notes' },
+      rss: { rsshub_base_url: null, rsshub_access_key: null },
+      services: { niutrans: { app_id: 'app-id', api_key: 'secret' } },
+    });
+    renderPage();
+    await selectTab('服务');
+
+    expect(await screen.findByText('app-id')).toBeTruthy();
+    expect(screen.getByText('**********')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '编辑服务设置' }));
+    fireEvent.change(screen.getByLabelText('App ID'), { target: { value: 'draft' } });
+    fireEvent.click(screen.getByRole('button', { name: '重置' }));
+
+    expect(screen.getByRole('heading', { name: '确认重置服务设置？' })).toBeTruthy();
+    expect((screen.getByLabelText('App ID') as HTMLInputElement).value).toBe('draft');
+    fireEvent.click(screen.getByRole('button', { name: '确认重置' }));
+    expect(await screen.findByText('app-id')).toBeTruthy();
+    expect(screen.queryByLabelText('App ID')).toBeNull();
   });
 
   it('keeps the directory editor open and shows an error when saving fails', async () => {

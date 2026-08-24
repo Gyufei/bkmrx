@@ -3,6 +3,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Eye, EyeOff } from 'lucide-react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -21,20 +31,24 @@ export default function ServicesSettings({ settings, onDirtyChange }: ServicesSe
   const queryClient = useQueryClient();
   const [appId, setAppId] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const updateMutation = useMutation({
     mutationFn: updateSettingsApi,
     onSuccess: async () => {
       setShowApiKey(false);
+      setEditing(false);
       onDirtyChange(false);
       await queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.SETTINGS] });
     },
   });
 
   useEffect(() => {
+    if (editing) return;
     setAppId(settings?.services.niutrans.app_id ?? '');
     setApiKey(settings?.services.niutrans.api_key ?? '');
-  }, [settings]);
+  }, [editing, settings]);
 
   function updateDirty(nextAppId: string, nextApiKey: string) {
     onDirtyChange(
@@ -48,6 +62,8 @@ export default function ServicesSettings({ settings, onDirtyChange }: ServicesSe
     setAppId(settings?.services.niutrans.app_id ?? '');
     setApiKey(settings?.services.niutrans.api_key ?? '');
     setShowApiKey(false);
+    setResetDialogOpen(false);
+    setEditing(false);
     onDirtyChange(false);
   }
 
@@ -93,87 +109,133 @@ export default function ServicesSettings({ settings, onDirtyChange }: ServicesSe
           </button>
         </aside>
         <div className="p-5 sm:p-6">
-          <div className="mb-6">
-            <h2 className="font-semibold">小牛翻译</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              配置 App ID 和 API Key 后，网页描述翻译会立即使用该服务。
-            </p>
-          </div>
-          <form
-            className="flex max-w-md flex-col gap-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              saveService();
-            }}
-          >
-            <Field>
-              <FieldLabel htmlFor="niutrans-app-id">App ID</FieldLabel>
-              <Input
-                id="niutrans-app-id"
-                value={appId}
-                onChange={(event) => {
-                  setAppId(event.target.value);
-                  updateDirty(event.target.value, apiKey);
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="font-semibold">小牛翻译</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                配置 App ID 和 API Key 后，网页描述翻译会立即使用该服务。
+              </p>
+            </div>
+            {!editing && (
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label="编辑服务设置"
+                disabled={!settings}
+                onClick={() => {
+                  updateMutation.reset();
+                  setEditing(true);
                 }}
-                autoComplete="off"
-                disabled={!settings || updateMutation.isPending}
-                placeholder="输入小牛翻译 App ID"
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="niutrans-api-key">API Key</FieldLabel>
-              <div className="relative">
+              >
+                编辑
+              </Button>
+            )}
+          </div>
+          {editing ? (
+            <form
+              className="flex max-w-md flex-col gap-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                saveService();
+              }}
+            >
+              <Field>
+                <FieldLabel htmlFor="niutrans-app-id">App ID</FieldLabel>
                 <Input
-                  id="niutrans-api-key"
-                  type={showApiKey ? 'text' : 'password'}
-                  value={apiKey}
+                  id="niutrans-app-id"
+                  value={appId}
                   onChange={(event) => {
-                    setApiKey(event.target.value);
-                    updateDirty(appId, event.target.value);
+                    setAppId(event.target.value);
+                    updateDirty(event.target.value, apiKey);
                   }}
                   autoComplete="off"
                   disabled={!settings || updateMutation.isPending}
-                  placeholder="输入小牛翻译 API Key"
-                  className="pr-10"
+                  placeholder="输入小牛翻译 App ID"
                 />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="niutrans-api-key">API Key</FieldLabel>
+                <div className="relative">
+                  <Input
+                    id="niutrans-api-key"
+                    type={showApiKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(event) => {
+                      setApiKey(event.target.value);
+                      updateDirty(appId, event.target.value);
+                    }}
+                    autoComplete="off"
+                    disabled={!settings || updateMutation.isPending}
+                    placeholder="输入小牛翻译 API Key"
+                    className="pr-10"
+                  />
+                  <div className="absolute inset-y-0 right-1 flex items-center">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={showApiKey ? '隐藏 API Key' : '显示 API Key'}
+                      onClick={() => setShowApiKey((visible) => !visible)}
+                      disabled={!settings || updateMutation.isPending}
+                    >
+                      {showApiKey ? <EyeOff /> : <Eye />}
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  凭据保存在本机应用数据目录的设置文件中。
+                </p>
+              </Field>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={!settings || updateMutation.isPending}>
+                  {updateMutation.isPending && <Spinner data-icon="inline-start" />}
+                  {updateMutation.isPending ? '保存中...' : '保存服务设置'}
+                </Button>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="absolute top-1/2 right-1 -translate-y-1/2"
-                  aria-label={showApiKey ? '隐藏 API Key' : '显示 API Key'}
-                  onClick={() => setShowApiKey((visible) => !visible)}
+                  variant="outline"
                   disabled={!settings || updateMutation.isPending}
+                  onClick={() => setResetDialogOpen(true)}
                 >
-                  {showApiKey ? <EyeOff /> : <Eye />}
+                  重置
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                凭据保存在本机应用数据目录的设置文件中。
-              </p>
-            </Field>
-            <div className="flex gap-2">
-              <Button type="submit" disabled={!settings || updateMutation.isPending}>
-                {updateMutation.isPending && <Spinner data-icon="inline-start" />}
-                {updateMutation.isPending ? '保存中...' : '保存服务设置'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!settings || updateMutation.isPending}
-                onClick={resetForm}
-              >
-                重置
-              </Button>
+              {updateMutation.isError && (
+                <Alert variant="destructive" className="py-1.5 text-xs">
+                  <AlertDescription>
+                    保存失败：{errorMessage(updateMutation.error)}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </form>
+          ) : (
+            <div className="flex max-w-md flex-col gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">App ID</p>
+                <p className="mt-1 break-all text-sm">{appId || '未设置'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">API Key</p>
+                <p className="mt-1 text-sm">{apiKey ? '**********' : '未设置'}</p>
+              </div>
             </div>
-            {updateMutation.isError && (
-              <Alert variant="destructive" className="py-1.5 text-xs">
-                <AlertDescription>保存失败：{errorMessage(updateMutation.error)}</AlertDescription>
-              </Alert>
-            )}
-          </form>
+          )}
         </div>
       </div>
+      <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认重置服务设置？</AlertDialogTitle>
+            <AlertDialogDescription>
+              当前未保存的 App ID 和 API Key 更改将被丢弃。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel render={<Button variant="outline" />}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={resetForm}>确认重置</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

@@ -135,17 +135,18 @@ export default function RssSettings({ settings, onDirtyChange }: RssSettingsProp
                     disabled={updateMutation.isPending}
                     className="pr-10"
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="absolute top-1/2 right-1 -translate-y-1/2"
-                    aria-label={showAccessKey ? '隐藏 Access Key' : '显示 Access Key'}
-                    onClick={() => setShowAccessKey((visible) => !visible)}
-                    disabled={updateMutation.isPending}
-                  >
-                    {showAccessKey ? <EyeOff /> : <Eye />}
-                  </Button>
+                  <div className="absolute inset-y-0 right-1 flex items-center">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={showAccessKey ? '隐藏 Access Key' : '显示 Access Key'}
+                      onClick={() => setShowAccessKey((visible) => !visible)}
+                      disabled={updateMutation.isPending}
+                    >
+                      {showAccessKey ? <EyeOff /> : <Eye />}
+                    </Button>
+                  </div>
                 </div>
               </Field>
               <div className="flex gap-2">
