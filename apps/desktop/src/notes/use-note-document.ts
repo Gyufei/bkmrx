@@ -65,6 +65,8 @@ export function useNoteDocument(
   const dependencyRef = useRef<NoteDocumentDependencies>(productionDefaults);
   dependencyRef.current = { ...productionDefaults, ...dependencies };
   const currentPathRef = useRef(filePath);
+  const initializedPathRef = useRef<string | null>(null);
+  const loadedPathRef = useRef<string | null>(null);
   const currentSessionIdRef = useRef(0);
   const contentRef = useRef('');
   const currentSessionEditedRef = useRef(false);
@@ -260,6 +262,7 @@ export function useNoteDocument(
       }
 
       const next = stripFrontmatter(rawContent);
+      loadedPathRef.current = path;
       contentRef.current = next;
       currentSessionEditedRef.current = false;
       currentVersionRef.current = 0;
@@ -293,16 +296,20 @@ export function useNoteDocument(
   }, []);
 
   useEffect(() => {
-    currentPathRef.current = filePath;
-    contentRef.current = '';
-    currentVersionRef.current = 0;
-    latestSubmittedVersionRef.current = 0;
-    latestSubmittedPromiseRef.current = null;
-    latestSavedVersionRef.current = 0;
-    setContentState('');
-    setDirty(false);
-    setSaveState('idle');
-    void readCurrent();
+    if (initializedPathRef.current !== filePath) {
+      initializedPathRef.current = filePath;
+      loadedPathRef.current = null;
+      currentPathRef.current = filePath;
+      contentRef.current = '';
+      currentVersionRef.current = 0;
+      latestSubmittedVersionRef.current = 0;
+      latestSubmittedPromiseRef.current = null;
+      latestSavedVersionRef.current = 0;
+      setContentState('');
+      setDirty(false);
+      setSaveState('idle');
+    }
+    if (loadedPathRef.current !== filePath) void readCurrent();
 
     return () => {
       if (saveTimerRef.current) {

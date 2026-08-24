@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Activity, useState } from 'react';
 import { useHotkeys } from '@tanstack/react-hotkeys';
 import NotesPanel from './notes/NotesPanel';
 import SettingsPage from './settings/SettingsPage';
@@ -38,17 +38,21 @@ export default function AppHome() {
     <div className="h-screen flex flex-col bg-background text-foreground">
       <NavBar currentPath={currentPath} onCurrentPathChange={setCurrentPath} />
 
-      {currentPath === PATHS.SETTINGS ? (
-        <SettingsPage />
-      ) : currentPath === PATHS.BOOKMARKS ? (
+      <Activity mode={currentPath === PATHS.BOOKMARKS ? 'visible' : 'hidden'}>
         <BookmarkView />
-      ) : currentPath === PATHS.NOTES ? (
+      </Activity>
+      <Activity mode={currentPath === PATHS.NOTES ? 'visible' : 'hidden'}>
         <NotesPanel />
-      ) : currentPath === PATHS.RSS ? (
-        <RssPage />
-      ) : (
+      </Activity>
+      <Activity mode={currentPath === PATHS.TODOS ? 'visible' : 'hidden'}>
         <TodoPage />
-      )}
+      </Activity>
+      <Activity mode={currentPath === PATHS.RSS ? 'visible' : 'hidden'}>
+        <RssPage />
+      </Activity>
+      <Activity mode={currentPath === PATHS.SETTINGS ? 'visible' : 'hidden'}>
+        <SettingsPage />
+      </Activity>
     </div>
   );
 }

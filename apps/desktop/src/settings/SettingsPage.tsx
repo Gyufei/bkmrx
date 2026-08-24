@@ -31,7 +31,7 @@ function SettingsPage() {
       className="min-h-0 flex-1 gap-0 overflow-hidden"
     >
       <SettingsTabs dirtyTabs={dirtyTabs} />
-      <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-6 py-8">
           <TabsContent value="general" keepMounted className="data-inactive:hidden">
             <GeneralSettings />

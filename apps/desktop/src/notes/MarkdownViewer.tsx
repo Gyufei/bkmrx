@@ -124,7 +124,7 @@ export default function MarkdownViewer({
     <div
       ref={scrollRef}
       data-testid="markdown-view-scroll"
-      className="h-full overflow-y-auto thin-scrollbar"
+      className="h-full overflow-y-auto"
       onScroll={(event) => onScrollTopChange?.(event.currentTarget.scrollTop)}
     >
       {content ? (

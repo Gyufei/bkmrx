@@ -9,9 +9,12 @@ import {
 import { open } from '@tauri-apps/plugin-shell';
 import { save } from '@tauri-apps/plugin-dialog';
 import {
+  BookmarkPlus,
   Circle,
   CircleCheck,
   Download,
+  ImageOff,
+  Languages,
   Pencil,
   Plus,
   RefreshCw,
@@ -30,6 +33,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { toast } from '@/components/ui/toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { RssEntry, RssEntryPage, RssEntryScope, RssFeed } from '@/types';
 import { cn } from '@/lib/utils';
 import AddFeedDialog from './AddFeedDialog';
@@ -51,6 +55,7 @@ export default function RssPage() {
   const client = useQueryClient();
   const [scope, setScope] = useState<RssEntryScope>({ mode: 'all' });
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [hideImages, setHideImages] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [renamingFeed, setRenamingFeed] = useState<RssFeed | null>(null);
   const [deletingFeed, setDeletingFeed] = useState<RssFeed | null>(null);
@@ -176,7 +181,7 @@ export default function RssPage() {
           </Button>
         </div>
       </CollapsibleSidebar>
-      <section className="flex w-[360px] shrink-0 flex-col border-r">
+      <section className="flex w-90 shrink-0 flex-col border-r">
         <header className="flex h-11 items-center justify-between border-b px-3">
           <span className="text-sm font-semibold">文章</span>
           <span className="text-xs text-muted-foreground">{items.length}</span>
@@ -236,12 +241,21 @@ export default function RssPage() {
           )}
         </div>
       </section>
-      <article className="min-w-0 flex-1 overflow-auto">
+      <article className="relative min-w-0 flex-1 overflow-hidden">
         {selected ? (
-          <EntryReader
-            entry={selected}
-            onToggleRead={() => markRead.mutate({ id: selected.id, isRead: !selected.is_read })}
-          />
+          <>
+            <div className="h-full overflow-auto">
+              <EntryReader
+                entry={selected}
+                hideImages={hideImages}
+                onToggleRead={() => markRead.mutate({ id: selected.id, isRead: !selected.is_read })}
+              />
+            </div>
+            <ReaderActionBar
+              hideImages={hideImages}
+              onToggleImages={() => setHideImages((hidden) => !hidden)}
+            />
+          </>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             <Rss className="mr-2 size-5" />
@@ -267,6 +281,54 @@ export default function RssPage() {
         }}
       />
     </div>
+  );
+}
+
+function ReaderActionBar({
+  hideImages,
+  onToggleImages,
+}: {
+  hideImages: boolean;
+  onToggleImages: () => void;
+}) {
+  const actions = [
+    {
+      label: hideImages ? '显示图片' : '隐藏图片',
+      icon: ImageOff,
+      active: hideImages,
+      onClick: onToggleImages,
+    },
+    { label: '翻译', icon: Languages },
+    { label: '收藏当前网站到书签', icon: BookmarkPlus },
+  ] as const;
+
+  return (
+    <TooltipProvider delay={300}>
+      <aside
+        aria-label="阅读工具"
+        className="absolute right-5 top-1/2 flex -translate-y-1/2 flex-col gap-1 rounded-4xl border bg-background/90 p-1.5 shadow-lg backdrop-blur-md"
+      >
+        {actions.map(({ label, icon: Icon, ...action }) => (
+          <Tooltip key={label}>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant={'active' in action && action.active ? 'secondary' : 'ghost'}
+                  size="icon"
+                  aria-label={label}
+                  aria-pressed={'active' in action ? action.active : undefined}
+                  type="button"
+                  onClick={'onClick' in action ? action.onClick : undefined}
+                >
+                  <Icon />
+                </Button>
+              }
+            />
+            <TooltipContent side="left">{label}</TooltipContent>
+          </Tooltip>
+        ))}
+      </aside>
+    </TooltipProvider>
   );
 }
 
@@ -363,7 +425,15 @@ function SidebarItem({
   );
 }
 
-function EntryReader({ entry, onToggleRead }: { entry: RssEntry; onToggleRead: () => void }) {
+function EntryReader({
+  entry,
+  hideImages,
+  onToggleRead,
+}: {
+  entry: RssEntry;
+  hideImages: boolean;
+  onToggleRead: () => void;
+}) {
   const contentRef = useRef<HTMLDivElement>(null);
   const contextImageUrl = useRef<string | null>(null);
   useEffect(() => {
@@ -459,10 +529,14 @@ function EntryReader({ entry, onToggleRead }: { entry: RssEntry; onToggleRead: (
           <ContextMenu onOpenChange={(open) => !open && (contextImageUrl.current = null)}>
             <ContextMenuTrigger
               ref={contentRef}
+              className="select-text"
               render={
                 <div
                   data-rss-entry-content
-                  className="prose prose-neutral max-w-none dark:prose-invert prose-img:h-auto prose-img:max-w-full"
+                  className={cn(
+                    'prose prose-neutral max-w-none dark:prose-invert prose-img:h-auto prose-img:max-w-full',
+                    hideImages && '[&_img]:hidden',
+                  )}
                   dangerouslySetInnerHTML={{ __html: entry.content_html }}
                 />
               }

@@ -100,14 +100,14 @@ export default function AddFeedDialog({
           <DialogDescription>输入 Feed 地址，或包含 RSS/Atom 声明的网页地址。</DialogDescription>
         </DialogHeader>
         <form
-          className="flex flex-col gap-4"
+          className="min-w-0 flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (selected) create.mutate();
             else preview.mutate(url.trim());
           }}
         >
-          <FieldGroup>
+          <FieldGroup className="min-w-0">
             <Field>
               <FieldLabel htmlFor="rss-url">订阅地址</FieldLabel>
               <Input
@@ -122,7 +122,7 @@ export default function AddFeedDialog({
             {candidates.length > 1 && (
               <Field>
                 <FieldLabel>选择订阅源</FieldLabel>
-                <div className="flex flex-col gap-1 rounded-md border p-1">
+                <div className="min-w-0 flex flex-col gap-1 rounded-md border p-1">
                   {candidates.map((candidate) => (
                     <button
                       key={candidate.feed_url}
@@ -130,7 +130,7 @@ export default function AddFeedDialog({
                       disabled={pending}
                       onClick={() => chooseCandidate(candidate)}
                       className={cn(
-                        'rounded-md px-3 py-2 text-left hover:bg-accent',
+                        'min-w-0 rounded-md px-3 py-2 text-left hover:bg-accent',
                         selected?.feed_url === candidate.feed_url && 'bg-accent',
                       )}
                     >
@@ -152,15 +152,15 @@ export default function AddFeedDialog({
               </div>
             )}
             {selected && (
-              <div className="flex flex-col gap-3 rounded-md border p-3">
-                <div>
+              <div className="min-w-0 flex flex-col gap-3 rounded-md border p-3">
+                <div className="min-w-0">
                   <p className="font-medium">{selected.title || '未命名订阅'}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {selected.site_url || selected.feed_url}
                   </p>
                 </div>
                 {selected.recent_entries.length > 0 && (
-                  <div className="flex flex-col gap-1">
+                  <div className="min-w-0 flex flex-col gap-1">
                     <p className="text-xs font-medium text-muted-foreground">最近文章</p>
                     {selected.recent_entries.map((entry, index) => (
                       <p key={`${entry.title}-${index}`} className="truncate text-sm">

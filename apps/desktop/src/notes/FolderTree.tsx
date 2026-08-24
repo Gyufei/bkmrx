@@ -145,7 +145,7 @@ export default function FolderTree({ tree, selectedPath, onSelect }: Props) {
   }));
 
   return (
-    <div className="flex-1 overflow-y-auto thin-scrollbar py-1">
+    <div className="flex-1 overflow-y-auto py-1">
       {treeWithExpanded.length === 0 ? (
         <div className="px-3 py-4 text-xs text-muted-foreground">无文件夹</div>
       ) : (

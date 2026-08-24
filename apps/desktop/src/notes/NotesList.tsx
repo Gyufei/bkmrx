@@ -63,7 +63,7 @@ export default function NotesList({
           className="h-7 px-2.5 text-xs rounded-md"
         />
       </div>
-      <div className="flex-1 overflow-y-auto thin-scrollbar">
+      <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div
             role="status"

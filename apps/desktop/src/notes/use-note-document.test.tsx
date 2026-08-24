@@ -1,11 +1,38 @@
 // @vitest-environment jsdom
 
-import { act, renderHook } from '@testing-library/react';
-import { StrictMode, type PropsWithChildren } from 'react';
+import { act, render, renderHook, screen } from '@testing-library/react';
+import { Activity, StrictMode, type PropsWithChildren } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NoteSaveQueue } from './note-save-queue';
 import { useNoteDocument } from './use-note-document';
+
+function ActivityNoteDocument({
+  mode,
+  read,
+  save,
+}: {
+  mode: 'visible' | 'hidden';
+  read: (path: string) => Promise<string>;
+  save: (path: string, content: string) => Promise<void>;
+}) {
+  return (
+    <Activity mode={mode}>
+      <NoteDocumentProbe read={read} save={save} />
+    </Activity>
+  );
+}
+
+function NoteDocumentProbe({
+  read,
+  save,
+}: {
+  read: (path: string) => Promise<string>;
+  save: (path: string, content: string) => Promise<void>;
+}) {
+  const session = useNoteDocument('/activity.md', { read, save, debounceMs: 400 });
+  return <div>{session.content}</div>;
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -29,6 +56,19 @@ describe('useNoteDocument reads', () => {
     await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
     expect(result.current.content).toBe('# A');
     expect(result.current.dirty).toBe(false);
+  });
+
+  it('does not reread a loaded note when an Activity is restored', async () => {
+    const read = vi.fn().mockResolvedValue('# Preserved');
+    const save = vi.fn().mockResolvedValue(undefined);
+    const view = render(<ActivityNoteDocument mode="visible" read={read} save={save} />);
+    await vi.waitFor(() => expect(screen.getByText('# Preserved')).toBeTruthy());
+
+    view.rerender(<ActivityNoteDocument mode="hidden" read={read} save={save} />);
+    view.rerender(<ActivityNoteDocument mode="visible" read={read} save={save} />);
+
+    await vi.waitFor(() => expect(screen.getByText('# Preserved')).toBeTruthy());
+    expect(read).toHaveBeenCalledTimes(1);
   });
 
   it('ignores a late read from the previous path', async () => {

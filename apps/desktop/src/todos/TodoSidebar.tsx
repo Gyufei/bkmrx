@@ -36,7 +36,7 @@ export default function TodoSidebar({
     <CollapsibleSidebar
       title="分类"
       className="w-56"
-      contentClassName="thin-scrollbar overflow-y-auto px-3 pb-3"
+      contentClassName="overflow-y-auto px-3 pb-3"
     >
       <button onClick={() => onSelectTag(null)} className={tagButtonClass(selectedTagId === null)}>
         <span>所有任务</span>

@@ -200,7 +200,7 @@ export default function TodoPage() {
         </Tabs>
         <Separator />
 
-        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-8 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-8 py-4">
           {todos.isLoading ? (
             <div
               role="status"

@@ -345,7 +345,7 @@ export default function BookmarkView() {
             更新星标失败：{starMutation.error.message}
           </div>
         )}
-        <div className="thin-scrollbar flex-1 overflow-y-auto p-3">
+        <div className="flex-1 overflow-y-auto p-3">
           <ResultList
             bookmarks={bookmarks}
             initialLoading={bookmarksQuery.isLoading}

@@ -149,7 +149,10 @@ it('downloads a right-clicked article image through the shadcn context menu', as
     expect(articleImage).toBeTruthy();
     return articleImage!;
   });
-  expect(image.closest('[data-slot="context-menu-trigger"]')).toBeTruthy();
+  const contentTrigger = image.closest('[data-slot="context-menu-trigger"]');
+  expect(contentTrigger).toBeTruthy();
+  expect(contentTrigger?.classList.contains('select-text')).toBe(true);
+  expect(contentTrigger?.classList.contains('select-none')).toBe(false);
   fireEvent.contextMenu(image, { button: 2, clientX: 120, clientY: 80 });
   fireEvent.click(await screen.findByText('保存图片…'));
 
@@ -159,6 +162,79 @@ it('downloads a right-clicked article image through the shadcn context menu', as
       null,
       '/tmp/photo.jpg',
     ),
+  );
+});
+
+it('shows a fixed capsule of reader actions for the selected article', async () => {
+  refreshAllFeedsApi.mockReturnValue(new Promise(() => {}));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /Unread article/ }));
+
+  const toolbar = await screen.findByRole('complementary', { name: '阅读工具' });
+  expect(toolbar.classList.contains('absolute')).toBe(true);
+  expect(screen.getByRole('button', { name: '隐藏图片' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: '翻译' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: '收藏当前网站到书签' })).toBeTruthy();
+});
+
+it('keeps no-image mode enabled when switching articles', async () => {
+  refreshAllFeedsApi.mockReturnValue(new Promise(() => {}));
+  listEntriesApi.mockResolvedValue({
+    entries: [
+      {
+        id: 7,
+        feed_id: 1,
+        feed_title: 'Feed',
+        title: 'First article',
+        link: null,
+        author: null,
+        content_html: '<p>First</p><img src="https://example.com/first.jpg">',
+        summary: 'First',
+        published_at: 100,
+        fetched_at: 100,
+        is_read: true,
+      },
+      {
+        id: 8,
+        feed_id: 1,
+        feed_title: 'Feed',
+        title: 'Second article',
+        link: null,
+        author: null,
+        content_html: '<p>Second</p><img src="https://example.com/second.jpg">',
+        summary: 'Second',
+        published_at: 101,
+        fetched_at: 101,
+        is_read: true,
+      },
+    ],
+    next_cursor: null,
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /First article/ }));
+  fireEvent.click(screen.getByRole('button', { name: '隐藏图片' }));
+  expect(
+    document.querySelector('[data-rss-entry-content]')?.classList.contains('[&_img]:hidden'),
+  ).toBe(true);
+
+  fireEvent.click(screen.getByRole('button', { name: /Second article/ }));
+  expect(
+    document.querySelector('[data-rss-entry-content]')?.classList.contains('[&_img]:hidden'),
+  ).toBe(true);
+  expect(screen.getByRole('button', { name: '显示图片' }).getAttribute('aria-pressed')).toBe(
+    'true',
   );
 });
 
@@ -173,8 +249,7 @@ it('opens article links externally for left and middle clicks without navigating
         title: 'Unread article',
         link: null,
         author: null,
-        content_html:
-          '<a href="https://example.com/article"><span>External article</span></a>',
+        content_html: '<a href="https://example.com/article"><span>External article</span></a>',
         summary: 'Body',
         published_at: 100,
         fetched_at: 100,
