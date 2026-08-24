@@ -138,6 +138,14 @@ export function invokeDeleteTodoTag(id: number): Promise<void> {
   return invoke('delete_todo_tag', { id });
 }
 
+export function invokeArchiveDeleteTodoTag(id: number): Promise<void> {
+  return invoke('archive_delete_todo_tag', { id });
+}
+
+export function invokeExportTodos(path: string, tagId: number): Promise<string> {
+  return invoke<string>('export_todos', { path, tagId });
+}
+
 /* ───── Server ───── */
 
 export function invokeGetServerStatus(): Promise<{ running: boolean; url: string }> {

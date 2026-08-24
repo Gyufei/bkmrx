@@ -121,6 +121,8 @@ fn main() {
             bkmrx_lib::commands::delete_todo,
             bkmrx_lib::commands::rename_todo_tag,
             bkmrx_lib::commands::delete_todo_tag,
+            bkmrx_lib::commands::archive_delete_todo_tag,
+            bkmrx_lib::commands::export_todos,
             bkmrx_lib::commands::export_bookmarks,
             bkmrx_lib::commands::preview_bookmark_import,
             bkmrx_lib::commands::apply_bookmark_import,

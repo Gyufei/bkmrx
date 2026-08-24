@@ -1,7 +1,9 @@
 import {
+  invokeArchiveDeleteTodoTag,
   invokeCreateTodo,
   invokeDeleteTodo,
   invokeDeleteTodoTag,
+  invokeExportTodos,
   invokeGetTodoTags,
   invokeQueryTodos,
   invokeRenameTodoTag,
@@ -22,3 +24,5 @@ export const setTodoStatusApi = (id: number, status: TodoStatus) => invokeSetTod
 export const deleteTodoApi = (id: number) => invokeDeleteTodo(id);
 export const renameTodoTagApi = (id: number, name: string) => invokeRenameTodoTag(id, name);
 export const deleteTodoTagApi = (id: number) => invokeDeleteTodoTag(id);
+export const archiveDeleteTodoTagApi = (id: number) => invokeArchiveDeleteTodoTag(id);
+export const exportTodosApi = (path: string, tagId: number) => invokeExportTodos(path, tagId);

@@ -17,6 +17,7 @@ interface ConfirmDeleteDialogProps {
   confirmLabel?: string;
   pending?: boolean;
   error?: unknown;
+  errorPrefix?: string;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void | Promise<void>;
 }
@@ -34,6 +35,7 @@ export default function ConfirmDeleteDialog({
   confirmLabel = '删除',
   pending = false,
   error,
+  errorPrefix = '删除失败：',
   onOpenChange,
   onConfirm,
 }: ConfirmDeleteDialogProps) {
@@ -45,7 +47,12 @@ export default function ConfirmDeleteDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
-          {errorMessage && <p className="text-sm text-destructive">删除失败：{errorMessage}</p>}
+          {errorMessage && (
+            <p className="text-sm text-destructive">
+              {errorPrefix}
+              {errorMessage}
+            </p>
+          )}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel render={<Button variant="outline" disabled={pending} />}>

@@ -18,11 +18,16 @@ interface TodoTagDialogsProps {
   deleting: TodoTag | null;
   deletePending: boolean;
   deleteError?: unknown;
+  archiving: TodoTag | null;
+  archivePending: boolean;
+  archiveError?: unknown;
   onRenameValueChange: (value: string) => void;
   onCloseRename: () => void;
   onRename: () => Promise<void>;
   onCloseDelete: () => void;
   onDelete: () => Promise<void>;
+  onCloseArchive: () => void;
+  onArchive: () => Promise<void>;
 }
 
 export default function TodoTagDialogs({
@@ -32,11 +37,16 @@ export default function TodoTagDialogs({
   deleting,
   deletePending,
   deleteError,
+  archiving,
+  archivePending,
+  archiveError,
   onRenameValueChange,
   onCloseRename,
   onRename,
   onCloseDelete,
   onDelete,
+  onCloseArchive,
+  onArchive,
 }: TodoTagDialogsProps) {
   const submitRename = async (event: FormEvent) => {
     event.preventDefault();
@@ -78,6 +88,18 @@ export default function TodoTagDialogs({
         error={deleteError}
         onOpenChange={(open) => !open && onCloseDelete()}
         onConfirm={onDelete}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(archiving)}
+        title={`归档删除标签“${archiving?.name}”？`}
+        description="将删除该标签及其下所有待办任务，此操作不可撤销。"
+        confirmLabel="归档删除"
+        errorPrefix="归档删除失败："
+        pending={archivePending}
+        error={archiveError}
+        onOpenChange={(open) => !open && onCloseArchive()}
+        onConfirm={onArchive}
       />
     </>
   );

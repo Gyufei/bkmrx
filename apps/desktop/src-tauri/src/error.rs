@@ -63,6 +63,14 @@ impl AppError {
         )
     }
 
+    pub fn todo_tag_has_active_todos() -> Self {
+        Self::new(
+            "todo_tag_has_active_todos",
+            "当前标签存在未完成待办，无法归档删除。",
+            None,
+        )
+    }
+
     pub fn unsupported_import_format(version: u64) -> Self {
         Self::new(
             "unsupported_import_format",

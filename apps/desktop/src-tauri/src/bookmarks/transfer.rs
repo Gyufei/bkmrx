@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
@@ -25,30 +24,7 @@ pub(crate) fn export_bookmarks(database: &Database, destination: &Path) -> AppRe
     } else {
         destination.join(format!("bookmarks-{timestamp}.json"))
     };
-    let directory = destination
-        .parent()
-        .ok_or_else(|| AppError::validation_error("export path has no parent directory"))?;
-    fs::create_dir_all(directory).map_err(file_error)?;
-    let temporary = directory.join(format!(
-        ".bookmarks-{timestamp}-{}-{}.tmp",
-        std::process::id(),
-        Utc::now().timestamp_nanos_opt().unwrap_or_default()
-    ));
-
-    let write_result = (|| -> AppResult<()> {
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&temporary)
-            .map_err(file_error)?;
-        file.write_all(&bytes).map_err(file_error)?;
-        file.sync_all().map_err(file_error)?;
-        fs::rename(&temporary, &destination).map_err(file_error)
-    })();
-    if write_result.is_err() {
-        let _ = fs::remove_file(&temporary);
-    }
-    write_result?;
+    crate::fsutil::write_atomically(&destination, &bytes)?;
     Ok(destination)
 }
 

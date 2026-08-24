@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::error::AppResult;
@@ -49,6 +50,22 @@ impl TodoService {
     }
     pub fn delete_tag(&self, id: i64) -> AppResult<()> {
         self.changed(self.repository.delete_tag(id))
+    }
+
+    pub fn archive_delete_tag(&self, id: i64) -> AppResult<()> {
+        self.changed(self.repository.archive_delete_tag(id))
+    }
+
+    pub fn export_todos(
+        &self,
+        destination: impl AsRef<Path>,
+        tag_id: Option<i64>,
+    ) -> AppResult<PathBuf> {
+        let list = self.repository.query(&TodoQuery {
+            status: None,
+            tag_id,
+        })?;
+        super::transfer::export_todos(list.items, destination.as_ref())
     }
 
     fn changed<T>(&self, result: AppResult<T>) -> AppResult<T> {

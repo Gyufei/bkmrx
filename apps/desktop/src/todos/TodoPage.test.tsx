@@ -11,12 +11,16 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   setStatus: vi.fn(),
   deleteTag: vi.fn(),
+  archiveDelete: vi.fn(),
+  export: vi.fn(),
+  save: vi.fn(),
   toastAdd: vi.fn(),
   dialog: vi.fn(),
   listen: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({ listen: mocks.listen }));
+vi.mock('@tauri-apps/plugin-dialog', () => ({ save: mocks.save }));
 vi.mock('@/components/ui/toast', () => ({ toast: { add: mocks.toastAdd } }));
 vi.mock('./todos.api', async (importOriginal) => {
   const original = await importOriginal<typeof import('./todos.api')>();
@@ -27,6 +31,8 @@ vi.mock('./todos.api', async (importOriginal) => {
     createTodoApi: mocks.create,
     setTodoStatusApi: mocks.setStatus,
     deleteTodoTagApi: mocks.deleteTag,
+    archiveDeleteTodoTagApi: mocks.archiveDelete,
+    exportTodosApi: mocks.export,
   };
 });
 vi.mock('./TodoDialog', () => ({
@@ -68,6 +74,9 @@ describe('TodoPage', () => {
     });
     mocks.create.mockResolvedValue({ id: 2 });
     mocks.deleteTag.mockResolvedValue(undefined);
+    mocks.archiveDelete.mockResolvedValue(undefined);
+    mocks.export.mockResolvedValue('/tmp/2026-08-24-待办-工作.md');
+    mocks.save.mockResolvedValue(null);
     mocks.listen.mockResolvedValue(() => {});
   });
 
@@ -194,7 +203,7 @@ describe('TodoPage', () => {
     const tag = await screen.findByText('工作', { selector: 'span.truncate' });
 
     fireEvent.contextMenu(tag);
-    fireEvent.click(await screen.findByText('删除'));
+    fireEvent.click(await screen.findByText('标签删除'));
     fireEvent.click(screen.getByRole('button', { name: '删除标签' }));
 
     expect(await screen.findByText('删除失败：标签仍被占用')).toBeTruthy();
@@ -202,9 +211,143 @@ describe('TodoPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '取消' }));
     fireEvent.contextMenu(tag);
-    fireEvent.click(await screen.findByText('删除'));
+    fireEvent.click(await screen.findByText('标签删除'));
 
     expect(screen.queryByText('删除失败：标签仍被占用')).toBeNull();
     expect(screen.getByText('删除标签“工作”？')).toBeTruthy();
+  });
+
+  it('exports the selected tag through the save dialog', async () => {
+    mocks.save.mockResolvedValue('/tmp/2026-08-24-待办-工作.md');
+    renderPage();
+    const tag = await screen.findByText('工作', { selector: 'span.truncate' });
+
+    fireEvent.contextMenu(tag);
+    fireEvent.click(await screen.findByText('导出'));
+
+    await waitFor(() =>
+      expect(mocks.save).toHaveBeenCalledWith({
+        defaultPath: expect.stringMatching(/^\d{4}-\d{2}-\d{2}-待办-工作\.md$/),
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
+      }),
+    );
+    await waitFor(() =>
+      expect(mocks.export).toHaveBeenCalledWith('/tmp/2026-08-24-待办-工作.md', 4),
+    );
+    expect(mocks.toastAdd).toHaveBeenCalledWith({
+      type: 'success',
+      title: '导出成功',
+      description: '/tmp/2026-08-24-待办-工作.md',
+    });
+  });
+
+  it('does nothing when the save dialog is cancelled', async () => {
+    mocks.save.mockResolvedValue(null);
+    renderPage();
+    const tag = await screen.findByText('工作', { selector: 'span.truncate' });
+
+    fireEvent.contextMenu(tag);
+    fireEvent.click(await screen.findByText('导出'));
+
+    await waitFor(() => expect(mocks.save).toHaveBeenCalled());
+    expect(mocks.export).not.toHaveBeenCalled();
+  });
+
+  it('shows an error toast when the export fails', async () => {
+    mocks.save.mockResolvedValue('/tmp/2026-08-24-待办-工作.md');
+    mocks.export.mockRejectedValueOnce({ message: '目录不可写' });
+    renderPage();
+    const tag = await screen.findByText('工作', { selector: 'span.truncate' });
+
+    fireEvent.contextMenu(tag);
+    fireEvent.click(await screen.findByText('导出'));
+
+    await waitFor(() =>
+      expect(mocks.toastAdd).toHaveBeenCalledWith({ title: '目录不可写', type: 'error' }),
+    );
+  });
+
+  it('shows both tag actions in the context menu', async () => {
+    renderPage();
+    const tag = await screen.findByText('工作', { selector: 'span.truncate' });
+    fireEvent.contextMenu(tag);
+    expect(await screen.findByText('标签删除')).toBeTruthy();
+    expect(screen.getByText('归档删除')).toBeTruthy();
+  });
+
+  it('blocks archive delete with a toast while a todo is in progress', async () => {
+    renderPage();
+    const tag = await screen.findByText('工作', { selector: 'span.truncate' });
+    fireEvent.contextMenu(tag);
+    fireEvent.click(await screen.findByText('归档删除'));
+
+    await waitFor(() =>
+      expect(mocks.toastAdd).toHaveBeenCalledWith({
+        title: '当前标签存在未完成待办，无法归档删除。',
+        type: 'error',
+      }),
+    );
+    expect(mocks.archiveDelete).not.toHaveBeenCalled();
+    expect(screen.queryByText('归档删除标签“工作”？')).toBeNull();
+  });
+
+  it('opens the archive confirm dialog and deletes when no todo is in progress', async () => {
+    mocks.query.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          title: '已收尾',
+          description: '',
+          status: 'completed',
+          is_high_priority: false,
+          tags: ['工作'],
+          created_at: '',
+          updated_at: '',
+          completed_at: '2026-07-29T00:00:00Z',
+        },
+      ],
+      total: 1,
+      completed: 1,
+    });
+    renderPage();
+    const tag = await screen.findByText('工作', { selector: 'span.truncate' });
+    fireEvent.contextMenu(tag);
+    fireEvent.click(await screen.findByText('归档删除'));
+
+    expect(screen.getByText('归档删除标签“工作”？')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '归档删除' }));
+
+    await waitFor(() => expect(mocks.archiveDelete).toHaveBeenCalledWith(4));
+  });
+
+  it('shows the backend error inside the archive confirm dialog', async () => {
+    mocks.query.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          title: '已收尾',
+          description: '',
+          status: 'completed',
+          is_high_priority: false,
+          tags: ['工作'],
+          created_at: '',
+          updated_at: '',
+          completed_at: '2026-07-29T00:00:00Z',
+        },
+      ],
+      total: 1,
+      completed: 1,
+    });
+    mocks.archiveDelete.mockRejectedValueOnce(new Error('当前标签存在未完成待办，无法归档删除。'));
+    renderPage();
+    const tag = await screen.findByText('工作', { selector: 'span.truncate' });
+    fireEvent.contextMenu(tag);
+    fireEvent.click(await screen.findByText('归档删除'));
+    fireEvent.click(screen.getByRole('button', { name: '归档删除' }));
+
+    expect(
+      await screen.findByText('归档删除失败：当前标签存在未完成待办，无法归档删除。'),
+    ).toBeTruthy();
+    expect(screen.getByText('归档删除标签“工作”？')).toBeTruthy();
   });
 });

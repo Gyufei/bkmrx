@@ -223,6 +223,22 @@ pub fn delete_todo_tag(service: State<'_, SharedTodoService>, id: i64) -> AppRes
 }
 
 #[tauri::command]
+pub fn archive_delete_todo_tag(service: State<'_, SharedTodoService>, id: i64) -> AppResult<()> {
+    service.archive_delete_tag(id)
+}
+
+#[tauri::command]
+pub fn export_todos(
+    service: State<'_, SharedTodoService>,
+    path: String,
+    tag_id: Option<i64>,
+) -> AppResult<String> {
+    service
+        .export_todos(path, tag_id)
+        .map(|path| path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
 pub fn export_bookmarks(
     service: State<'_, SharedBookmarkService>,
     path: String,

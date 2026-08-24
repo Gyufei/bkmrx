@@ -2,6 +2,7 @@ pub mod bookmarks;
 pub mod commands;
 pub mod database;
 pub mod error;
+pub mod fsutil;
 pub mod http_server;
 pub mod notes;
 pub mod preview;

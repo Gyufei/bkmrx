@@ -1,8 +1,9 @@
-import { Pencil, Tag as TagIcon, Trash2 } from 'lucide-react';
+import { Archive, FileDown, Pencil, Tag as TagIcon, Trash2 } from 'lucide-react';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
@@ -14,8 +15,10 @@ interface TodoSidebarProps {
   total: number;
   selectedTagId: number | null;
   onSelectTag: (tagId: number | null) => void;
+  onExportTag: (tag: TodoTag) => void;
   onRenameTag: (tag: TodoTag) => void;
   onDeleteTag: (tag: TodoTag) => void;
+  onArchiveDeleteTag: (tag: TodoTag) => void;
 }
 
 const tagButtonClass = (selected: boolean) =>
@@ -29,15 +32,13 @@ export default function TodoSidebar({
   total,
   selectedTagId,
   onSelectTag,
+  onExportTag,
   onRenameTag,
   onDeleteTag,
+  onArchiveDeleteTag,
 }: TodoSidebarProps) {
   return (
-    <CollapsibleSidebar
-      title="分类"
-      className="w-56"
-      contentClassName="overflow-y-auto px-3 pb-3"
-    >
+    <CollapsibleSidebar title="分类" className="w-56" contentClassName="overflow-y-auto px-3 pb-3">
       <button onClick={() => onSelectTag(null)} className={tagButtonClass(selectedTagId === null)}>
         <span>所有任务</span>
         <span className="text-xs text-muted-foreground">{total}</span>
@@ -56,13 +57,22 @@ export default function TodoSidebar({
               <span className="text-xs text-muted-foreground">{tag.count}</span>
             </ContextMenuTrigger>
             <ContextMenuContent>
+              <ContextMenuItem onClick={() => onExportTag(tag)}>
+                <FileDown />
+                导出
+              </ContextMenuItem>
               <ContextMenuItem onClick={() => onRenameTag(tag)}>
                 <Pencil />
                 重命名
               </ContextMenuItem>
+              <ContextMenuSeparator />
               <ContextMenuItem variant="destructive" onClick={() => onDeleteTag(tag)}>
                 <Trash2 />
-                删除
+                标签删除
+              </ContextMenuItem>
+              <ContextMenuItem variant="destructive" onClick={() => onArchiveDeleteTag(tag)}>
+                <Archive />
+                归档删除
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>

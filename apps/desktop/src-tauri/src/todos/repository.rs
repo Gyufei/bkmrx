@@ -189,16 +189,7 @@ impl SqliteTodoRepository {
         let name = normalize_tag(&name)?;
         let mut connection = self.database.connection()?;
         let transaction = connection.transaction().map_err(database_error)?;
-        let old_exists: bool = transaction
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM todo_tags WHERE id = ?1)",
-                [id],
-                |row| row.get(0),
-            )
-            .map_err(database_error)?;
-        if !old_exists {
-            return Err(AppError::todo_tag_not_found(id));
-        }
+        ensure_tag_exists(&transaction, id)?;
         let target_id = transaction
             .query_row(
                 "SELECT id FROM todo_tags WHERE name = ?1 COLLATE NOCASE",
@@ -248,6 +239,38 @@ impl SqliteTodoRepository {
         if deleted == 0 {
             return Err(AppError::todo_tag_not_found(id));
         }
+        Ok(())
+    }
+
+    pub fn archive_delete_tag(&self, id: i64) -> AppResult<()> {
+        let mut connection = self.database.connection()?;
+        let transaction = connection.transaction().map_err(database_error)?;
+        ensure_tag_exists(&transaction, id)?;
+        let has_active: bool = transaction
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM todo_tag_relations rel
+                     JOIN todos t ON t.id = rel.todo_id
+                     WHERE rel.tag_id = ?1 AND t.status = 'in_progress'
+                 )",
+                [id],
+                |row| row.get(0),
+            )
+            .map_err(database_error)?;
+        if has_active {
+            return Err(AppError::todo_tag_has_active_todos());
+        }
+        transaction
+            .execute(
+                "DELETE FROM todos
+                 WHERE id IN (SELECT todo_id FROM todo_tag_relations WHERE tag_id = ?1)",
+                [id],
+            )
+            .map_err(database_error)?;
+        transaction
+            .execute("DELETE FROM todo_tags WHERE id = ?1", [id])
+            .map_err(database_error)?;
+        transaction.commit().map_err(database_error)?;
         Ok(())
     }
 }
@@ -326,6 +349,20 @@ fn tags_for_todos(
         tags.entry(todo_id).or_default().push(name);
     }
     Ok(tags)
+}
+
+fn ensure_tag_exists(transaction: &Transaction<'_>, id: i64) -> AppResult<()> {
+    let exists: bool = transaction
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM todo_tags WHERE id = ?1)",
+            [id],
+            |row| row.get(0),
+        )
+        .map_err(database_error)?;
+    if !exists {
+        return Err(AppError::todo_tag_not_found(id));
+    }
+    Ok(())
 }
 
 fn normalize_title(value: &str) -> AppResult<String> {
