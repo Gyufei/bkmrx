@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import type { AppError, FeedCandidate } from '@/types';
-import { createFeedApi, previewFeedApi, RSS_ENTRIES_KEY, RSS_FEEDS_KEY } from './rss.api';
+import { createFeedApi, invalidateRssQueries, previewFeedApi } from './rss.api';
 
 export default function AddFeedDialog({
   open,
@@ -64,8 +64,7 @@ export default function AddFeedDialog({
         custom_title: customTitle.trim() || null,
       }),
     onSuccess: () => {
-      void client.invalidateQueries({ queryKey: RSS_FEEDS_KEY });
-      void client.invalidateQueries({ queryKey: RSS_ENTRIES_KEY });
+      void invalidateRssQueries(client);
       onOpenChange(false);
     },
     onError: (error) => {

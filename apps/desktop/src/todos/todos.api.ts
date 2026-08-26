@@ -11,11 +11,17 @@ import {
   invokeUpdateTodo,
 } from '@/lib/invoke';
 import type { CreateTodo, TodoQuery, TodoStatus, UpdateTodo } from '@/types';
+import type { QueryClient } from '@tanstack/react-query';
 
 export const TODO_QUERY_KEY = ['todos'] as const;
 export const TODO_TAGS_QUERY_KEY = ['todo-tags'] as const;
 
 export const todoQueryKey = (request: TodoQuery) => [...TODO_QUERY_KEY, request] as const;
+export const invalidateTodoQueries = (queryClient: QueryClient) =>
+  Promise.all([
+    queryClient.invalidateQueries({ queryKey: TODO_QUERY_KEY }),
+    queryClient.invalidateQueries({ queryKey: TODO_TAGS_QUERY_KEY }),
+  ]).then(() => undefined);
 export const queryTodosApi = (request: TodoQuery) => invokeQueryTodos(request);
 export const getTodoTagsApi = () => invokeGetTodoTags();
 export const createTodoApi = (input: CreateTodo) => invokeCreateTodo(input);

@@ -146,6 +146,25 @@ describe('TodoPage', () => {
     );
   });
 
+  it('refreshes Todo queries from the backend event instead of mutation success', async () => {
+    let onTodosChanged: (() => void) | undefined;
+    mocks.listen.mockImplementation(async (event: string, handler: () => void) => {
+      if (event === 'todos-changed') onTodosChanged = handler;
+      return () => {};
+    });
+    renderPage();
+    const input = await screen.findByPlaceholderText('快速添加任务，按 Enter 提交…');
+    const initialQueryCount = mocks.query.mock.calls.length;
+
+    fireEvent.change(input, { target: { value: '事件驱动刷新' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+    expect(mocks.query).toHaveBeenCalledTimes(initialQueryCount);
+
+    onTodosChanged?.();
+    await waitFor(() => expect(mocks.query.mock.calls.length).toBeGreaterThan(initialQueryCount));
+  });
+
   it('uses the selected tag for dialog and quick creation', async () => {
     renderPage();
     await screen.findByText('写测试');

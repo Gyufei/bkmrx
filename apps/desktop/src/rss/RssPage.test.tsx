@@ -7,14 +7,21 @@ import { open } from '@tauri-apps/plugin-shell';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import RssPage from './RssPage';
 
-const { listFeedsApi, listEntriesApi, markEntryReadApi, refreshAllFeedsApi, downloadRssImageApi } =
-  vi.hoisted(() => ({
-    listFeedsApi: vi.fn(),
-    listEntriesApi: vi.fn(),
-    markEntryReadApi: vi.fn(),
-    refreshAllFeedsApi: vi.fn(),
-    downloadRssImageApi: vi.fn(),
-  }));
+const {
+  listFeedsApi,
+  listEntriesApi,
+  markEntryReadApi,
+  refreshAllFeedsApi,
+  downloadRssImageApi,
+  toastAdd,
+} = vi.hoisted(() => ({
+  listFeedsApi: vi.fn(),
+  listEntriesApi: vi.fn(),
+  markEntryReadApi: vi.fn(),
+  refreshAllFeedsApi: vi.fn(),
+  downloadRssImageApi: vi.fn(),
+  toastAdd: vi.fn(),
+}));
 
 vi.mock('./rss.api', () => ({
   RSS_FEEDS_KEY: ['rss-feeds'],
@@ -27,6 +34,28 @@ vi.mock('./rss.api', () => ({
   refreshFeedApi: vi.fn(),
   deleteFeedApi: vi.fn(),
   downloadRssImageApi,
+  invalidateRssQueries: (client: QueryClient) =>
+    Promise.all([
+      client.invalidateQueries({ queryKey: ['rss-feeds'] }),
+      client.invalidateQueries({ queryKey: ['rss-entries'] }),
+    ]),
+  updateRssEntryQueries: (client: QueryClient, updated: { id: number }) =>
+    client.setQueriesData<{
+      pages: Array<{ entries: Array<{ id: number }> }>;
+      pageParams: unknown[];
+    }>({ queryKey: ['rss-entries'] }, (data) =>
+      data
+        ? {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              entries: page.entries.map((entry) =>
+                entry.id === updated.id ? { ...entry, ...updated } : entry,
+              ),
+            })),
+          }
+        : data,
+    ),
 }));
 vi.mock('./AddFeedDialog', () => ({ default: () => null }));
 vi.mock('./RenameFeedDialog', () => ({
@@ -35,6 +64,7 @@ vi.mock('./RenameFeedDialog', () => ({
 }));
 vi.mock('@tauri-apps/plugin-shell', () => ({ open: vi.fn() }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ save: vi.fn() }));
+vi.mock('@/components/ui/toast', () => ({ toast: { add: toastAdd } }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -98,6 +128,25 @@ it('keeps a newly read article selected in the unread cache without refetching e
   expect(screen.getAllByText('Unread article')).toHaveLength(2);
   await waitFor(() => expect(markEntryReadApi).toHaveBeenCalledWith(7, true));
   expect(listEntriesApi).toHaveBeenCalledTimes(2);
+});
+
+it('shows a toast when refreshing all feeds fails', async () => {
+  refreshAllFeedsApi
+    .mockResolvedValueOnce({ refreshed: 0, added: 0, failed: 0 })
+    .mockRejectedValueOnce(new Error('RSS 刷新失败'));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  await waitFor(() => expect(refreshAllFeedsApi).toHaveBeenCalledOnce());
+  fireEvent.click(await screen.findByRole('button', { name: '刷新全部' }));
+
+  await waitFor(() =>
+    expect(toastAdd).toHaveBeenCalledWith({ type: 'error', title: 'RSS 刷新失败' }),
+  );
 });
 
 it('offers edit, refresh, and delete as feed context-menu actions', async () => {

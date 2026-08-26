@@ -12,6 +12,7 @@ vi.mock('./rss.api', () => ({
   RSS_ENTRIES_KEY: ['rss-entries'],
   previewFeedApi: vi.fn(),
   createFeedApi: vi.fn(),
+  invalidateRssQueries: vi.fn(),
 }));
 
 afterEach(cleanup);

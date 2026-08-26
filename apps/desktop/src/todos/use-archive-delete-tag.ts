@@ -6,17 +6,15 @@ import { archiveDeleteTodoTagApi } from './todos.api';
 
 interface Options {
   items?: Todo[];
-  invalidate: () => Promise<void>;
   onDeleted: (id: number) => void;
 }
 
-export function useArchiveDeleteTag({ items, invalidate, onDeleted }: Options) {
+export function useArchiveDeleteTag({ items, onDeleted }: Options) {
   const [archivingTag, setArchivingTag] = useState<TodoTag | null>(null);
   const mutation = useMutation({
     mutationFn: (id: number) => archiveDeleteTodoTagApi(id),
-    onSuccess: async (_result, deletedId) => {
+    onSuccess: (_result, deletedId) => {
       onDeleted(deletedId);
-      await invalidate();
     },
   });
 

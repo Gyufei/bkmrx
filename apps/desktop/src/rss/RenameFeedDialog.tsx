@@ -11,7 +11,7 @@ import {
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import type { RssFeed } from '@/types';
-import { renameFeedApi, RSS_ENTRIES_KEY, RSS_FEEDS_KEY } from './rss.api';
+import { invalidateRssQueries, renameFeedApi } from './rss.api';
 
 export default function RenameFeedDialog({
   feed,
@@ -26,8 +26,7 @@ export default function RenameFeedDialog({
   const rename = useMutation({
     mutationFn: () => renameFeedApi(feed!.id, title.trim() || null),
     onSuccess: () => {
-      void client.invalidateQueries({ queryKey: RSS_FEEDS_KEY });
-      void client.invalidateQueries({ queryKey: RSS_ENTRIES_KEY });
+      void invalidateRssQueries(client);
       onClose();
     },
   });

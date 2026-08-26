@@ -1,322 +1,36 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { open as openExternal } from '@tauri-apps/plugin-shell';
-import { useHotkeys } from '@tanstack/react-hotkeys';
-
 import { Button } from '@/components/ui/button';
-import type { Bookmark, BookmarkBaseView, BookmarkPageRequest } from '@/types';
+import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 import AddBookmarkDialog from './AddBookmarkDialog';
-import {
-  BkQueryApiKey,
-  bookmarkQueryKey,
-  getNextBookmarkPageParam,
-  invalidateNonRandomBookmarkQueries,
-  queryBookmarksApi,
-  setBookmarkStarredApi,
-  updateBookmarkAccessQueries,
-  updateRandomBookmarkQuery,
-} from './bookmarks.api';
-import ResultList from './ResultList';
-import SearchBar from './SearchBar';
 import BookmarkSidebar from './BookmarkSidebar';
 import BookmarkWebPreview from './BookmarkWebPreview';
-import { invokeRecordBookmarkAccess } from '@/lib/invoke';
-import { toast } from '@/components/ui/toast';
-import { useTauriEvent } from '@/lib/use-tauri-event';
-import CollapsibleSidebar from '@/components/CollapsibleSidebar';
-
-const PAGE_SIZE = 50;
-const RANDOM_LIMIT = 7;
-const RANDOM_ANIMATION_MS = 700;
+import ResultList from './ResultList';
+import SearchBar from './SearchBar';
+import { useBookmarkBrowser } from './use-bookmark-browser';
+import { useBookmarkNavigation } from './use-bookmark-navigation';
 
 export default function BookmarkView() {
-  const queryClient = useQueryClient();
-  const [query, setQuery] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [baseView, setBaseView] = useState<BookmarkBaseView>('all');
-  const [randomDrawId, setRandomDrawId] = useState(() => Date.now());
-  const [randomDrawing, setRandomDrawing] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [previewBookmark, setPreviewBookmark] = useState<Bookmark | null>(null);
-  const [activeBookmarkId, setActiveBookmarkId] = useState<number | null>(null);
   const [resultListInteractionLocked, setResultListInteractionLocked] = useState(false);
   const [previewContainer, setPreviewContainer] = useState<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const bookmarkElementsRef = useRef(new Map<number, HTMLElement>());
-  const previewTriggerRef = useRef<HTMLElement | null>(null);
-  const isSearchMode = query.length > 0 || selectedTags.length > 0;
-  const starredView = !isSearchMode && baseView === 'starred';
-  const randomView = !isSearchMode && baseView === 'random';
-  const bookmarkRequest = useMemo<BookmarkPageRequest>(() => {
-    if (isSearchMode) {
-      return {
-        mode: 'search',
-        query,
-        tags: selectedTags,
-        cursor: null,
-        page_size: PAGE_SIZE,
-      };
-    }
-    if (randomView) return { mode: 'random', limit: RANDOM_LIMIT };
-    return {
-      mode: 'browse',
-      starred: starredView,
-      cursor: null,
-      page_size: PAGE_SIZE,
-    };
-  }, [isSearchMode, query, randomView, selectedTags, starredView]);
-
-  const bookmarksQuery = useInfiniteQuery({
-    queryKey: bookmarkQueryKey(bookmarkRequest, randomDrawId),
-    initialPageParam: null as string | null,
-    queryFn: async ({ pageParam }) => {
-      const request =
-        bookmarkRequest.mode === 'random'
-          ? bookmarkRequest
-          : { ...bookmarkRequest, cursor: pageParam };
-      const response = queryBookmarksApi(request);
-      if (bookmarkRequest.mode !== 'random') return response;
-      const [page] = await Promise.all([
-        response,
-        new Promise<void>((resolve) => window.setTimeout(resolve, RANDOM_ANIMATION_MS)),
-      ]);
-      return page;
-    },
-    getNextPageParam: getNextBookmarkPageParam,
-    placeholderData: randomView
-      ? (previousData, previousQuery) =>
-          (previousQuery?.queryKey[1] as BookmarkPageRequest | undefined)?.mode === 'random'
-            ? previousData
-            : undefined
-      : undefined,
-    refetchOnWindowFocus: !randomView,
+  const browser = useBookmarkBrowser();
+  const navigation = useBookmarkNavigation({
+    bookmarks: browser.bookmarks,
+    singleKeyLocked: showAddDialog || resultListInteractionLocked,
+    searchInputRef,
   });
-
-  const bookmarks = useMemo(
-    () => bookmarksQuery.data?.pages.flatMap((page) => page.items) ?? [],
-    [bookmarksQuery.data],
-  );
-  const activeBookmarkIndex = bookmarks.findIndex((bookmark) => bookmark.id === activeBookmarkId);
-  const activeBookmark = activeBookmarkIndex >= 0 ? bookmarks[activeBookmarkIndex] : null;
-  const singleKeyLocked = showAddDialog || resultListInteractionLocked;
-  const starMutation = useMutation({
-    mutationFn: setBookmarkStarredApi,
-    onSuccess: (updatedBookmark) => {
-      updateRandomBookmarkQuery(queryClient, updatedBookmark);
-      void invalidateNonRandomBookmarkQueries(queryClient);
-    },
-  });
-
-  const startRandomDraw = useCallback(() => {
-    if (randomDrawing) return false;
-    setRandomDrawing(true);
-    setRandomDrawId((current) => current + 1);
-    return true;
-  }, [randomDrawing]);
-
-  const handleSearch = useCallback(
-    (value: string) => {
-      const nextQuery = value.trim();
-      if (baseView === 'random' && isSearchMode && !nextQuery && selectedTags.length === 0) {
-        startRandomDraw();
-      }
-      setQuery(nextQuery);
-    },
-    [baseView, isSearchMode, selectedTags.length, startRandomDraw],
-  );
-
-  const handleTagsChange = useCallback(
-    (tags: string[]) => {
-      if (baseView === 'random' && isSearchMode && query.length === 0 && tags.length === 0) {
-        startRandomDraw();
-      }
-      setSelectedTags(tags);
-    },
-    [baseView, isSearchMode, query.length, startRandomDraw],
-  );
-
-  const handleBaseViewChange = useCallback(
-    (view: BookmarkBaseView) => {
-      if (view === 'random' && !startRandomDraw()) return;
-      if (view !== 'random') setRandomDrawing(false);
-      setBaseView(view);
-    },
-    [startRandomDraw],
-  );
-
-  useEffect(() => {
-    if (!randomView || !bookmarksQuery.isFetching) setRandomDrawing(false);
-  }, [bookmarksQuery.isFetching, randomView]);
-
-  useEffect(() => {
-    setActiveBookmarkId((currentId) => {
-      if (bookmarks.length === 0) return null;
-      return currentId !== null && bookmarks.some((bookmark) => bookmark.id === currentId)
-        ? currentId
-        : bookmarks[0].id;
-    });
-  }, [bookmarks]);
-
-  useEffect(() => {
-    if (activeBookmarkId === null) return;
-    bookmarkElementsRef.current.get(activeBookmarkId)?.scrollIntoView?.({ block: 'nearest' });
-  }, [activeBookmarkId]);
-
-  useTauriEvent('bookmarks-changed', () => {
-    void invalidateNonRandomBookmarkQueries(queryClient);
-    queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
-  });
-
-  useTauriEvent<Bookmark>('bookmark-accessed', ({ payload }) => {
-    updateBookmarkAccessQueries(queryClient, payload);
-  });
-
-  const recordAccess = useCallback(async (bookmark: Bookmark) => {
-    try {
-      await invokeRecordBookmarkAccess(bookmark.id);
-    } catch {
-      console.error('Failed to record bookmark access');
-    }
-  }, []);
-
-  const handleOpenBookmark = useCallback(
-    async (bookmark: Bookmark) => {
-      try {
-        await openExternal(bookmark.url);
-        void recordAccess(bookmark);
-      } catch {
-        toast.add({
-          type: 'error',
-          title: '无法打开链接',
-          description: bookmark.url,
-        });
-      }
-    },
-    [recordAccess],
-  );
-
-  const handlePreviewBookmark = useCallback(
-    async (bookmark: Bookmark, trigger: HTMLElement) => {
-      let protocol = '';
-      try {
-        protocol = new URL(bookmark.url).protocol;
-      } catch {
-        protocol = '';
-      }
-
-      if (protocol === 'http:' || protocol === 'https:') {
-        previewTriggerRef.current = trigger;
-        setPreviewBookmark(bookmark);
-        void recordAccess(bookmark);
-        return;
-      }
-
-      await handleOpenBookmark(bookmark);
-    },
-    [handleOpenBookmark, recordAccess],
-  );
-
-  const handlePreviewOpenChange = useCallback((open: boolean) => {
-    if (open) return;
-    setPreviewBookmark(null);
-    if (previewTriggerRef.current?.isConnected) previewTriggerRef.current.focus();
-    previewTriggerRef.current = null;
-  }, []);
-
-  const registerBookmarkElement = useCallback((id: number, element: HTMLElement | null) => {
-    if (element) bookmarkElementsRef.current.set(id, element);
-    else bookmarkElementsRef.current.delete(id);
-  }, []);
-
-  const moveActiveBookmark = useCallback(
-    (offset: -1 | 1) => {
-      if (bookmarks.length === 0) return;
-      const currentIndex = Math.max(activeBookmarkIndex, 0);
-      const nextIndex = Math.min(Math.max(currentIndex + offset, 0), bookmarks.length - 1);
-      setActiveBookmarkId(bookmarks[nextIndex].id);
-    },
-    [activeBookmarkIndex, bookmarks],
-  );
-
-  useHotkeys([
-    {
-      hotkey: '/',
-      callback: () => {
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-      },
-      options: {
-        enabled: !singleKeyLocked && previewBookmark === null,
-        ignoreInputs: true,
-        meta: { name: '搜索书签', description: '聚焦书签搜索框' },
-      },
-    },
-    {
-      hotkey: 'J',
-      callback: () => moveActiveBookmark(1),
-      options: {
-        enabled: !singleKeyLocked && previewBookmark === null && bookmarks.length > 0,
-        ignoreInputs: true,
-        meta: { name: '下一条书签', description: '高亮下一条书签' },
-      },
-    },
-    {
-      hotkey: 'K',
-      callback: () => moveActiveBookmark(-1),
-      options: {
-        enabled: !singleKeyLocked && previewBookmark === null && bookmarks.length > 0,
-        ignoreInputs: true,
-        meta: { name: '上一条书签', description: '高亮上一条书签' },
-      },
-    },
-    {
-      hotkey: 'P',
-      callback: () => {
-        if (!activeBookmark) return;
-        const trigger = bookmarkElementsRef.current.get(activeBookmark.id);
-        if (trigger) void handlePreviewBookmark(activeBookmark, trigger);
-      },
-      options: {
-        enabled: !singleKeyLocked && previewBookmark === null && activeBookmark !== null,
-        ignoreInputs: true,
-        requireReset: true,
-        meta: { name: '预览书签', description: '预览当前书签' },
-      },
-    },
-    {
-      hotkey: 'X',
-      callback: () => handlePreviewOpenChange(false),
-      options: {
-        enabled: previewBookmark !== null,
-        ignoreInputs: true,
-        requireReset: true,
-        meta: { name: '关闭预览', description: '关闭当前书签预览' },
-      },
-    },
-    {
-      hotkey: 'O',
-      callback: () => {
-        if (activeBookmark) void handleOpenBookmark(activeBookmark);
-      },
-      options: {
-        enabled: !singleKeyLocked && previewBookmark === null && activeBookmark !== null,
-        ignoreInputs: true,
-        requireReset: true,
-        meta: { name: '打开书签', description: '在浏览器打开当前书签' },
-      },
-    },
-  ]);
 
   return (
     <div ref={setPreviewContainer} className="relative flex min-h-0 w-full flex-1 overflow-hidden">
       <CollapsibleSidebar title="标签" className="w-56" contentClassName="px-3 pb-3">
         <BookmarkSidebar
-          selectedTags={selectedTags}
-          onTagsChange={handleTagsChange}
-          baseView={baseView}
-          onBaseViewChange={handleBaseViewChange}
-          randomDrawing={randomDrawing}
+          selectedTags={browser.selectedTags}
+          onTagsChange={browser.handleTagsChange}
+          baseView={browser.baseView}
+          onBaseViewChange={browser.handleBaseViewChange}
+          randomDrawing={browser.randomDrawing}
         />
       </CollapsibleSidebar>
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
@@ -324,8 +38,8 @@ export default function BookmarkView() {
           <div className="flex items-center gap-2">
             <SearchBar
               ref={searchInputRef}
-              onSearch={handleSearch}
-              loading={bookmarksQuery.isLoading}
+              onSearch={browser.handleSearch}
+              loading={browser.bookmarksQuery.isLoading}
             />
             <Button
               variant="outline"
@@ -337,59 +51,62 @@ export default function BookmarkView() {
             </Button>
           </div>
         </header>
-        {starMutation.isError && (
+        {browser.starMutation.isError && (
           <div
             role="alert"
             className="shrink-0 border-b border-border px-4 py-2 text-sm text-destructive"
           >
-            更新星标失败：{starMutation.error.message}
+            更新星标失败：{browser.starMutation.error.message}
           </div>
         )}
         <div className="flex-1 overflow-y-auto p-3">
           <ResultList
-            bookmarks={bookmarks}
-            initialLoading={bookmarksQuery.isLoading}
+            bookmarks={browser.bookmarks}
+            initialLoading={browser.bookmarksQuery.isLoading}
             initialError={
-              bookmarksQuery.isError && (randomView || !bookmarksQuery.data)
-                ? bookmarksQuery.error.message
+              browser.bookmarksQuery.isError && (browser.randomView || !browser.bookmarksQuery.data)
+                ? browser.bookmarksQuery.error.message
                 : null
             }
-            hasMore={bookmarksQuery.hasNextPage}
-            isFetchingNextPage={bookmarksQuery.isFetchingNextPage}
+            hasMore={browser.bookmarksQuery.hasNextPage}
+            isFetchingNextPage={browser.bookmarksQuery.isFetchingNextPage}
             nextPageError={
-              bookmarksQuery.isFetchNextPageError ? bookmarksQuery.error.message : null
+              browser.bookmarksQuery.isFetchNextPageError
+                ? browser.bookmarksQuery.error.message
+                : null
             }
-            onLoadMore={() => bookmarksQuery.fetchNextPage()}
-            onRetryNextPage={() => bookmarksQuery.fetchNextPage()}
-            starredView={starredView}
+            onLoadMore={() => browser.bookmarksQuery.fetchNextPage()}
+            onRetryNextPage={() => browser.bookmarksQuery.fetchNextPage()}
+            starredView={browser.starredView}
             emptyMessage={
-              starredView
+              browser.starredView
                 ? '暂无星标书签。在搜索结果中点击星形按钮，即可将常用书签显示在这里。'
-                : isSearchMode
+                : browser.isSearchMode
                   ? '暂无匹配的书签'
-                  : randomView
+                  : browser.randomView
                     ? '暂无书签可供随机查看'
                     : '暂无书签'
             }
-            starPendingId={starMutation.isPending ? (starMutation.variables?.id ?? null) : null}
-            onToggleStarred={(bookmark, starred) =>
-              starMutation.mutate({ id: bookmark.id, starred })
+            starPendingId={
+              browser.starMutation.isPending ? (browser.starMutation.variables?.id ?? null) : null
             }
-            onPreviewBookmark={handlePreviewBookmark}
-            onOpenBookmark={handleOpenBookmark}
-            activeBookmarkId={activeBookmarkId}
-            onActiveBookmarkChange={setActiveBookmarkId}
-            onBookmarkElementChange={registerBookmarkElement}
+            onToggleStarred={(bookmark, starred) =>
+              browser.starMutation.mutate({ id: bookmark.id, starred })
+            }
+            onPreviewBookmark={navigation.previewBookmarkFrom}
+            onOpenBookmark={navigation.openBookmark}
+            activeBookmarkId={navigation.activeBookmarkId}
+            onActiveBookmarkChange={navigation.setActiveBookmarkId}
+            onBookmarkElementChange={navigation.registerBookmarkElement}
             onInteractionLockChange={setResultListInteractionLocked}
           />
         </div>
       </main>
-
       <AddBookmarkDialog open={showAddDialog} onOpenChange={setShowAddDialog} />
       <BookmarkWebPreview
-        bookmark={previewBookmark}
-        open={previewBookmark !== null}
-        onOpenChange={handlePreviewOpenChange}
+        bookmark={navigation.previewBookmark}
+        open={navigation.previewBookmark !== null}
+        onOpenChange={navigation.setPreviewOpen}
         container={previewContainer}
       />
     </div>
