@@ -123,4 +123,42 @@ describe('EditBookmarkDialog', () => {
     ).toBeTruthy();
     expect(setEditTarget).not.toHaveBeenCalled();
   });
+
+  it('clears a previous update error when another bookmark is opened', async () => {
+    vi.mocked(updateBookmarkApi).mockRejectedValue(
+      new Error('A bookmark with this URL already exists'),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const setEditTarget = vi.fn();
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <EditBookmarkDialog editTarget={bookmark} setEditTarget={setEditTarget} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    expect(
+      await screen.findByText('更新失败：A bookmark with this URL already exists'),
+    ).toBeTruthy();
+
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <EditBookmarkDialog editTarget={null} setEditTarget={setEditTarget} />
+      </QueryClientProvider>,
+    );
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <EditBookmarkDialog
+          editTarget={{ ...bookmark, id: 8, url: 'https://next.example' }}
+          setEditTarget={setEditTarget}
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText('更新失败：A bookmark with this URL already exists')).toBeNull(),
+    );
+  });
 });

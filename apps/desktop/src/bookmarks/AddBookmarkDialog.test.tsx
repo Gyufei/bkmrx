@@ -88,4 +88,35 @@ describe('AddBookmarkDialog', () => {
     expect(await screen.findByText('添加失败：duplicate URL')).toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
+
+  it('clears a previous create error when reopened', async () => {
+    vi.mocked(addBookmarkApi).mockRejectedValue(new Error('duplicate URL'));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <AddBookmarkDialog open onOpenChange={vi.fn()} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText('URL'), {
+      target: { value: 'https://example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '添加' }));
+    expect(await screen.findByText('添加失败：duplicate URL')).toBeInTheDocument();
+
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <AddBookmarkDialog open={false} onOpenChange={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <AddBookmarkDialog open onOpenChange={vi.fn()} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.queryByText('添加失败：duplicate URL')).toBeNull());
+  });
 });

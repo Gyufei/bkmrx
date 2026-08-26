@@ -34,7 +34,7 @@ export default function ConfirmDeleteDialog({
   onOpenChange,
   onConfirm,
 }: ConfirmDeleteDialogProps) {
-  const errorMessage = error === undefined ? null : getErrorMessage(error);
+  const errorMessage = error == null ? null : getErrorMessage(error);
 
   return (
     <AlertDialog open={open} onOpenChange={(nextOpen) => !pending && onOpenChange(nextOpen)}>

@@ -5,6 +5,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { useEffect } from 'react';
 import type { Bookmark } from '../types';
 import {
   BkQueryApiKey,
@@ -33,6 +34,7 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
     mutate: handleUpdate,
     isPending: isUpdating,
     error: updateError,
+    reset,
   } = useMutation({
     mutationFn: updateBookmarkApi,
     onSuccess: (updatedBookmark) => {
@@ -42,6 +44,10 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
       queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
     },
   });
+
+  useEffect(() => {
+    if (editTarget) reset();
+  }, [editTarget, reset]);
 
   function handleSubmit(values: BookmarkFormValues) {
     if (!editTarget) return;

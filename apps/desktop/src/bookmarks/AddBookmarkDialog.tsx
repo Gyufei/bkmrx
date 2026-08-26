@@ -5,6 +5,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addBookmarkApi,
@@ -31,6 +32,7 @@ export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
     mutate: handleAdd,
     isPending: isAdding,
     error: addError,
+    reset,
   } = useMutation({
     mutationFn: addBookmarkApi,
     onSuccess: () => {
@@ -39,6 +41,10 @@ export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
       queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
     },
   });
+
+  useEffect(() => {
+    if (open) reset();
+  }, [open, reset]);
 
   function handleSubmit(values: BookmarkFormValues) {
     handleAdd(values);

@@ -7,6 +7,21 @@ import ConfirmDeleteDialog from './ConfirmDeleteDialog';
 afterEach(cleanup);
 
 describe('ConfirmDeleteDialog', () => {
+  it('does not render an error for the initial null mutation error', () => {
+    render(
+      <ConfirmDeleteDialog
+        open
+        title="删除项目？"
+        description="此操作不可撤销。"
+        error={null}
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/删除失败/)).toBeNull();
+  });
+
   it('locks cancellation and repeated submission while pending', () => {
     const onOpenChange = vi.fn();
     const onConfirm = vi.fn();

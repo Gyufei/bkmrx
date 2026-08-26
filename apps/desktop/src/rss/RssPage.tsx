@@ -268,7 +268,11 @@ export default function RssPage() {
         onOpenChange={setAddOpen}
         onExistingFeed={(id) => setScope({ mode: 'feed', feed_id: id })}
       />
-      <RenameFeedDialog feed={renamingFeed} onClose={() => setRenamingFeed(null)} />
+      <RenameFeedDialog
+        key={renamingFeed?.id ?? 'closed'}
+        feed={renamingFeed}
+        onClose={() => setRenamingFeed(null)}
+      />
       <ConfirmDeleteDialog
         open={!!deletingFeed}
         title={`删除订阅“${deletingFeed?.custom_title || deletingFeed?.title}”？`}
