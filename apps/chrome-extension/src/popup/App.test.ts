@@ -99,7 +99,7 @@ describe('popup', () => {
     chromeAdapter.getPageDescription.mockResolvedValue('An English description')
     render(App)
 
-    expect(await screen.findByLabelText('翻译 API 调用失败')).toHaveAttribute('title', '翻译 API 调用失败')
+    expect(await screen.findByLabelText('翻译失败')).toHaveAttribute('title', '翻译失败')
     expect(screen.getByDisplayValue('An English description')).toBeInTheDocument()
   })
 

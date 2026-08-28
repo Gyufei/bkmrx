@@ -2,7 +2,10 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    logging::sanitize_error,
+};
 
 pub(crate) fn write_atomically(destination: &Path, bytes: &[u8]) -> AppResult<()> {
     let directory = destination
@@ -32,13 +35,19 @@ pub(crate) fn write_atomically(destination: &Path, bytes: &[u8]) -> AppResult<()
     })();
     if write_result.is_err() {
         if let Err(error) = fs::remove_file(&temporary) {
-            eprintln!("Failed to clean up temporary export file: {error}");
+            log::warn!(
+                "export_temporary_file_cleanup_failed error={:?}",
+                sanitize_error(&error.to_string())
+            );
         }
     }
     write_result
 }
 
 fn io_error(error: std::io::Error) -> AppError {
-    eprintln!("Failed to write export file: {error}");
+    log::error!(
+        "export_file_write_failed error={:?}",
+        sanitize_error(&error.to_string())
+    );
     AppError::export_write_failed()
 }

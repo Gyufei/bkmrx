@@ -7,7 +7,6 @@ interface PreviewFallbackCardProps {
   reason: PreviewFallbackReason | 'unexpected_error';
   message: string;
   host: string;
-  httpStatus?: number | null;
   onOpenExternal: () => void;
   onRetry?: () => void;
 }
@@ -41,7 +40,6 @@ export default function PreviewFallbackCard({
   reason,
   message,
   host,
-  httpStatus,
   onOpenExternal,
   onRetry,
 }: PreviewFallbackCardProps) {
@@ -57,10 +55,7 @@ export default function PreviewFallbackCard({
         <div className="min-w-0">
           <h3 className="font-semibold">{titles[reason]}</h3>
           <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">{message}</p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {host}
-            {httpStatus ? ` · HTTP ${httpStatus}` : ''}
-          </p>
+          <p className="mt-2 text-xs text-muted-foreground">{host}</p>
         </div>
         <div className="col-span-2 flex flex-wrap gap-2 sm:col-span-1 sm:justify-end">
           {onRetry && retryable.has(reason) && (

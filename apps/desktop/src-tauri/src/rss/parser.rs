@@ -78,7 +78,9 @@ fn map_entry(entry: &Entry, feed_url: &str, fetched_at: i64) -> ParsedEntry {
         .map(|summary| summarize_html(&summary.content, 140))
         .filter(|summary| !summary.is_empty());
     let summary = feed_summary.unwrap_or_else(|| summarize_html(&content_html, 140));
-    let guid = non_empty(&entry.id);
+    // feed-rs resolves a missing RSS <guid> to the parser base URI. Treat that
+    // generated feed URL as missing so separate items fall back to their links.
+    let guid = non_empty(&entry.id).filter(|guid| !same_url(guid, feed_url));
     let published_at = entry
         .published
         .or(entry.updated)
@@ -123,6 +125,10 @@ fn normalize_url(raw: &str) -> Option<String> {
     }
     url.set_fragment(None);
     Some(url.to_string())
+}
+
+fn same_url(left: &str, right: &str) -> bool {
+    normalize_url(left) == normalize_url(right)
 }
 
 fn non_empty(value: &str) -> Option<String> {
@@ -176,6 +182,17 @@ mod tests {
             Some("https://example.com/post")
         );
         assert_eq!(parsed.entries[0].dedupe_key, "guid:entry-one");
+    }
+
+    #[test]
+    fn rss_items_without_guids_are_deduplicated_by_link() {
+        let rss = br#"<?xml version="1.0"?><rss version="2.0"><channel><title>Example</title><link>https://example.com</link><description>Test</description><item><title>One</title><link>https://example.com/one</link></item><item><title>Two</title><link>https://example.com/two</link></item></channel></rss>"#;
+        let parsed = parse_feed(rss, "https://example.com/feed", 10).unwrap();
+
+        assert_eq!(parsed.entries[0].guid, None);
+        assert_eq!(parsed.entries[0].dedupe_key, "link:https://example.com/one");
+        assert_eq!(parsed.entries[1].guid, None);
+        assert_eq!(parsed.entries[1].dedupe_key, "link:https://example.com/two");
     }
 
     #[test]

@@ -36,6 +36,19 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            bkmrx_lib::logging::initialize(app.handle());
+            install_panic_hook();
+            log::info!(
+                "application_started version={} mode={} os={} arch={}",
+                env!("CARGO_PKG_VERSION"),
+                if cfg!(debug_assertions) {
+                    "debug"
+                } else {
+                    "release"
+                },
+                std::env::consts::OS,
+                std::env::consts::ARCH
+            );
             let handle = app.handle().clone();
             let app_data_dir = app.path().app_data_dir()?;
             let database = Arc::new(Database::open(app_data_dir.join("bookmarks.db"))?);
@@ -51,10 +64,18 @@ fn main() {
                     SqliteFtsSearch::new(Arc::clone(&database)),
                 )
                 .with_change_notifier(Arc::new(move || {
-                    let _ = notify_handle.emit("bookmarks-changed", ());
+                    if let Err(error) = notify_handle.emit("bookmarks-changed", ()) {
+                        log::warn!(
+                            "frontend_event_emit_failed event=bookmarks-changed error={error}"
+                        );
+                    }
                 }))
                 .with_access_notifier(Arc::new(move |bookmark| {
-                    let _ = access_handle.emit("bookmark-accessed", bookmark);
+                    if let Err(error) = access_handle.emit("bookmark-accessed", bookmark) {
+                        log::warn!(
+                            "frontend_event_emit_failed event=bookmark-accessed error={error}"
+                        );
+                    }
                 })),
             );
 
@@ -68,7 +89,11 @@ fn main() {
             let todo_service = Arc::new(
                 TodoService::new(SqliteTodoRepository::new(Arc::clone(&database)))
                     .with_change_notifier(Arc::new(move || {
-                        let _ = todo_handle.emit("todos-changed", ());
+                        if let Err(error) = todo_handle.emit("todos-changed", ()) {
+                            log::warn!(
+                                "frontend_event_emit_failed event=todos-changed error={error}"
+                            );
+                        }
                     })),
             );
             app.manage(todo_service);
@@ -78,10 +103,18 @@ fn main() {
             let note_service = Arc::new(bkmrx_lib::notes::NoteService::new(Arc::new(
                 move |event| match event {
                     bkmrx_lib::notes::NoteEvent::Changed(note) => {
-                        let _ = note_handle.emit("note-changed", note);
+                        if let Err(error) = note_handle.emit("note-changed", note) {
+                            log::warn!(
+                                "frontend_event_emit_failed event=note-changed error={error}"
+                            );
+                        }
                     }
                     bkmrx_lib::notes::NoteEvent::Removed(path) => {
-                        let _ = note_handle.emit("note-removed", path);
+                        if let Err(error) = note_handle.emit("note-removed", path) {
+                            log::warn!(
+                                "frontend_event_emit_failed event=note-removed error={error}"
+                            );
+                        }
                     }
                 },
             )));
@@ -91,6 +124,7 @@ fn main() {
                 settings_path,
                 shutdown_rx,
             ));
+            log::info!("application_initialized");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -139,6 +173,7 @@ fn main() {
         ])
         .on_window_event(move |_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
+                log::info!("application_shutdown_started");
                 if let Some(service) = _window.try_state::<bkmrx_lib::notes::SharedNoteService>() {
                     service.stop();
                 }
@@ -147,12 +182,37 @@ fn main() {
                     .unwrap_or_else(|error| error.into_inner())
                     .take()
                 {
-                    let _ = tx.send(());
+                    if tx.send(()).is_err() {
+                        log::warn!("http_server_shutdown_signal_failed");
+                    }
                 }
+                log::info!("application_stopped");
             }
         })
         .run(tauri::generate_context!())
         .expect("error while running bkmrx");
+}
+
+fn install_panic_hook() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let location = info
+            .location()
+            .map(|location| format!("{}:{}", location.file(), location.line()))
+            .unwrap_or_else(|| "unknown".to_owned());
+        let message = info
+            .payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| info.payload().downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("non-string panic payload");
+        log::error!(
+            "application_panicked location={:?} error={:?}",
+            location,
+            bkmrx_lib::logging::sanitize_error(message)
+        );
+        previous(info);
+    }));
 }
 
 #[cfg(test)]

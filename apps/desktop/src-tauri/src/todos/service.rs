@@ -1,7 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    logging::observe_database,
+};
 
 use super::{
     CreateTodo, SqliteTodoRepository, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
@@ -28,32 +31,46 @@ impl TodoService {
     }
 
     pub fn query(&self, request: TodoQuery) -> AppResult<TodoList> {
-        self.repository.query(&request)
+        observe_database("todos", "query", || self.repository.query(&request))
     }
     pub fn tags(&self) -> AppResult<Vec<TodoTag>> {
-        self.repository.tags()
+        observe_database("todos", "get_tags", || self.repository.tags())
     }
     pub fn create(&self, input: CreateTodo) -> AppResult<Todo> {
-        self.changed(self.repository.create(input))
+        observe_database("todos", "create", || {
+            self.changed(self.repository.create(input))
+        })
     }
     pub fn update(&self, id: i64, input: UpdateTodo) -> AppResult<Todo> {
-        self.changed(self.repository.update(id, input))
+        observe_database("todos", "update", || {
+            self.changed(self.repository.update(id, input))
+        })
     }
     pub fn set_status(&self, id: i64, status: TodoStatus) -> AppResult<Todo> {
-        self.changed(self.repository.set_status(id, status))
+        observe_database("todos", "set_status", || {
+            self.changed(self.repository.set_status(id, status))
+        })
     }
     pub fn delete(&self, id: i64) -> AppResult<()> {
-        self.changed(self.repository.delete(id))
+        observe_database("todos", "delete", || {
+            self.changed(self.repository.delete(id))
+        })
     }
     pub fn rename_tag(&self, id: i64, name: String) -> AppResult<TodoTag> {
-        self.changed(self.repository.rename_tag(id, name))
+        observe_database("todos", "rename_tag", || {
+            self.changed(self.repository.rename_tag(id, name))
+        })
     }
     pub fn delete_tag(&self, id: i64) -> AppResult<()> {
-        self.changed(self.repository.delete_tag(id))
+        observe_database("todos", "delete_tag", || {
+            self.changed(self.repository.delete_tag(id))
+        })
     }
 
     pub fn archive_delete_tag(&self, id: i64) -> AppResult<()> {
-        self.changed(self.repository.archive_delete_tag(id))
+        observe_database("todos", "archive_delete_tag", || {
+            self.changed(self.repository.archive_delete_tag(id))
+        })
     }
 
     pub fn export_todos(
@@ -61,14 +78,16 @@ impl TodoService {
         destination: impl AsRef<Path>,
         tag_id: Option<i64>,
     ) -> AppResult<PathBuf> {
-        let list = self.repository.query(&TodoQuery {
-            status: None,
-            tag_id,
-        })?;
-        if list.items.is_empty() {
-            return Err(AppError::todo_export_empty());
-        }
-        super::transfer::export_todos(list.items, destination.as_ref())
+        observe_database("todos", "export", || {
+            let list = self.repository.query(&TodoQuery {
+                status: None,
+                tag_id,
+            })?;
+            if list.items.is_empty() {
+                return Err(AppError::todo_export_empty());
+            }
+            super::transfer::export_todos(list.items, destination.as_ref())
+        })
     }
 
     fn changed<T>(&self, result: AppResult<T>) -> AppResult<T> {

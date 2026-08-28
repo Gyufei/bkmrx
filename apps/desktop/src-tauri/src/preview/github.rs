@@ -4,6 +4,8 @@ use reqwest::{header, Client, StatusCode};
 use serde::Deserialize;
 use url::Url;
 
+use crate::logging::{sanitize_error, sanitize_url, Operation};
+
 use super::model::{BookmarkPreview, GithubRepositoryPreview, PreviewFallbackReason};
 
 const RESERVED_PATHS: &[&str] = &[
@@ -67,6 +69,13 @@ impl GithubClient {
         repository: &str,
     ) -> BookmarkPreview {
         let url = format!("{}/repos/{}/{}", self.api_base, owner, repository);
+        let operation = Operation::start();
+        log::debug!(
+            "outbound_request_started operation_id={} kind=github_preview method=GET repository={:?} url={:?}",
+            operation.id(),
+            format!("{owner}/{repository}"),
+            sanitize_url(&url)
+        );
         let mut request = self
             .client
             .get(url)
@@ -79,22 +88,41 @@ impl GithubClient {
         let response = match request.send().await {
             Ok(response) => response,
             Err(error) if error.is_timeout() => {
+                log::warn!(
+                    "outbound_request_failed operation_id={} kind=github_preview error_code=timeout elapsed_ms={} error={:?}",
+                    operation.id(),
+                    operation.elapsed_ms(),
+                    sanitize_error(&error.to_string())
+                );
                 return BookmarkPreview::fallback(
                     original_url,
                     PreviewFallbackReason::Timeout,
                     "获取 GitHub 仓库信息超时",
-                )
+                );
             }
-            Err(_) => {
+            Err(error) => {
+                log::warn!(
+                    "outbound_request_failed operation_id={} kind=github_preview error_code=request_failed elapsed_ms={} error={:?}",
+                    operation.id(),
+                    operation.elapsed_ms(),
+                    sanitize_error(&error.to_string())
+                );
                 return BookmarkPreview::fallback(
                     original_url,
                     PreviewFallbackReason::ProviderError,
                     "暂时无法获取 GitHub 仓库信息",
-                )
+                );
             }
         };
 
         let status = response.status();
+        log::info!(
+            "outbound_request_completed operation_id={} kind=github_preview repository={:?} status={} elapsed_ms={}",
+            operation.id(),
+            format!("{owner}/{repository}"),
+            status.as_u16(),
+            operation.elapsed_ms()
+        );
         if status == StatusCode::NOT_FOUND {
             return BookmarkPreview::fallback(
                 original_url,

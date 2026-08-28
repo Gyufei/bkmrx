@@ -24,7 +24,7 @@ export default function AboutSettings({ active }: AboutSettingsProps) {
         <h1 id="about-settings-title" className="text-xl font-semibold">
           关于
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">查看应用版本和本机运行信息。</p>
+        <p className="mt-1 text-sm text-muted-foreground">查看当前应用版本。</p>
       </div>
       <SystemInfoCard info={systemInfo} onCopy={copy} />
     </section>

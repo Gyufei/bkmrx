@@ -126,7 +126,6 @@ export default function BookmarkWebPreview({
           reason={preview.reason}
           message={preview.message}
           host={host}
-          httpStatus={preview.http_status}
           onRetry={retry}
           onOpenExternal={handleOpenExternal}
         />

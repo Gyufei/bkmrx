@@ -4,6 +4,7 @@ use std::sync::{Mutex, MutexGuard};
 use rusqlite::Connection;
 
 use crate::error::{AppError, AppResult};
+use crate::logging::{sanitize_error, Operation};
 
 mod migrations;
 
@@ -14,15 +15,36 @@ pub struct Database {
 
 impl Database {
     pub fn open(path: impl AsRef<Path>) -> AppResult<Self> {
+        let operation = Operation::start();
+        log::info!(
+            "database_open_started operation_id={} store=main",
+            operation.id()
+        );
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|error| {
-                AppError::database_error(format!("failed to create database directory: {error}"))
+                let error = AppError::database_error(format!(
+                    "failed to create database directory: {error}"
+                ));
+                log_database_failure("open", operation, &error);
+                error
             })?;
         }
 
-        let connection = Connection::open(path).map_err(database_error)?;
-        Self::initialize(connection)
+        let connection = Connection::open(path).map_err(|error| {
+            let error = database_error(error);
+            log_database_failure("open", operation, &error);
+            error
+        })?;
+        let database = Self::initialize(connection).inspect_err(|error| {
+            log_database_failure("initialize", operation, error);
+        })?;
+        log::info!(
+            "database_open_completed operation_id={} store=main elapsed_ms={}",
+            operation.id(),
+            operation.elapsed_ms()
+        );
+        Ok(database)
     }
 
     pub fn open_in_memory() -> AppResult<Self> {
@@ -51,6 +73,11 @@ impl Database {
     }
 
     pub fn assert_fts5_trigram(&self) -> AppResult<()> {
+        let operation = Operation::start();
+        log::debug!(
+            "database_capability_check_started operation_id={} capability=fts5_trigram",
+            operation.id()
+        );
         let connection = self.connection()?;
         connection
             .execute(
@@ -80,10 +107,17 @@ impl Database {
             .map_err(database_error)?;
 
         if !matched {
-            return Err(AppError::database_error(
+            let error = AppError::database_error(
                 "bundled SQLite does not provide a working FTS5 trigram tokenizer",
-            ));
+            );
+            log_database_failure("capability_check", operation, &error);
+            return Err(error);
         }
+        log::info!(
+            "database_capability_check_completed operation_id={} capability=fts5_trigram elapsed_ms={}",
+            operation.id(),
+            operation.elapsed_ms()
+        );
         Ok(())
     }
 
@@ -126,4 +160,15 @@ impl Database {
 
 fn database_error(error: rusqlite::Error) -> AppError {
     AppError::database_error(error.to_string())
+}
+
+fn log_database_failure(action: &str, operation: Operation, error: &AppError) {
+    log::error!(
+        "database_operation_failed operation_id={} store=main operation={} error_code={} elapsed_ms={} error={:?}",
+        operation.id(),
+        action,
+        error.code(),
+        operation.elapsed_ms(),
+        sanitize_error(&error.to_string())
+    );
 }

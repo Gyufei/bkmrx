@@ -8,7 +8,10 @@ use std::{
 use futures_util::{future::BoxFuture, stream, FutureExt, StreamExt};
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    logging::observe_database,
+};
 
 use super::{
     fetcher::{is_official_rsshub_url, FeedFetcher},
@@ -76,17 +79,20 @@ impl RssService {
             .fetcher
             .fetch_and_parse(&input.feed_url, &settings)
             .await?;
-        let feed = self
-            .repository
-            .create(&CreateFeed { feed_url, ..input }, &parsed)?;
+        let feed = observe_database("rss", "create_feed", || {
+            self.repository
+                .create(&CreateFeed { feed_url, ..input }, &parsed)
+        })?;
         Ok(feed)
     }
 
     pub fn list_feeds(&self) -> AppResult<Vec<RssFeed>> {
-        self.repository.list_feeds()
+        observe_database("rss", "list_feeds", || self.repository.list_feeds())
     }
     pub fn list_entries(&self, request: &EntryPageRequest) -> AppResult<EntryPage> {
-        self.repository.list_entries(request)
+        observe_database("rss", "list_entries", || {
+            self.repository.list_entries(request)
+        })
     }
 
     pub async fn refresh_feed(&self, id: i64) -> AppResult<FeedRefreshResult> {
@@ -116,9 +122,7 @@ impl RssService {
     }
 
     async fn refresh_feed_once(&self, id: i64) -> AppResult<FeedRefreshResult> {
-        let feed = self
-            .repository
-            .get_feed(id)?
+        let feed = observe_database("rss", "get_feed", || self.repository.get_feed(id))?
             .ok_or_else(|| feed_not_found(id))?;
         let settings = self.rss_settings()?;
         let source_is_rsshub = url::Url::parse(&feed.source_url)
@@ -131,11 +135,15 @@ impl RssService {
         };
         match self.fetcher.fetch_and_parse(refresh_url, &settings).await {
             Ok((url, parsed)) => {
-                let (feed, added) = self.repository.apply_refresh(id, &url, &parsed)?;
+                let (feed, added) = observe_database("rss", "apply_refresh", || {
+                    self.repository.apply_refresh(id, &url, &parsed)
+                })?;
                 Ok(FeedRefreshResult { feed, added })
             }
             Err(error) => {
-                if let Err(record_error) = self.repository.record_failure(id, &error.message) {
+                if let Err(record_error) = observe_database("rss", "record_refresh_failure", || {
+                    self.repository.record_failure(id, &error.message)
+                }) {
                     if record_error.code != "rss_feed_not_found" {
                         return Err(record_error);
                     }
@@ -147,7 +155,11 @@ impl RssService {
 
     pub async fn refresh_all(&self, stale_only: bool) -> AppResult<RefreshResult> {
         let now = chrono::Utc::now().timestamp();
-        let feeds = self.repository.list_feeds()?.into_iter().filter(|feed| {
+        let feeds = observe_database("rss", "list_feeds_for_refresh", || {
+            self.repository.list_feeds()
+        })?
+        .into_iter()
+        .filter(|feed| {
             !stale_only
                 || feed
                     .last_successful_fetched_at
@@ -170,17 +182,21 @@ impl RssService {
     }
 
     pub fn mark_entry_read(&self, id: i64, is_read: bool) -> AppResult<RssEntry> {
-        let entry = self.repository.mark_entry_read(id, is_read)?;
+        let entry = observe_database("rss", "mark_entry_read", || {
+            self.repository.mark_entry_read(id, is_read)
+        })?;
         Ok(entry)
     }
 
     pub fn rename_feed(&self, id: i64, custom_title: Option<&str>) -> AppResult<RssFeed> {
-        let feed = self.repository.rename(id, custom_title)?;
+        let feed = observe_database("rss", "rename_feed", || {
+            self.repository.rename(id, custom_title)
+        })?;
         Ok(feed)
     }
 
     pub fn delete_feed(&self, id: i64) -> AppResult<()> {
-        self.repository.delete(id)?;
+        observe_database("rss", "delete_feed", || self.repository.delete(id))?;
         Ok(())
     }
 }

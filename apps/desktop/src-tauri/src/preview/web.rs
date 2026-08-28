@@ -3,6 +3,8 @@ use std::time::Duration;
 use reqwest::{header, redirect::Policy, Client, Response};
 use url::Url;
 
+use crate::logging::{sanitize_error, sanitize_url, Operation};
+
 use super::{
     model::{BookmarkPreview, PreviewFallbackReason},
     security::resolve_public_target,
@@ -22,8 +24,53 @@ impl WebPreviewClient {
     }
 
     pub async fn prepare(&self, original_url: &str, mut url: Url) -> BookmarkPreview {
-        for _ in 0..=5 {
-            let addresses = match resolve_public_target(&url).await {
+        let operation = Operation::start();
+        log::debug!(
+            "outbound_request_started operation_id={} kind=web_preview method=GET url={:?}",
+            operation.id(),
+            sanitize_url(url.as_str())
+        );
+        let result = self.prepare_inner(original_url, &mut url, operation).await;
+        match &result {
+            BookmarkPreview::Web { final_url, .. } => log::info!(
+                "outbound_request_completed operation_id={} kind=web_preview host={:?} status=success elapsed_ms={}",
+                operation.id(),
+                Url::parse(final_url)
+                    .ok()
+                    .and_then(|url| url.host_str().map(str::to_owned))
+                    .unwrap_or_else(|| "unknown".to_owned()),
+                operation.elapsed_ms()
+            ),
+            BookmarkPreview::Fallback {
+                reason,
+                http_status,
+                ..
+            } => log::warn!(
+                "outbound_request_failed operation_id={} kind=web_preview reason={:?} status={:?} elapsed_ms={}",
+                operation.id(),
+                reason,
+                http_status,
+                operation.elapsed_ms()
+            ),
+            BookmarkPreview::GithubRepository { .. } => {}
+        }
+        result
+    }
+
+    async fn prepare_inner(
+        &self,
+        original_url: &str,
+        url: &mut Url,
+        operation: Operation,
+    ) -> BookmarkPreview {
+        for redirect_count in 0..=5 {
+            log::debug!(
+                "outbound_request_hop_started operation_id={} kind=web_preview redirect={} url={:?}",
+                operation.id(),
+                redirect_count,
+                sanitize_url(url.as_str())
+            );
+            let addresses = match resolve_public_target(url).await {
                 Ok(addresses) => addresses,
                 Err(fallback) => return fallback,
             };
@@ -47,27 +94,48 @@ impl WebPreviewClient {
             let response = match client.get(url.clone()).send().await {
                 Ok(response) => response,
                 Err(error) if error.is_timeout() => {
+                    log::debug!(
+                        "outbound_request_error operation_id={} kind=web_preview error={:?}",
+                        operation.id(),
+                        sanitize_error(&error.to_string())
+                    );
                     return BookmarkPreview::fallback(
                         original_url,
                         PreviewFallbackReason::Timeout,
                         "网页响应超时，请稍后重试",
-                    )
+                    );
                 }
                 Err(error) if error.is_connect() => {
+                    log::debug!(
+                        "outbound_request_error operation_id={} kind=web_preview error={:?}",
+                        operation.id(),
+                        sanitize_error(&error.to_string())
+                    );
                     return BookmarkPreview::fallback(
                         original_url,
                         PreviewFallbackReason::ConnectionFailure,
                         "暂时无法连接该网页",
-                    )
+                    );
                 }
-                Err(_) => {
+                Err(error) => {
+                    log::debug!(
+                        "outbound_request_error operation_id={} kind=web_preview error={:?}",
+                        operation.id(),
+                        sanitize_error(&error.to_string())
+                    );
                     return BookmarkPreview::fallback(
                         original_url,
                         PreviewFallbackReason::ConnectionFailure,
                         "网页请求失败，请稍后重试",
-                    )
+                    );
                 }
             };
+            log::debug!(
+                "outbound_request_hop_completed operation_id={} kind=web_preview redirect={} status={}",
+                operation.id(),
+                redirect_count,
+                response.status().as_u16()
+            );
 
             if response.status().is_redirection() {
                 let Some(location) = response.headers().get(header::LOCATION) else {
@@ -79,7 +147,7 @@ impl WebPreviewClient {
                 let Ok(next_url) = url.join(location) else {
                     return http_error(original_url, &response);
                 };
-                url = next_url;
+                *url = next_url;
                 continue;
             }
 

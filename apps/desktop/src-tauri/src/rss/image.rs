@@ -9,6 +9,7 @@ use reqwest::{header, redirect::Policy, StatusCode};
 
 use crate::{
     error::{AppError, AppResult},
+    logging::{sanitize_error, sanitize_url, Operation},
     safe_http::{parse_http_url, resolve_public_target},
 };
 
@@ -20,22 +21,51 @@ static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub async fn download(url: &str, referer: Option<&str>, destination: &Path) -> AppResult<()> {
     validate_destination(destination)?;
+    let operation = Operation::start();
+    log::debug!(
+        "outbound_request_started operation_id={} kind=rss_image method=GET url={:?}",
+        operation.id(),
+        sanitize_url(url)
+    );
     let referer = referer
         .and_then(|value| parse_http_url(value).ok())
         .filter(valid_public_url);
-    tokio::time::timeout(
+    let result = match tokio::time::timeout(
         REQUEST_TIMEOUT,
-        download_inner(url, referer.as_ref(), destination),
+        download_inner(url, referer.as_ref(), destination, operation),
     )
     .await
-    .map_err(|_| image_error("rss_image_timeout", "The image download timed out"))?
+    {
+        Ok(result) => result,
+        Err(_) => Err(image_error(
+            "rss_image_timeout",
+            "The image download timed out",
+        )),
+    };
+    match &result {
+        Ok(bytes) => log::info!(
+            "outbound_request_completed operation_id={} kind=rss_image bytes={} elapsed_ms={}",
+            operation.id(),
+            bytes,
+            operation.elapsed_ms()
+        ),
+        Err(error) => log::warn!(
+            "outbound_request_failed operation_id={} kind=rss_image error_code={} elapsed_ms={} error={:?}",
+            operation.id(),
+            error.code(),
+            operation.elapsed_ms(),
+            sanitize_error(&error.to_string())
+        ),
+    }
+    result.map(|_| ())
 }
 
 async fn download_inner(
     raw_url: &str,
     referer: Option<&url::Url>,
     destination: &Path,
-) -> AppResult<()> {
+    operation: Operation,
+) -> AppResult<usize> {
     let mut url = parse_http_url(raw_url).map_err(safe_http_error)?;
     if !valid_image_url(&url) {
         return Err(image_error(
@@ -45,6 +75,12 @@ async fn download_inner(
     }
 
     for redirect_count in 0..=MAX_REDIRECTS {
+        log::debug!(
+            "outbound_request_hop_started operation_id={} kind=rss_image redirect={} url={:?}",
+            operation.id(),
+            redirect_count,
+            sanitize_url(url.as_str())
+        );
         let addresses = resolve_public_target(&url).await.map_err(safe_http_error)?;
         let host = url
             .host_str()
@@ -63,6 +99,12 @@ async fn download_inner(
             request = request.header(header::REFERER, referer.as_str());
         }
         let response = request.send().await.map_err(request_error)?;
+        log::debug!(
+            "outbound_request_hop_completed operation_id={} kind=rss_image redirect={} status={}",
+            operation.id(),
+            redirect_count,
+            response.status().as_u16()
+        );
 
         if response.status().is_redirection() {
             if redirect_count == MAX_REDIRECTS {
@@ -114,18 +156,24 @@ async fn download_inner(
         }
 
         let (file, temp_path) = create_temp_file(destination).await?;
-        let result = write_response(response, file).await;
-        if result.is_ok() {
-            finalize_download(&temp_path, destination).await?;
-        } else {
-            let _ = tokio::fs::remove_file(&temp_path).await;
+        match write_response(response, file).await {
+            Ok(written) => {
+                finalize_download(&temp_path, destination).await?;
+                return Ok(written);
+            }
+            Err(error) => {
+                let _ = tokio::fs::remove_file(&temp_path).await;
+                return Err(error);
+            }
         }
-        return result;
     }
     unreachable!("redirect loop always returns")
 }
 
-async fn write_response(response: reqwest::Response, mut file: tokio::fs::File) -> AppResult<()> {
+async fn write_response(
+    response: reqwest::Response,
+    mut file: tokio::fs::File,
+) -> AppResult<usize> {
     let mut written = 0usize;
     let mut stream = response.bytes_stream();
     while let Some(chunk) = stream.next().await {
@@ -144,7 +192,8 @@ async fn write_response(response: reqwest::Response, mut file: tokio::fs::File) 
     tokio::io::AsyncWriteExt::flush(&mut file)
         .await
         .map_err(file_error)?;
-    file.sync_all().await.map_err(file_error)
+    file.sync_all().await.map_err(file_error)?;
+    Ok(written)
 }
 
 async fn create_temp_file(destination: &Path) -> AppResult<(tokio::fs::File, PathBuf)> {

@@ -5,7 +5,10 @@ use std::{
 
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    logging::sanitize_error,
+};
 
 use super::{repository::scan_note, NoteFile};
 
@@ -47,8 +50,15 @@ impl NoteWatcher {
         let emit = Arc::clone(&self.emit);
         let mut watcher = RecommendedWatcher::new(
             move |result: notify::Result<notify::Event>| {
-                let Ok(event) = result else {
-                    return;
+                let event = match result {
+                    Ok(event) => event,
+                    Err(error) => {
+                        log::warn!(
+                            "note_watcher_event_failed error={:?}",
+                            sanitize_error(&error.to_string())
+                        );
+                        return;
+                    }
                 };
                 for path in event.paths {
                     if path.extension().is_none_or(|extension| extension != "md") {
@@ -70,6 +80,7 @@ impl NoteWatcher {
             .watch(Path::new(dir), RecursiveMode::Recursive)
             .map_err(watcher_error)?;
         *current = Some((root, watcher));
+        log::info!("note_watcher_started");
         Ok(())
     }
 
@@ -78,6 +89,7 @@ impl NoteWatcher {
             .current
             .lock()
             .unwrap_or_else(|error| error.into_inner()) = None;
+        log::info!("note_watcher_stopped");
     }
 }
 

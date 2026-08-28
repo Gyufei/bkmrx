@@ -1,6 +1,7 @@
 use rusqlite::{Connection, Transaction, TransactionBehavior};
 
 use crate::error::{AppError, AppResult};
+use crate::logging::{sanitize_error, Operation};
 
 mod v1_baseline;
 
@@ -34,7 +35,14 @@ fn run_pending(
     latest_version: i64,
     migrations: &[Migration],
 ) -> AppResult<()> {
+    let operation = Operation::start();
     let mut version = schema_version(connection)?;
+    log::info!(
+        "database_migration_started operation_id={} from_version={} to_version={}",
+        operation.id(),
+        version,
+        latest_version
+    );
     while version != latest_version {
         let migration = migrations
             .iter()
@@ -48,13 +56,27 @@ fn run_pending(
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(database_error)?;
-        (migration.apply)(&transaction)?;
+        if let Err(error) = (migration.apply)(&transaction) {
+            log_migration_failure(operation, version, migration.to, &error);
+            return Err(error);
+        }
         transaction
             .pragma_update(None, "user_version", migration.to)
             .map_err(database_error)?;
         transaction.commit().map_err(database_error)?;
         version = migration.to;
+        log::info!(
+            "database_migration_step_completed operation_id={} schema_version={}",
+            operation.id(),
+            version
+        );
     }
+    log::info!(
+        "database_migration_completed operation_id={} schema_version={} elapsed_ms={}",
+        operation.id(),
+        version,
+        operation.elapsed_ms()
+    );
     Ok(())
 }
 
@@ -66,6 +88,18 @@ fn schema_version(connection: &Connection) -> AppResult<i64> {
 
 fn database_error(error: rusqlite::Error) -> AppError {
     AppError::database_error(error.to_string())
+}
+
+fn log_migration_failure(operation: Operation, from: i64, to: i64, error: &AppError) {
+    log::error!(
+        "database_migration_failed operation_id={} from_version={} to_version={} error_code={} elapsed_ms={} error={:?}",
+        operation.id(),
+        from,
+        to,
+        error.code(),
+        operation.elapsed_ms(),
+        sanitize_error(&error.to_string())
+    );
 }
 
 #[cfg(test)]

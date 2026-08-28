@@ -31,7 +31,7 @@ export async function parseApiResponse<T>(response: Response): Promise<T | null>
   try {
     body = await response.json()
   } catch {
-    throw new ApiError('服务端返回了无效响应', response.status)
+    throw new ApiError('暂时无法处理请求，请稍后重试', response.status)
   }
 
   if (!response.ok) {
@@ -93,7 +93,7 @@ export async function findBookmarkByUrl(url: string): Promise<Bookmark | null> {
 
 export async function createBookmark(payload: BookmarkPayload): Promise<Bookmark> {
   const bookmark = await request<Bookmark>('/api/bookmarks', jsonRequest('POST', payload))
-  if (!bookmark) throw new ApiError('创建书签时服务端未返回数据', 204)
+  if (!bookmark) throw new ApiError('创建书签失败，请稍后重试', 204)
   return bookmark
 }
 
@@ -105,7 +105,7 @@ export async function updateBookmark(
     `/api/bookmarks/${id}`,
     jsonRequest('PATCH', payload),
   )
-  if (!bookmark) throw new ApiError('更新书签时服务端未返回数据', 204)
+  if (!bookmark) throw new ApiError('更新书签失败，请稍后重试', 204)
   return bookmark
 }
 

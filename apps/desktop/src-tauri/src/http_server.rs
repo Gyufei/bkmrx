@@ -8,16 +8,20 @@ use crate::bookmarks::{
 use crate::error::AppError;
 use crate::translation::{TranslationRequest, TranslationService};
 use axum::{
+    body::Body,
     extract::{
         rejection::{JsonRejection, PathRejection, QueryRejection},
         Path, Query, State,
     },
     http::StatusCode,
+    middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::get,
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+
+use crate::logging::{sanitize_error, Operation};
 
 static SERVER_URL: OnceLock<String> = OnceLock::new();
 static SERVER_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -72,6 +76,7 @@ pub fn router_with_translation(
             bookmarks,
             translation,
         })
+        .layer(middleware::from_fn(log_http_request))
 }
 
 pub async fn start_server(
@@ -79,19 +84,36 @@ pub async fn start_server(
     settings_path: std::path::PathBuf,
     shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) {
-    let listener =
-        match tokio::net::TcpListener::bind(std::net::SocketAddr::from(([127, 0, 0, 1], 8733)))
-            .await
-        {
-            Ok(listener) => listener,
-            Err(error) => {
-                eprintln!("Failed to bind HTTP server on 127.0.0.1:8733: {error}");
-                return;
-            }
-        };
+    let operation = Operation::start();
+    log::info!(
+        "http_server_start_started operation_id={} address=127.0.0.1:8733",
+        operation.id()
+    );
+    let listener = match tokio::net::TcpListener::bind(std::net::SocketAddr::from((
+        [127, 0, 0, 1],
+        8733,
+    )))
+    .await
+    {
+        Ok(listener) => listener,
+        Err(error) => {
+            log::error!(
+                    "http_server_start_failed operation_id={} address=127.0.0.1:8733 elapsed_ms={} error={:?}",
+                    operation.id(),
+                    operation.elapsed_ms(),
+                    sanitize_error(&error.to_string())
+                );
+            return;
+        }
+    };
 
     let _ = SERVER_URL.set("http://127.0.0.1:8733".to_owned());
     SERVER_RUNNING.store(true, Ordering::SeqCst);
+    log::info!(
+        "http_server_started operation_id={} address=127.0.0.1:8733 elapsed_ms={}",
+        operation.id(),
+        operation.elapsed_ms()
+    );
     let translation = TranslationService::from_settings_path(settings_path);
     if let Err(error) = axum::serve(listener, router_with_translation(service, translation))
         .with_graceful_shutdown(async {
@@ -99,9 +121,43 @@ pub async fn start_server(
         })
         .await
     {
-        eprintln!("HTTP server error: {error}");
+        log::error!(
+            "http_server_failed error={:?}",
+            sanitize_error(&error.to_string())
+        );
     }
     SERVER_RUNNING.store(false, Ordering::SeqCst);
+    log::info!("http_server_stopped");
+}
+
+async fn log_http_request(request: axum::http::Request<Body>, next: Next) -> Response {
+    let operation = Operation::start();
+    let method = request.method().clone();
+    let path = request.uri().path().to_owned();
+    log::debug!(
+        "http_request_started operation_id={} method={} path={:?}",
+        operation.id(),
+        method,
+        path
+    );
+    let response = next.run(request).await;
+    let status = response.status();
+    let message = format!(
+        "http_request_completed operation_id={} method={} path={:?} status={} elapsed_ms={}",
+        operation.id(),
+        method,
+        path,
+        status.as_u16(),
+        operation.elapsed_ms()
+    );
+    if status.is_server_error() {
+        log::error!("{message}");
+    } else if status.is_client_error() {
+        log::warn!("{message}");
+    } else {
+        log::info!("{message}");
+    }
+    response
 }
 
 #[derive(Debug, Deserialize)]

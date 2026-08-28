@@ -14,20 +14,12 @@ interface SystemInfoCardProps {
 export default function SystemInfoCard({ info, onCopy }: SystemInfoCardProps) {
   const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
   const [copyError, setCopyError] = useState(false);
-  const rows = info
-    ? [
-        ['App Data', info.app_data_dir],
-        ['SQLite 数据库', info.sqlite_db_path],
-        ['Schema 版本', String(info.schema_version)],
-        ['搜索后端', info.search_backend],
-        ['App 版本', info.app_version],
-      ]
-    : [];
+  const rows = info ? [['应用版本', info.app_version]] : [];
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>系统信息</CardTitle>
+        <CardTitle>版本信息</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {info ? (

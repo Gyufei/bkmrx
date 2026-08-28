@@ -7,6 +7,7 @@ use url::Url;
 
 use crate::{
     error::{AppError, AppResult},
+    logging::{sanitize_error, sanitize_url, Operation},
     safe_http::{parse_http_url, resolve_public_target},
     settings::RssHubSettings,
 };
@@ -88,18 +89,58 @@ impl FeedFetcher {
     }
 
     async fn fetch(&self, raw_url: &str, settings: &RssHubSettings) -> AppResult<FetchedBody> {
-        tokio::time::timeout(REQUEST_TIMEOUT, self.fetch_inner(raw_url, settings))
-            .await
-            .map_err(|_| AppError::rss_error("rss_request_timeout", "The feed request timed out"))?
+        let operation = Operation::start();
+        log::debug!(
+            "outbound_request_started operation_id={} kind=rss_feed method=GET url={:?}",
+            operation.id(),
+            sanitize_url(raw_url)
+        );
+        let result = match tokio::time::timeout(
+            REQUEST_TIMEOUT,
+            self.fetch_inner(raw_url, settings, operation),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => Err(AppError::rss_error(
+                "rss_request_timeout",
+                "The feed request timed out",
+            )),
+        };
+        match &result {
+            Ok(fetched) => log::info!(
+                "outbound_request_completed operation_id={} kind=rss_feed host={:?} status=200 redirects={} bytes={} elapsed_ms={}",
+                operation.id(),
+                fetched.url.host_str().unwrap_or("unknown"),
+                fetched.redirects,
+                fetched.body.len(),
+                operation.elapsed_ms()
+            ),
+            Err(error) => log::warn!(
+                "outbound_request_failed operation_id={} kind=rss_feed error_code={} elapsed_ms={} error={:?}",
+                operation.id(),
+                error.code(),
+                operation.elapsed_ms(),
+                sanitize_error(&error.to_string())
+            ),
+        }
+        result
     }
 
     async fn fetch_inner(
         &self,
         raw_url: &str,
         settings: &RssHubSettings,
+        operation: Operation,
     ) -> AppResult<FetchedBody> {
         let mut url = parse_http_url(raw_url).map_err(safe_http_error)?;
         for redirect_count in 0..=MAX_REDIRECTS {
+            log::debug!(
+                "outbound_request_hop_started operation_id={} kind=rss_feed redirect={} url={:?}",
+                operation.id(),
+                redirect_count,
+                sanitize_url(url.as_str())
+            );
             let addresses = resolve_public_target(&url).await.map_err(safe_http_error)?;
             let host = url.host_str().ok_or_else(|| {
                 AppError::rss_error("rss_invalid_url", "The feed URL has no host")
@@ -116,6 +157,12 @@ impl FeedFetcher {
                 .send()
                 .await
                 .map_err(request_error)?;
+            log::debug!(
+                "outbound_request_hop_completed operation_id={} kind=rss_feed redirect={} status={}",
+                operation.id(),
+                redirect_count,
+                response.status().as_u16()
+            );
 
             if response.status().is_redirection() {
                 if redirect_count == MAX_REDIRECTS {
@@ -162,7 +209,11 @@ impl FeedFetcher {
                 }
                 body.extend_from_slice(&chunk);
             }
-            return Ok(FetchedBody { url, body });
+            return Ok(FetchedBody {
+                url,
+                body,
+                redirects: redirect_count,
+            });
         }
         unreachable!("redirect loop always returns")
     }
@@ -208,6 +259,7 @@ fn authenticated_rsshub_url(url: &Url, settings: &RssHubSettings) -> Url {
 struct FetchedBody {
     url: Url,
     body: Vec<u8>,
+    redirects: usize,
 }
 
 fn discover_feed_links(body: &[u8], base_url: &Url) -> Vec<FeedCandidate> {

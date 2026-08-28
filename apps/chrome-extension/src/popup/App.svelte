@@ -169,7 +169,7 @@
       <path d="M7 17 17 7" />
     </svg>
     <h2 class="disco-title">请连接 bkmrx</h2>
-    <p class="disco-desc">确保后端应用已启动</p>
+    <p class="disco-desc">确保 bkmrx 桌面应用已启动</p>
     <button type="button" class="retry-button" onclick={retryConnection}>重试</button>
   </div>
 {:else}
@@ -205,7 +205,7 @@
           {#if translatingDescription}
             <span class="translation-spinner" role="status" aria-label="正在翻译描述"></span>
           {:else if translationError}
-            <button class="translation-error" type="button" aria-label="翻译 API 调用失败" title="翻译 API 调用失败">!</button>
+            <button class="translation-error" type="button" aria-label="翻译失败" title="翻译失败">!</button>
           {/if}
         </div>
       </div>

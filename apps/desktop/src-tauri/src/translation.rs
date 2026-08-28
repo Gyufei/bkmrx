@@ -8,6 +8,8 @@ use std::{
 use futures_util::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
+use crate::logging::{sanitize_error, sanitize_url, Operation};
+
 const NIUTRANS_API_URL: &str = "https://api.niutrans.com/v2/text/translate";
 const MAX_TEXT_LENGTH: usize = 5_000;
 
@@ -99,7 +101,11 @@ impl TranslationService {
             .as_ref()
             .ok_or(TranslationError::Unavailable)?;
         let settings = crate::settings::load(settings_path).map_err(|error| {
-            eprintln!("Failed to load translation settings: {error}");
+            log::error!(
+                "translation_settings_load_failed error_code={} error={:?}",
+                error.code(),
+                sanitize_error(&error.to_string())
+            );
             TranslationError::Unavailable
         })?;
         let provider = NiuTransProvider::from_settings(&settings.services.niutrans)
@@ -184,6 +190,13 @@ impl TranslationProvider for NiuTransProvider {
         request: &'a TranslationRequest,
     ) -> BoxFuture<'a, Result<Translation, TranslationError>> {
         Box::pin(async move {
+            let operation = Operation::start();
+            log::debug!(
+                "outbound_request_started operation_id={} kind=translation provider={} method=POST url={:?}",
+                operation.id(),
+                self.name(),
+                sanitize_url(NIUTRANS_API_URL)
+            );
             let payload = self.signed_request(&request.text)?;
             let response = self
                 .client
@@ -191,8 +204,25 @@ impl TranslationProvider for NiuTransProvider {
                 .json(&payload)
                 .send()
                 .await
-                .map_err(|_| TranslationError::ProviderRequest)?;
-            if !response.status().is_success() {
+                .map_err(|error| {
+                    log::warn!(
+                        "outbound_request_failed operation_id={} kind=translation provider={} error_code=request_failed elapsed_ms={} error={:?}",
+                        operation.id(),
+                        self.name(),
+                        operation.elapsed_ms(),
+                        sanitize_error(&error.to_string())
+                    );
+                    TranslationError::ProviderRequest
+                })?;
+            let status = response.status();
+            log::info!(
+                "outbound_request_completed operation_id={} kind=translation provider={} status={} elapsed_ms={}",
+                operation.id(),
+                self.name(),
+                status.as_u16(),
+                operation.elapsed_ms()
+            );
+            if !status.is_success() {
                 return Err(TranslationError::ProviderRequest);
             }
             let body = response

@@ -60,7 +60,7 @@ export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>添加书签</DialogTitle>
-          <DialogDescription>输入书签信息并保存到本机 SQLite 数据库。</DialogDescription>
+          <DialogDescription>填写书签信息，保存后即可随时查看。</DialogDescription>
         </DialogHeader>
         <BookmarkForm
           idPrefix="add-bookmark"

@@ -3,7 +3,10 @@ use std::{
     sync::Arc,
 };
 
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    logging::observe_database,
+};
 
 use super::{
     Bookmark, BookmarkPage, BookmarkPageRequest, BookmarkRepository, BookmarkSearch,
@@ -44,58 +47,76 @@ impl<R, S> BookmarkService<R, S> {
 
 impl<R: BookmarkRepository, S: BookmarkSearch> BookmarkService<R, S> {
     pub fn query(&self, request: BookmarkPageRequest) -> AppResult<BookmarkPage> {
-        let hits = self.search.search(&request)?;
-        let items = self.repository.get_by_ids_ordered(&hits.bookmark_ids)?;
-        Ok(BookmarkPage {
-            items,
-            next_cursor: hits.next_cursor,
+        observe_database("bookmarks", "query", || {
+            let hits = self.search.search(&request)?;
+            let items = self.repository.get_by_ids_ordered(&hits.bookmark_ids)?;
+            Ok(BookmarkPage {
+                items,
+                next_cursor: hits.next_cursor,
+            })
         })
     }
 
     pub fn create(&self, input: CreateBookmark) -> AppResult<Bookmark> {
-        let bookmark = self.repository.create(input)?;
-        (self.notify_changed)();
-        Ok(bookmark)
+        observe_database("bookmarks", "create", || {
+            let bookmark = self.repository.create(input)?;
+            (self.notify_changed)();
+            Ok(bookmark)
+        })
     }
 
     pub fn update(&self, id: i64, input: UpdateBookmark) -> AppResult<Bookmark> {
-        let bookmark = self.repository.update(id, input)?;
-        (self.notify_changed)();
-        Ok(bookmark)
+        observe_database("bookmarks", "update", || {
+            let bookmark = self.repository.update(id, input)?;
+            (self.notify_changed)();
+            Ok(bookmark)
+        })
     }
 
     pub fn delete_many(&self, ids: Vec<i64>) -> AppResult<u64> {
-        let deleted = self.repository.delete_many(&ids)?;
-        if deleted > 0 {
-            (self.notify_changed)();
-        }
-        Ok(deleted)
+        observe_database("bookmarks", "delete_many", || {
+            let deleted = self.repository.delete_many(&ids)?;
+            if deleted > 0 {
+                (self.notify_changed)();
+            }
+            Ok(deleted)
+        })
     }
 
     pub fn get_by_id(&self, id: i64) -> AppResult<Bookmark> {
-        self.repository
-            .get_by_id(id)?
-            .ok_or_else(|| AppError::bookmark_not_found(id))
+        observe_database("bookmarks", "get_by_id", || {
+            self.repository
+                .get_by_id(id)?
+                .ok_or_else(|| AppError::bookmark_not_found(id))
+        })
     }
 
     pub fn get_by_url(&self, url: String) -> AppResult<Option<Bookmark>> {
-        self.repository.get_by_url(url.trim())
+        observe_database("bookmarks", "get_by_url", || {
+            self.repository.get_by_url(url.trim())
+        })
     }
 
     pub fn get_tags(&self, request: TagQueryRequest) -> AppResult<Vec<TagSummary>> {
-        self.repository.get_tags(&request)
+        observe_database("bookmarks", "get_tags", || {
+            self.repository.get_tags(&request)
+        })
     }
 
     pub fn record_access(&self, id: i64) -> AppResult<Bookmark> {
-        let bookmark = self.repository.record_access(id)?;
-        (self.notify_accessed)(&bookmark);
-        Ok(bookmark)
+        observe_database("bookmarks", "record_access", || {
+            let bookmark = self.repository.record_access(id)?;
+            (self.notify_accessed)(&bookmark);
+            Ok(bookmark)
+        })
     }
 
     pub fn set_starred(&self, id: i64, starred: bool) -> AppResult<Bookmark> {
-        let bookmark = self.repository.set_starred(id, starred)?;
-        (self.notify_changed)();
-        Ok(bookmark)
+        observe_database("bookmarks", "set_starred", || {
+            let bookmark = self.repository.set_starred(id, starred)?;
+            (self.notify_changed)();
+            Ok(bookmark)
+        })
     }
 }
 
@@ -103,11 +124,15 @@ pub type SharedBookmarkService = Arc<BookmarkService<SqliteBookmarkRepository, S
 
 impl BookmarkService<SqliteBookmarkRepository, SqliteFtsSearch> {
     pub fn export_bookmarks(&self, directory: impl AsRef<Path>) -> AppResult<PathBuf> {
-        super::transfer::export_bookmarks(self.repository.database(), directory.as_ref())
+        observe_database("bookmarks", "export", || {
+            super::transfer::export_bookmarks(self.repository.database(), directory.as_ref())
+        })
     }
 
     pub fn preview_bookmark_import(&self, path: impl AsRef<Path>) -> AppResult<ImportPreview> {
-        super::transfer::preview_import(self.repository.database(), path.as_ref())
+        observe_database("bookmarks", "preview_import", || {
+            super::transfer::preview_import(self.repository.database(), path.as_ref())
+        })
     }
 
     pub fn apply_bookmark_import(
@@ -115,11 +140,16 @@ impl BookmarkService<SqliteBookmarkRepository, SqliteFtsSearch> {
         path: impl AsRef<Path>,
         file_hash: &str,
     ) -> AppResult<ImportPreview> {
-        let preview =
-            super::transfer::apply_import(self.repository.database(), path.as_ref(), file_hash)?;
-        if preview.total > 0 {
-            (self.notify_changed)();
-        }
-        Ok(preview)
+        observe_database("bookmarks", "apply_import", || {
+            let preview = super::transfer::apply_import(
+                self.repository.database(),
+                path.as_ref(),
+                file_hash,
+            )?;
+            if preview.total > 0 {
+                (self.notify_changed)();
+            }
+            Ok(preview)
+        })
     }
 }

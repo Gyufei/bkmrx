@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { invokeGetServerStatus } from './lib/invoke';
 import { Button } from './components/ui/button';
 import { Bookmark, ListTodo, Notebook, Rss, Settings } from 'lucide-react';
@@ -29,9 +29,6 @@ export default function NavBar({
 }) {
   const [isMac, setIsMac] = useState(false);
   const [serverRunning, setServerRunning] = useState(false);
-  const [serverUrl, setServerUrl] = useState('http://127.0.0.1:8733');
-  const [showServerUrl, setShowServerUrl] = useState(false);
-  const serverUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -50,7 +47,6 @@ export default function NavBar({
       try {
         const s = await invokeGetServerStatus();
         setServerRunning(s.running);
-        setServerUrl(s.url);
       } catch {
         setServerRunning(false);
       }
@@ -58,22 +54,6 @@ export default function NavBar({
 
     checkServerStatus();
   }, []);
-
-  useEffect(
-    () => () => {
-      if (serverUrlTimer.current) clearTimeout(serverUrlTimer.current);
-    },
-    [],
-  );
-
-  const revealServerUrl = () => {
-    if (serverUrlTimer.current) clearTimeout(serverUrlTimer.current);
-    setShowServerUrl(true);
-    serverUrlTimer.current = setTimeout(() => {
-      setShowServerUrl(false);
-      serverUrlTimer.current = null;
-    }, 3_000);
-  };
 
   return (
     <div
@@ -107,19 +87,15 @@ export default function NavBar({
         </div>
 
         {currentPath === PATHS.BOOKMARKS && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            className="h-auto gap-1.5 px-1 py-0.5 text-xs text-muted-foreground"
-            onClick={revealServerUrl}
-            aria-label="显示服务器地址"
+          <div
+            className="flex items-center gap-1.5 px-1 py-0.5 text-xs text-muted-foreground"
+            role="status"
           >
             <span
               className={`size-2 rounded-full ${serverRunning ? 'bg-green-500' : 'bg-red-500'}`}
             />
-            <span>{showServerUrl ? serverUrl : 'Server Running'}</span>
-          </Button>
+            <span>{serverRunning ? '连接正常' : '连接不可用'}</span>
+          </div>
         )}
       </div>
 
