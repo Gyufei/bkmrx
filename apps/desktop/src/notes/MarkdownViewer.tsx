@@ -128,7 +128,7 @@ export default function MarkdownViewer({
       onScroll={(event) => onScrollTopChange?.(event.currentTarget.scrollTop)}
     >
       {content ? (
-        <article className="markdown-viewer prose prose-zinc dark:prose-invert mx-auto w-full px-6 py-8">
+        <article className="markdown-viewer prose prose-zinc dark:prose-invert w-full max-w-none px-6 py-8">
           <Markdown
             remarkPlugins={[remarkGfm, remarkBreaks]}
             components={{

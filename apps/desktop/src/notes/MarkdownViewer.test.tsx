@@ -93,6 +93,14 @@ describe('MarkdownViewer', () => {
     expect(paragraph?.textContent).toBe('first line\nsecond line');
   });
 
+  it('fills the available width in rendered view', () => {
+    const { container } = render(<MarkdownViewer content="# Wide note" />);
+
+    const article = container.querySelector('article');
+    expect(article).toHaveClass('w-full', 'max-w-none');
+    expect(article).not.toHaveClass('mx-auto');
+  });
+
   it('reports the clicked task source line through an enabled checkbox', () => {
     const onToggleTask = vi.fn();
     render(
