@@ -220,7 +220,7 @@
 }
 
 .markdown-viewer {
-  max-width: 72ch;
+  max-width: none;
   --tw-prose-body: var(--foreground);
   --tw-prose-headings: var(--foreground);
   --tw-prose-links: var(--primary);

@@ -99,6 +99,9 @@ describe('MarkdownViewer', () => {
     const article = container.querySelector('article');
     expect(article).toHaveClass('w-full', 'max-w-none');
     expect(article).not.toHaveClass('mx-auto');
+
+    const viewerCss = appCss.match(/\.markdown-viewer \{([^}]*)}/)?.[1] ?? '';
+    expect(viewerCss).toContain('max-width: none;');
   });
 
   it('reports the clicked task source line through an enabled checkbox', () => {
