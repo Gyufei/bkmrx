@@ -33,7 +33,7 @@ const bookmark: Bookmark = {
   starred_at: null,
 };
 
-function renderDialog(setEditTarget = vi.fn()) {
+function renderDialog(setEditTarget = vi.fn(), onUpdated = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -44,11 +44,15 @@ function renderDialog(setEditTarget = vi.fn()) {
 
   render(
     <QueryClientProvider client={queryClient}>
-      <EditBookmarkDialog editTarget={bookmark} setEditTarget={setEditTarget} />
+      <EditBookmarkDialog
+        editTarget={bookmark}
+        setEditTarget={setEditTarget}
+        onUpdated={onUpdated}
+      />
     </QueryClientProvider>,
   );
 
-  return { invalidateQueries, setEditTarget };
+  return { invalidateQueries, setEditTarget, onUpdated };
 }
 
 beforeEach(() => {
@@ -101,13 +105,14 @@ describe('EditBookmarkDialog', () => {
       ...bookmark,
       url: 'https://new.example',
     });
-    const { invalidateQueries, setEditTarget } = renderDialog();
+    const { invalidateQueries, setEditTarget, onUpdated } = renderDialog();
 
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() => expect(setEditTarget).toHaveBeenCalledWith(null));
     expect(invalidateQueries).toHaveBeenCalledWith({ predicate: expect.any(Function) });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['tags'] });
+    expect(onUpdated).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://new.example' }));
   });
 
   it('keeps the dialog open and shows an update error for a duplicate URL', async () => {

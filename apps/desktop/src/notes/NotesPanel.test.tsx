@@ -192,7 +192,7 @@ it('requires confirmation before deleting a folder', async () => {
   const folder = await screen.findByRole('button', { name: '资料' });
 
   fireEvent.contextMenu(folder);
-  fireEvent.click(await screen.findByText('删除文件夹'));
+  fireEvent.click(await screen.findByRole('menuitem', { name: '删除' }));
 
   expect(deleteNoteFolderApi).not.toHaveBeenCalled();
   expect(await screen.findByText('删除文件夹“资料”？')).toBeTruthy();
@@ -201,7 +201,7 @@ it('requires confirmation before deleting a folder', async () => {
   expect(deleteNoteFolderApi).not.toHaveBeenCalled();
 
   fireEvent.contextMenu(folder);
-  fireEvent.click(await screen.findByText('删除文件夹'));
+  fireEvent.click(await screen.findByRole('menuitem', { name: '删除' }));
   fireEvent.click(screen.getByRole('button', { name: '删除' }));
 
   await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledOnce());

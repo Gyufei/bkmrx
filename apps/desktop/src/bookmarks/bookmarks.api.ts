@@ -119,6 +119,10 @@ export function tagQueryKey(query: string, limit: number | null) {
   return [BkQueryApiKey.TAGS, query.trim(), limit] as const;
 }
 
+export function bookmarkByUrlQueryKey(url: string) {
+  return [BkQueryApiKey.BOOKMARKS, 'by-url', url.trim()] as const;
+}
+
 export function getTagsApi(request: TagQueryRequest) {
   return invokeGetTags({ ...request, query: request.query.trim() });
 }

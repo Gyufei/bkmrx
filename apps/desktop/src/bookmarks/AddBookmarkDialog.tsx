@@ -15,17 +15,30 @@ import {
   tagQueryKey,
 } from './bookmarks.api';
 import BookmarkForm, { type BookmarkFormValues } from './BookmarkForm';
+import type { Bookmark } from '@/types';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialValues?: BookmarkFormValues;
+  onCreated?: (bookmark: Bookmark) => void;
+  onCreateError?: (error: unknown, values: BookmarkFormValues) => void;
 }
 
-export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
+const EMPTY_VALUES: BookmarkFormValues = { url: '', title: '', tags: [], description: '' };
+
+export default function AddBookmarkDialog({
+  open,
+  onOpenChange,
+  initialValues = EMPTY_VALUES,
+  onCreated,
+  onCreateError,
+}: Props) {
   const queryClient = useQueryClient();
   const { data: availableTags = [] } = useQuery({
     queryKey: tagQueryKey('', null),
     queryFn: () => getTagsApi({ query: '', limit: null }),
+    enabled: open,
   });
 
   const {
@@ -35,11 +48,13 @@ export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
     reset,
   } = useMutation({
     mutationFn: addBookmarkApi,
-    onSuccess: () => {
+    onSuccess: (bookmark) => {
       onOpenChange(false);
       void invalidateNonRandomBookmarkQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
+      onCreated?.(bookmark);
     },
+    onError: (error, values) => onCreateError?.(error, values),
   });
 
   useEffect(() => {
@@ -63,8 +78,9 @@ export default function AddBookmarkDialog({ open, onOpenChange }: Props) {
           <DialogDescription>填写书签信息，保存后即可随时查看。</DialogDescription>
         </DialogHeader>
         <BookmarkForm
+          key={open ? 'open' : 'closed'}
           idPrefix="add-bookmark"
-          initialValues={{ url: '', title: '', tags: [], description: '' }}
+          initialValues={initialValues}
           submitLabel="添加"
           pendingLabel="添加中..."
           errorMessage={addError ? `添加失败：${addError.message}` : undefined}

@@ -21,13 +21,15 @@ import BookmarkForm, { type BookmarkFormValues } from './BookmarkForm';
 interface Props {
   editTarget: Bookmark | null;
   setEditTarget: (bookmark: Bookmark | null) => void;
+  onUpdated?: (bookmark: Bookmark) => void;
 }
 
-export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props) {
+export default function EditBookmarkDialog({ editTarget, setEditTarget, onUpdated }: Props) {
   const queryClient = useQueryClient();
   const { data: availableTags = [] } = useQuery({
     queryKey: tagQueryKey('', null),
     queryFn: () => getTagsApi({ query: '', limit: null }),
+    enabled: editTarget !== null,
   });
 
   const {
@@ -42,6 +44,7 @@ export default function EditBookmarkDialog({ editTarget, setEditTarget }: Props)
       updateRandomBookmarkQuery(queryClient, updatedBookmark);
       void invalidateNonRandomBookmarkQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: [BkQueryApiKey.TAGS] });
+      onUpdated?.(updatedBookmark);
     },
   });
 

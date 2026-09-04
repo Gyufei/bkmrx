@@ -19,7 +19,10 @@ vi.mock('@/components/TagInput', () => ({
   default: () => <div>标签输入框</div>,
 }));
 
-function renderDialog(onOpenChange = vi.fn()) {
+function renderDialog(
+  onOpenChange = vi.fn(),
+  props: Partial<React.ComponentProps<typeof AddBookmarkDialog>> = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -30,7 +33,7 @@ function renderDialog(onOpenChange = vi.fn()) {
 
   render(
     <QueryClientProvider client={queryClient}>
-      <AddBookmarkDialog open onOpenChange={onOpenChange} />
+      <AddBookmarkDialog open onOpenChange={onOpenChange} {...props} />
     </QueryClientProvider>,
   );
 
@@ -74,6 +77,39 @@ describe('AddBookmarkDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(invalidateQueries).toHaveBeenCalledWith({ predicate: expect.any(Function) });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['tags'] });
+  });
+
+  it('prefills supplied values and reports the created bookmark', async () => {
+    const created = {
+      id: 1,
+      url: 'https://example.com/rss',
+      title: 'RSS title',
+      tags: [],
+      description: 'RSS summary',
+      access_count: 0,
+      created_at: '2026-09-04T00:00:00Z',
+      updated_at: '2026-09-04T00:00:00Z',
+      accessed_at: null,
+      starred_at: null,
+    };
+    vi.mocked(addBookmarkApi).mockResolvedValue(created);
+    const onCreated = vi.fn();
+    renderDialog(vi.fn(), {
+      initialValues: {
+        url: created.url,
+        title: created.title,
+        tags: [],
+        description: created.description,
+      },
+      onCreated,
+    });
+
+    expect(screen.getByLabelText('URL')).toHaveValue(created.url);
+    expect(screen.getByLabelText('标题（可选）')).toHaveValue(created.title);
+    expect(screen.getByLabelText('描述（可选）')).toHaveValue(created.description);
+    fireEvent.click(screen.getByRole('button', { name: '添加' }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(created));
   });
 
   it('keeps the dialog open and shows create errors', async () => {

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { save } from '@tauri-apps/plugin-dialog';
@@ -13,6 +14,10 @@ const {
   markEntryReadApi,
   refreshAllFeedsApi,
   downloadRssImageApi,
+  checkBookmarkApi,
+  addBookmarkApi,
+  updateBookmarkApi,
+  getTagsApi,
   toastAdd,
 } = vi.hoisted(() => ({
   listFeedsApi: vi.fn(),
@@ -20,6 +25,10 @@ const {
   markEntryReadApi: vi.fn(),
   refreshAllFeedsApi: vi.fn(),
   downloadRssImageApi: vi.fn(),
+  checkBookmarkApi: vi.fn(),
+  addBookmarkApi: vi.fn(),
+  updateBookmarkApi: vi.fn(),
+  getTagsApi: vi.fn(),
   toastAdd: vi.fn(),
 }));
 
@@ -58,6 +67,16 @@ vi.mock('./rss.api', () => ({
     ),
 }));
 vi.mock('./AddFeedDialog', () => ({ default: () => null }));
+vi.mock('@/bookmarks/bookmarks.api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/bookmarks/bookmarks.api')>();
+  return {
+    ...actual,
+    checkBookmarkApi,
+    addBookmarkApi,
+    updateBookmarkApi,
+    getTagsApi,
+  };
+});
 vi.mock('./RenameFeedDialog', () => ({
   default: ({ feed }: { feed: { title: string } | null }) =>
     feed ? <div>Editing {feed.title}</div> : null,
@@ -104,6 +123,8 @@ beforeEach(() => {
   });
   refreshAllFeedsApi.mockResolvedValue({ refreshed: 0, added: 0, failed: 0 });
   downloadRssImageApi.mockResolvedValue(undefined);
+  checkBookmarkApi.mockResolvedValue(null);
+  getTagsApi.mockResolvedValue([]);
   vi.mocked(save).mockResolvedValue('/tmp/photo.jpg');
   vi.mocked(open).mockResolvedValue(undefined);
 });
@@ -229,7 +250,348 @@ it('shows a fixed capsule of reader actions for the selected article', async () 
   expect(toolbar.classList.contains('absolute')).toBe(true);
   expect(screen.getByRole('button', { name: '隐藏图片' })).toBeTruthy();
   expect(screen.getByRole('button', { name: '翻译' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: '收藏当前网站到书签' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: '该文章没有可收藏的原文链接' })).toBeDisabled();
+});
+
+it('opens the existing add dialog with RSS article values when the URL is not saved', async () => {
+  listEntriesApi.mockResolvedValue({
+    entries: [
+      {
+        id: 9,
+        feed_id: 1,
+        feed_title: 'Feed',
+        title: 'Linked article',
+        link: ' https://example.com/article ',
+        author: null,
+        content_html: '<p>Body</p>',
+        summary: '<b>Useful</b>&nbsp;summary',
+        published_at: 100,
+        fetched_at: 100,
+        is_read: true,
+      },
+    ],
+    next_cursor: null,
+  });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /Linked article/ }));
+  fireEvent.click(await screen.findByRole('button', { name: '收藏当前文章到书签' }));
+
+  expect(await screen.findByRole('heading', { name: '添加书签' })).toBeTruthy();
+  expect(screen.getByLabelText('URL')).toHaveValue('https://example.com/article');
+  expect(screen.getByLabelText('标题（可选）')).toHaveValue('Linked article');
+  expect(screen.getByLabelText('描述（可选）')).toHaveValue('Useful summary');
+  expect(checkBookmarkApi).toHaveBeenCalledWith('https://example.com/article');
+});
+
+it('shows the selected bookmark state and opens the existing edit dialog', async () => {
+  const existing = {
+    id: 5,
+    url: 'https://example.com/article',
+    title: 'Saved title',
+    description: 'Saved description',
+    tags: ['saved'],
+    access_count: 0,
+    created_at: '2026-09-04T00:00:00Z',
+    updated_at: '2026-09-04T00:00:00Z',
+    accessed_at: null,
+    starred_at: null,
+  };
+  listEntriesApi.mockResolvedValue({
+    entries: [
+      {
+        id: 9,
+        feed_id: 1,
+        feed_title: 'Feed',
+        title: 'Linked article',
+        link: existing.url,
+        author: null,
+        content_html: '<p>Body</p>',
+        summary: 'Summary',
+        published_at: 100,
+        fetched_at: 100,
+        is_read: true,
+      },
+    ],
+    next_cursor: null,
+  });
+  checkBookmarkApi.mockResolvedValue(existing);
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /Linked article/ }));
+  const button = await screen.findByRole('button', { name: '编辑已收藏书签' });
+  expect(button).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(button);
+
+  expect(await screen.findByRole('heading', { name: '编辑书签' })).toBeTruthy();
+  expect(screen.getByLabelText('URL')).toHaveValue(existing.url);
+  expect(screen.getByLabelText('标题（可选）')).toHaveValue(existing.title);
+});
+
+it('creates the bookmark and shows the existing success toast', async () => {
+  const article = {
+    id: 9,
+    feed_id: 1,
+    feed_title: 'Feed',
+    title: 'Linked article',
+    link: 'https://example.com/article',
+    author: null,
+    content_html: '<p>Body</p>',
+    summary: 'Summary',
+    published_at: 100,
+    fetched_at: 100,
+    is_read: true,
+  };
+  const created = {
+    id: 5,
+    url: article.link,
+    title: article.title,
+    description: article.summary,
+    tags: [],
+    access_count: 0,
+    created_at: '2026-09-04T00:00:00Z',
+    updated_at: '2026-09-04T00:00:00Z',
+    accessed_at: null,
+    starred_at: null,
+  };
+  listEntriesApi.mockResolvedValue({ entries: [article], next_cursor: null });
+  addBookmarkApi.mockResolvedValue(created);
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /Linked article/ }));
+  fireEvent.click(await screen.findByRole('button', { name: '收藏当前文章到书签' }));
+  fireEvent.click(await screen.findByRole('button', { name: '添加' }));
+
+  await waitFor(() => expect(addBookmarkApi).toHaveBeenCalled());
+  expect(toastAdd).toHaveBeenCalledWith({ type: 'success', title: '收藏成功' });
+});
+
+it('does not treat a failed lookup as unsaved and retries from the action button', async () => {
+  listEntriesApi.mockResolvedValue({
+    entries: [
+      {
+        id: 9,
+        feed_id: 1,
+        feed_title: 'Feed',
+        title: 'Linked article',
+        link: 'https://example.com/article',
+        author: null,
+        content_html: '<p>Body</p>',
+        summary: 'Summary',
+        published_at: 100,
+        fetched_at: 100,
+        is_read: true,
+      },
+    ],
+    next_cursor: null,
+  });
+  checkBookmarkApi.mockRejectedValueOnce(new Error('lookup failed')).mockResolvedValue(null);
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /Linked article/ }));
+  const retry = await screen.findByRole('button', {
+    name: '收藏状态查询失败，点击重试',
+  });
+  expect(screen.queryByRole('heading', { name: '添加书签' })).toBeNull();
+  expect(toastAdd).toHaveBeenCalledWith({ type: 'error', title: '收藏状态查询失败' });
+  fireEvent.click(retry);
+
+  expect(await screen.findByRole('button', { name: '收藏当前文章到书签' })).toBeTruthy();
+  expect(checkBookmarkApi).toHaveBeenCalledTimes(2);
+});
+
+it('switches a concurrent URL conflict to editing the existing bookmark', async () => {
+  const article = {
+    id: 9,
+    feed_id: 1,
+    feed_title: 'Feed',
+    title: 'RSS title',
+    link: 'https://example.com/article',
+    author: null,
+    content_html: '<p>Body</p>',
+    summary: 'RSS summary',
+    published_at: 100,
+    fetched_at: 100,
+    is_read: true,
+  };
+  const existing = {
+    id: 5,
+    url: article.link,
+    title: 'Existing user title',
+    description: 'Existing user description',
+    tags: ['existing'],
+    access_count: 0,
+    created_at: '2026-09-04T00:00:00Z',
+    updated_at: '2026-09-04T00:00:00Z',
+    accessed_at: null,
+    starred_at: null,
+  };
+  listEntriesApi.mockResolvedValue({ entries: [article], next_cursor: null });
+  checkBookmarkApi.mockResolvedValueOnce(null).mockResolvedValueOnce(existing);
+  addBookmarkApi.mockRejectedValue({
+    code: 'bookmark_url_conflict',
+    message: 'A bookmark with this URL already exists',
+    details: { url: article.link },
+  });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /RSS title/ }));
+  fireEvent.click(await screen.findByRole('button', { name: '收藏当前文章到书签' }));
+  fireEvent.click(await screen.findByRole('button', { name: '添加' }));
+
+  expect(await screen.findByRole('heading', { name: '编辑书签' })).toBeTruthy();
+  expect(screen.getByLabelText('标题（可选）')).toHaveValue(existing.title);
+  expect(screen.getByLabelText('描述（可选）')).toHaveValue(existing.description);
+  expect(toastAdd).toHaveBeenCalledWith({
+    type: 'info',
+    title: '该文章已收藏，可编辑现有书签',
+  });
+
+  fireEvent.click(screen.getByRole('button', { name: '取消' }));
+  expect(await screen.findByRole('button', { name: '编辑已收藏书签' })).toBeTruthy();
+});
+
+it('returns the article to unsaved after editing its bookmark to another URL', async () => {
+  const article = {
+    id: 9,
+    feed_id: 1,
+    feed_title: 'Feed',
+    title: 'Linked article',
+    link: 'https://example.com/article',
+    author: null,
+    content_html: '<p>Body</p>',
+    summary: 'Summary',
+    published_at: 100,
+    fetched_at: 100,
+    is_read: true,
+  };
+  const existing = {
+    id: 5,
+    url: article.link,
+    title: article.title,
+    description: article.summary,
+    tags: [],
+    access_count: 0,
+    created_at: '2026-09-04T00:00:00Z',
+    updated_at: '2026-09-04T00:00:00Z',
+    accessed_at: null,
+    starred_at: null,
+  };
+  listEntriesApi.mockResolvedValue({ entries: [article], next_cursor: null });
+  checkBookmarkApi.mockResolvedValueOnce(existing).mockResolvedValue(null);
+  updateBookmarkApi.mockResolvedValue({ ...existing, url: 'https://example.com/other' });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /Linked article/ }));
+  fireEvent.click(await screen.findByRole('button', { name: '编辑已收藏书签' }));
+  fireEvent.change(await screen.findByLabelText('URL'), {
+    target: { value: 'https://example.com/other' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+  expect(await screen.findByRole('button', { name: '收藏当前文章到书签' })).toBeTruthy();
+  expect(toastAdd).toHaveBeenCalledWith({ type: 'success', title: '书签更新成功' });
+});
+
+it('does not let a stale lookup overwrite the newly selected article state', async () => {
+  const first = {
+    id: 9,
+    feed_id: 1,
+    feed_title: 'Feed',
+    title: 'First linked article',
+    link: 'https://example.com/first',
+    author: null,
+    content_html: '<p>First</p>',
+    summary: 'First',
+    published_at: 100,
+    fetched_at: 100,
+    is_read: true,
+  };
+  const second = {
+    ...first,
+    id: 10,
+    title: 'Second linked article',
+    link: 'https://example.com/second',
+  };
+  listEntriesApi.mockResolvedValue({ entries: [first, second], next_cursor: null });
+  const pending = new Map<string, (value: unknown) => void>();
+  checkBookmarkApi.mockImplementation(
+    (url: string) => new Promise((resolve) => pending.set(url, resolve)),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: /First linked article/ }));
+  await waitFor(() => expect(pending.has(first.link)).toBe(true));
+  fireEvent.click(screen.getByRole('button', { name: /Second linked article/ }));
+  await waitFor(() => expect(pending.has(second.link)).toBe(true));
+  await act(async () => pending.get(second.link)?.(null));
+  expect(await screen.findByRole('button', { name: '收藏当前文章到书签' })).toBeTruthy();
+
+  await act(async () =>
+    pending.get(first.link)?.({
+      id: 5,
+      url: first.link,
+      title: first.title,
+      description: '',
+      tags: [],
+      access_count: 0,
+      created_at: '',
+      updated_at: '',
+      accessed_at: null,
+      starred_at: null,
+    }),
+  );
+  expect(screen.getByRole('button', { name: '收藏当前文章到书签' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: '编辑已收藏书签' })).toBeNull();
 });
 
 it('keeps no-image mode enabled when switching articles', async () => {

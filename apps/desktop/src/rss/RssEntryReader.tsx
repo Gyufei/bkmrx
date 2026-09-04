@@ -18,32 +18,69 @@ import { downloadRssImageApi } from './rss.api';
 export default function RssEntryReader({
   entry,
   hideImages,
+  bookmarkState,
   onToggleImages,
   onToggleRead,
+  onBookmark,
 }: {
   entry: RssEntry;
   hideImages: boolean;
+  bookmarkState: 'unavailable' | 'loading' | 'available' | 'saved' | 'error';
   onToggleImages: () => void;
   onToggleRead: () => void;
+  onBookmark: () => void;
 }) {
   return (
     <>
       <div className="h-full overflow-auto">
         <EntryContent entry={entry} hideImages={hideImages} onToggleRead={onToggleRead} />
       </div>
-      <ReaderActionBar hideImages={hideImages} onToggleImages={onToggleImages} />
+      <ReaderActionBar
+        hideImages={hideImages}
+        bookmarkState={bookmarkState}
+        onToggleImages={onToggleImages}
+        onBookmark={onBookmark}
+      />
     </>
   );
 }
 
 function ReaderActionBar({
   hideImages,
+  bookmarkState,
   onToggleImages,
+  onBookmark,
 }: {
   hideImages: boolean;
+  bookmarkState: 'unavailable' | 'loading' | 'available' | 'saved' | 'error';
   onToggleImages: () => void;
+  onBookmark: () => void;
 }) {
-  const actions = [
+  const bookmarkAction = {
+    label:
+      bookmarkState === 'unavailable'
+        ? '该文章没有可收藏的原文链接'
+        : bookmarkState === 'loading'
+          ? '正在查询收藏状态'
+          : bookmarkState === 'saved'
+            ? '编辑已收藏书签'
+            : bookmarkState === 'error'
+              ? '收藏状态查询失败，点击重试'
+              : '收藏当前文章到书签',
+    icon: BookmarkPlus,
+    active: bookmarkState === 'saved',
+    disabled: bookmarkState === 'unavailable' || bookmarkState === 'loading',
+    invalid: bookmarkState === 'error',
+    onClick: onBookmark,
+  };
+  const actions: Array<{
+    label: string;
+    icon: typeof ImageOff;
+    active?: boolean;
+    disabled?: boolean;
+    invalid?: boolean;
+    onClick?: () => void;
+  }> = [
     {
       label: hideImages ? '显示图片' : '隐藏图片',
       icon: ImageOff,
@@ -51,25 +88,27 @@ function ReaderActionBar({
       onClick: onToggleImages,
     },
     { label: '翻译', icon: Languages },
-    { label: '收藏当前网站到书签', icon: BookmarkPlus },
-  ] as const;
+    bookmarkAction,
+  ];
   return (
     <TooltipProvider delay={300}>
       <aside
         aria-label="阅读工具"
         className="absolute right-5 top-1/2 flex -translate-y-1/2 flex-col gap-1 rounded-4xl border bg-background/90 p-1.5 shadow-lg backdrop-blur-md"
       >
-        {actions.map(({ label, icon: Icon, ...action }) => (
+        {actions.map(({ label, icon: Icon, active, disabled, invalid, onClick }) => (
           <Tooltip key={label}>
             <TooltipTrigger
               render={
                 <Button
-                  variant={'active' in action && action.active ? 'secondary' : 'ghost'}
+                  variant={invalid ? 'destructive' : active ? 'secondary' : 'ghost'}
                   size="icon"
                   aria-label={label}
-                  aria-pressed={'active' in action ? action.active : undefined}
+                  aria-pressed={active}
+                  aria-invalid={invalid || undefined}
+                  disabled={disabled}
                   type="button"
-                  onClick={'onClick' in action ? action.onClick : undefined}
+                  onClick={onClick}
                 >
                   <Icon />
                 </Button>

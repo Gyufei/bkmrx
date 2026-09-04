@@ -3,6 +3,7 @@ import { QueryClient, type InfiniteData } from '@tanstack/react-query';
 
 import type { Bookmark, BookmarkPage } from '@/types';
 import {
+  bookmarkByUrlQueryKey,
   bookmarkQueryKey,
   getNextBookmarkPageParam,
   removeRandomBookmarksFromQuery,
@@ -47,6 +48,14 @@ describe('bookmark pagination helpers', () => {
   it('builds a normalized tag query key', () => {
     expect(tagQueryKey('  rust  ', 50)).toEqual(['tags', 'rust', 50]);
     expect(tagQueryKey('', null)).toEqual(['tags', '', null]);
+  });
+
+  it('builds a normalized bookmark URL query key in the shared bookmark namespace', () => {
+    expect(bookmarkByUrlQueryKey('  https://example.com/post  ')).toEqual([
+      'bookmarks',
+      'by-url',
+      'https://example.com/post',
+    ]);
   });
 
   it('updates and removes random results without redrawing the batch', () => {

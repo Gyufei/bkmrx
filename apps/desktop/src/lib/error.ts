@@ -6,3 +6,13 @@ export function getErrorMessage(error: unknown, fallback = '操作失败') {
   }
   return fallback;
 }
+
+export function hasErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    error.code === code
+  );
+}
