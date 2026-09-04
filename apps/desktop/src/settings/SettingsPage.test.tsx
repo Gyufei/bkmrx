@@ -8,23 +8,34 @@ import type { AppSettings } from '@/lib/invoke';
 import SettingsPage from './SettingsPage';
 import {
   applyBookmarkImportApi,
+  activateProviderApi,
+  deactivateProviderApi,
   getSettingsApi,
+  listProvidersApi,
   previewBookmarkImportApi,
   updateSettingsApi,
 } from './settings.api';
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock('./settings.api', () => ({
-  SettingsQueryApiKey: { SYSTEM_INFO: 'systemInfo', SETTINGS: 'settings' },
+  SettingsQueryApiKey: {
+    SYSTEM_INFO: 'systemInfo',
+    SETTINGS: 'settings',
+    PROVIDERS: 'providers',
+  },
   getSettingsApi: vi.fn(),
+  listProvidersApi: vi.fn(),
   getSystemInfoApi: vi.fn(),
   updateSettingsApi: vi.fn(),
   exportBookmarksApi: vi.fn(),
   previewBookmarkImportApi: vi.fn(),
   applyBookmarkImportApi: vi.fn(),
+  activateProviderApi: vi.fn(),
+  deactivateProviderApi: vi.fn(),
 }));
 
 const baseSettings = (): AppSettings => ({
+  schema_version: 1,
   common: {
     paths: {
       bookmark_export_dir: '/old/backup',
@@ -32,9 +43,14 @@ const baseSettings = (): AppSettings => ({
       notes_dir: '/old/notes',
     },
   },
+  capabilities: {
+    translation: { primary_provider: null, fallback_providers: [] },
+  },
+  providers: {
+    niutrans: { app_id: null, api_key: null },
+  },
   services: {
     rsshub: { base_url: null, access_key: null },
-    niutrans: { app_id: null, api_key: null },
   },
 });
 
@@ -57,7 +73,21 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSettingsApi).mockResolvedValue(baseSettings());
+    vi.mocked(listProvidersApi).mockResolvedValue([
+      {
+        descriptor: {
+          id: 'niutrans',
+          capability: 'translation',
+          display_name: '小牛翻译',
+          description: '小牛机器翻译服务',
+        },
+        configured: false,
+        activation: 'inactive',
+      },
+    ]);
     vi.mocked(updateSettingsApi).mockResolvedValue(undefined);
+    vi.mocked(activateProviderApi).mockResolvedValue(undefined);
+    vi.mocked(deactivateProviderApi).mockResolvedValue(undefined);
   });
   afterEach(cleanup);
 
@@ -170,5 +200,99 @@ describe('SettingsPage', () => {
       'https://draft.example.com',
     );
     expect(screen.getByTitle('服务有未保存的更改')).toBeTruthy();
+  });
+
+  it('activates a configured translation provider', async () => {
+    vi.mocked(listProvidersApi).mockResolvedValue([
+      {
+        descriptor: {
+          id: 'niutrans',
+          capability: 'translation',
+          display_name: '小牛翻译',
+          description: '小牛机器翻译服务',
+        },
+        configured: true,
+        activation: 'inactive',
+      },
+    ]);
+    renderPage();
+    await selectTab('服务');
+    fireEvent.click(screen.getByRole('button', { name: '选择小牛翻译服务' }));
+    fireEvent.click(screen.getByRole('button', { name: '启用小牛翻译' }));
+
+    await waitFor(() =>
+      expect(vi.mocked(activateProviderApi)).toHaveBeenCalledWith('translation', 'niutrans'),
+    );
+  });
+
+  it('refreshes provider configuration after saving credentials', async () => {
+    vi.mocked(listProvidersApi)
+      .mockResolvedValueOnce([
+        {
+          descriptor: {
+            id: 'niutrans',
+            capability: 'translation',
+            display_name: '小牛翻译',
+            description: '小牛机器翻译服务',
+          },
+          configured: false,
+          activation: 'inactive',
+        },
+      ])
+      .mockResolvedValue([
+        {
+          descriptor: {
+            id: 'niutrans',
+            capability: 'translation',
+            display_name: '小牛翻译',
+            description: '小牛机器翻译服务',
+          },
+          configured: true,
+          activation: 'inactive',
+        },
+      ]);
+    renderPage();
+    await selectTab('服务');
+    fireEvent.click(screen.getByRole('button', { name: '选择小牛翻译服务' }));
+    expect(
+      (screen.getByRole('button', { name: '启用小牛翻译' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑小牛翻译服务' }));
+    fireEvent.change(screen.getByLabelText('App ID'), { target: { value: 'app' } });
+    fireEvent.change(screen.getByLabelText('API Key'), { target: { value: 'key' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存服务设置' }));
+
+    await waitFor(() => expect(listProvidersApi).toHaveBeenCalledTimes(2));
+    expect(
+      (screen.getByRole('button', { name: '启用小牛翻译' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
+  it('disables translation without deleting provider credentials', async () => {
+    const settings = baseSettings();
+    settings.capabilities.translation.primary_provider = 'niutrans';
+    settings.providers.niutrans = { app_id: 'app', api_key: 'key' };
+    vi.mocked(getSettingsApi).mockResolvedValue(settings);
+    vi.mocked(listProvidersApi).mockResolvedValue([
+      {
+        descriptor: {
+          id: 'niutrans',
+          capability: 'translation',
+          display_name: '小牛翻译',
+          description: '小牛机器翻译服务',
+        },
+        configured: true,
+        activation: 'primary',
+      },
+    ]);
+    renderPage();
+    await selectTab('服务');
+    fireEvent.click(screen.getByRole('button', { name: '选择小牛翻译服务' }));
+    fireEvent.click(screen.getByRole('button', { name: '停用翻译' }));
+
+    await waitFor(() =>
+      expect(vi.mocked(deactivateProviderApi)).toHaveBeenCalledWith('translation'),
+    );
   });
 });

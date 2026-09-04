@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tauri::State;
 
 use crate::bookmarks::{
@@ -301,17 +303,41 @@ pub async fn create_note_file(
 
 #[tauri::command]
 pub fn get_settings(
-    paths: State<'_, crate::settings::RuntimePaths>,
+    service: State<'_, Arc<crate::settings::SettingsService>>,
 ) -> AppResult<crate::settings::Settings> {
-    crate::settings::load(paths.settings_path())
+    service.load()
 }
 
 #[tauri::command]
 pub fn update_settings(
-    paths: State<'_, crate::settings::RuntimePaths>,
+    service: State<'_, Arc<crate::settings::SettingsService>>,
     settings: crate::settings::Settings,
 ) -> AppResult<()> {
-    crate::settings::save(paths.settings_path(), &settings)
+    service.update(settings)
+}
+
+#[tauri::command]
+pub fn list_providers(
+    service: State<'_, Arc<crate::settings::SettingsService>>,
+) -> AppResult<Vec<crate::providers::ProviderStatusView>> {
+    service.provider_statuses()
+}
+
+#[tauri::command]
+pub fn activate_provider(
+    service: State<'_, Arc<crate::settings::SettingsService>>,
+    capability: crate::providers::Capability,
+    provider_id: crate::providers::ProviderId,
+) -> AppResult<()> {
+    service.activate_provider(capability, provider_id)
+}
+
+#[tauri::command]
+pub fn deactivate_provider(
+    service: State<'_, Arc<crate::settings::SettingsService>>,
+    capability: crate::providers::Capability,
+) -> AppResult<()> {
+    service.deactivate_provider(capability)
 }
 
 #[tauri::command]

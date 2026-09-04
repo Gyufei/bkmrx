@@ -27,25 +27,28 @@ export default function NiuTransServicePanel({ settings, onDirtyChange }: Props)
       setEditing(false);
       setShowApiKey(false);
       onDirtyChange(false);
-      await queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.SETTINGS] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.SETTINGS] }),
+        queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.PROVIDERS] }),
+      ]);
     },
   });
 
   useEffect(() => {
     if (editing) return;
-    setAppId(settings?.services.niutrans.app_id ?? '');
-    setApiKey(settings?.services.niutrans.api_key ?? '');
+    setAppId(settings?.providers.niutrans.app_id ?? '');
+    setApiKey(settings?.providers.niutrans.api_key ?? '');
   }, [editing, settings]);
 
   const updateDirty = (nextId: string, nextKey: string) =>
     onDirtyChange(
-      nextId !== (settings?.services.niutrans.app_id ?? '') ||
-        nextKey !== (settings?.services.niutrans.api_key ?? ''),
+      nextId !== (settings?.providers.niutrans.app_id ?? '') ||
+        nextKey !== (settings?.providers.niutrans.api_key ?? ''),
     );
   const cancel = () => {
     mutation.reset();
-    setAppId(settings?.services.niutrans.app_id ?? '');
-    setApiKey(settings?.services.niutrans.api_key ?? '');
+    setAppId(settings?.providers.niutrans.app_id ?? '');
+    setApiKey(settings?.providers.niutrans.api_key ?? '');
     setShowApiKey(false);
     setEditing(false);
     onDirtyChange(false);
@@ -54,8 +57,8 @@ export default function NiuTransServicePanel({ settings, onDirtyChange }: Props)
     if (!settings || mutation.isPending) return;
     mutation.mutate({
       ...settings,
-      services: {
-        ...settings.services,
+      providers: {
+        ...settings.providers,
         niutrans: { app_id: appId.trim() || null, api_key: apiKey.trim() || null },
       },
     });
@@ -67,7 +70,7 @@ export default function NiuTransServicePanel({ settings, onDirtyChange }: Props)
         <div>
           <h2 className="font-semibold">小牛翻译</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            配置 App ID 和 API Key 后，网页描述翻译会立即使用该服务。
+            保存 App ID 和 API Key 后，可将该服务设为当前翻译供应商。
           </p>
         </div>
         {!editing && (

@@ -1,22 +1,46 @@
 import { useEffect, useState } from 'react';
 import { Rss } from 'lucide-react';
-import type { AppSettings } from '@/lib/invoke';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { AppSettings, ProviderStatus } from '@/lib/invoke';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import NiuTransServicePanel from '../service-panels/NiuTransServicePanel';
 import RssHubServicePanel from '../service-panels/RssHubServicePanel';
+import { activateProviderApi, deactivateProviderApi, SettingsQueryApiKey } from '../settings.api';
+import { errorMessage } from '../settings.utils';
 
 interface ServicesSettingsProps {
   settings?: AppSettings;
+  providers: ProviderStatus[];
   onDirtyChange: (dirty: boolean) => void;
 }
 
 type ServiceId = 'rsshub' | 'niutrans';
 
-export default function ServicesSettings({ settings, onDirtyChange }: ServicesSettingsProps) {
+export default function ServicesSettings({
+  settings,
+  providers,
+  onDirtyChange,
+}: ServicesSettingsProps) {
+  const queryClient = useQueryClient();
   const [selected, setSelected] = useState<ServiceId>('rsshub');
   const [dirty, setDirty] = useState<Record<ServiceId, boolean>>({
     rsshub: false,
     niutrans: false,
+  });
+  const niutrans = providers.find((provider) => provider.descriptor.id === 'niutrans');
+  const niutransIsPrimary = niutrans?.activation === 'primary';
+  const activation = useMutation({
+    mutationFn: (primaryProvider: string | null) =>
+      primaryProvider
+        ? activateProviderApi('translation', primaryProvider)
+        : deactivateProviderApi('translation'),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.SETTINGS] }),
+        queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.PROVIDERS] }),
+      ]);
+    },
   });
 
   useEffect(() => {
@@ -69,9 +93,11 @@ export default function ServicesSettings({ settings, onDirtyChange }: ServicesSe
             <span className="min-w-0 flex-1">
               <span className="block">小牛翻译</span>
               <span className="block text-xs font-normal text-muted-foreground">
-                {settings?.services.niutrans.app_id && settings.services.niutrans.api_key
-                  ? '已配置'
-                  : '未配置'}
+                {niutransIsPrimary
+                  ? '正在使用'
+                  : niutrans?.configured
+                    ? '已配置，未启用'
+                    : '未配置'}
               </span>
             </span>
           </button>
@@ -84,6 +110,34 @@ export default function ServicesSettings({ settings, onDirtyChange }: ServicesSe
             />
           </div>
           <div className={selected === 'niutrans' ? undefined : 'hidden'}>
+            <div className="mb-5 flex items-center gap-2 border-b pb-5">
+              {niutransIsPrimary ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={activation.isPending}
+                  onClick={() => activation.mutate(null)}
+                >
+                  停用翻译
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  disabled={!niutrans?.configured || activation.isPending}
+                  onClick={() => activation.mutate('niutrans')}
+                >
+                  启用小牛翻译
+                </Button>
+              )}
+              {!niutrans?.configured && (
+                <span className="text-xs text-muted-foreground">请先保存完整凭据</span>
+              )}
+              {activation.isError && (
+                <span className="text-xs text-destructive">
+                  切换失败：{errorMessage(activation.error)}
+                </span>
+              )}
+            </div>
             <NiuTransServicePanel
               settings={settings}
               onDirtyChange={(next) => setDirty((current) => ({ ...current, niutrans: next }))}

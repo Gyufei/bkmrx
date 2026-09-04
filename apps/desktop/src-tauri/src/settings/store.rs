@@ -7,7 +7,7 @@ use std::{
 
 use crate::error::{AppError, AppResult};
 
-use super::Settings;
+use super::{Settings, SETTINGS_SCHEMA_VERSION};
 
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -16,18 +16,45 @@ pub fn load(path: &Path) -> AppResult<Settings> {
         return Ok(Settings::default());
     }
     let json = std::fs::read(path).map_err(settings_io_error)?;
-    let value: serde_json::Value = serde_json::from_slice(&json).map_err(|error| {
+    let mut value: serde_json::Value = serde_json::from_slice(&json).map_err(|error| {
         AppError::settings_error(
             "settings_invalid",
             format!("failed to parse settings: {error}"),
         )
     })?;
-    serde_json::from_value(value).map_err(|error| {
+    let legacy = value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_default()
+        == 0;
+    if legacy && value.get("providers").is_none() {
+        let niutrans = value
+            .pointer("/services/niutrans")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
+        value["providers"] = serde_json::json!({ "niutrans": niutrans });
+    }
+    let mut settings: Settings = serde_json::from_value(value).map_err(|error| {
         AppError::settings_error(
             "settings_invalid",
             format!("failed to parse settings: {error}"),
         )
-    })
+    })?;
+    if settings.schema_version == 0 {
+        let niutrans = &settings.providers.niutrans;
+        let configured = niutrans
+            .app_id
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+            && niutrans
+                .api_key
+                .as_deref()
+                .is_some_and(|value| !value.trim().is_empty());
+        settings.capabilities.translation.primary_provider = configured
+            .then(|| crate::providers::ProviderId::new("niutrans").expect("static ID is valid"));
+        settings.schema_version = SETTINGS_SCHEMA_VERSION;
+    }
+    Ok(settings)
 }
 
 pub fn save(path: &Path, settings: &Settings) -> AppResult<()> {
@@ -54,6 +81,16 @@ pub fn save(path: &Path, settings: &Settings) -> AppResult<()> {
 }
 
 fn validate(settings: &Settings) -> AppResult<()> {
+    if settings.schema_version != SETTINGS_SCHEMA_VERSION {
+        return Err(AppError::settings_error(
+            "settings_unsupported_version",
+            format!(
+                "Unsupported settings schema version: {}",
+                settings.schema_version
+            ),
+        ));
+    }
+    validate_translation_route(settings)?;
     let Some(raw_url) = settings.services.rsshub.base_url.as_deref() else {
         return Ok(());
     };
@@ -66,6 +103,33 @@ fn validate(settings: &Settings) -> AppResult<()> {
         || url.fragment().is_some()
     {
         return Err(invalid_rsshub_url());
+    }
+    Ok(())
+}
+
+fn validate_translation_route(settings: &Settings) -> AppResult<()> {
+    let route = &settings.capabilities.translation;
+    if route.primary_provider.as_ref().is_some_and(|primary| {
+        route
+            .fallback_providers
+            .iter()
+            .any(|fallback| fallback == primary)
+    }) {
+        return Err(AppError::settings_error(
+            "settings_invalid_provider_route",
+            "Primary translation provider cannot also be a fallback",
+        ));
+    }
+    let mut unique = std::collections::HashSet::new();
+    if route
+        .fallback_providers
+        .iter()
+        .any(|provider| !unique.insert(provider))
+    {
+        return Err(AppError::settings_error(
+            "settings_invalid_provider_route",
+            "Translation fallback providers must be unique",
+        ));
     }
     Ok(())
 }

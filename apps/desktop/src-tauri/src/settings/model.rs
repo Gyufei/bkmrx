@@ -1,10 +1,47 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+use crate::providers::ProviderId;
+
+pub const SETTINGS_SCHEMA_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct Settings {
+    #[serde(default = "legacy_schema_version")]
+    pub schema_version: u32,
     pub common: CommonSettings,
+    pub capabilities: CapabilitySettings,
+    pub providers: ProviderSettings,
     pub services: ServiceSettings,
+}
+
+fn legacy_schema_version() -> u32 {
+    0
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            schema_version: SETTINGS_SCHEMA_VERSION,
+            common: CommonSettings::default(),
+            capabilities: CapabilitySettings::default(),
+            providers: ProviderSettings::default(),
+            services: ServiceSettings::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct CapabilitySettings {
+    pub translation: ProviderRouteSettings,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct ProviderRouteSettings {
+    pub primary_provider: Option<ProviderId>,
+    pub fallback_providers: Vec<ProviderId>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -25,6 +62,11 @@ pub struct PathSettings {
 #[serde(default)]
 pub struct ServiceSettings {
     pub rsshub: RssHubSettings,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct ProviderSettings {
     pub niutrans: NiuTransSettings,
 }
 

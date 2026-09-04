@@ -2,6 +2,9 @@ import {
   invokeGetSystemInfo,
   invokeGetSettings,
   invokeUpdateSettings,
+  invokeListProviders,
+  invokeActivateProvider,
+  invokeDeactivateProvider,
   invokeExportBookmarks,
   invokePreviewBookmarkImport,
   invokeApplyBookmarkImport,
@@ -11,6 +14,7 @@ import {
 export const SettingsQueryApiKey = {
   SYSTEM_INFO: 'systemInfo',
   SETTINGS: 'settings',
+  PROVIDERS: 'providers',
 };
 
 export async function getSystemInfoApi() {
@@ -23,6 +27,18 @@ export async function getSettingsApi() {
 
 export async function updateSettingsApi(settings: AppSettings) {
   return await invokeUpdateSettings(settings);
+}
+
+export async function listProvidersApi() {
+  return await invokeListProviders();
+}
+
+export async function activateProviderApi(capability: 'translation' | 'ai', providerId: string) {
+  return await invokeActivateProvider(capability, providerId);
+}
+
+export async function deactivateProviderApi(capability: 'translation' | 'ai') {
+  return await invokeDeactivateProvider(capability);
 }
 
 export function exportBookmarksApi(path: string) {

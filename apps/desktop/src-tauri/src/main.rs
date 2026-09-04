@@ -98,6 +98,37 @@ fn main() {
             );
             app.manage(todo_service);
             let settings_path = runtime_paths.settings_path().to_path_buf();
+            let http_client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()?;
+            let provider_context = bkmrx_lib::providers::ProviderContext::new(http_client);
+            let translation_runtime =
+                Arc::new(bkmrx_lib::translation::TranslationRuntime::default());
+            let mut translation_registry = bkmrx_lib::translation::TranslationRegistry::default();
+            translation_registry
+                .register(Arc::new(
+                    bkmrx_lib::translation::providers::NiuTransProviderFactory,
+                ))
+                .map_err(std::io::Error::other)?;
+            let provider_manager = Arc::new(bkmrx_lib::providers::ProviderManager::new(
+                translation_registry,
+                Arc::clone(&translation_runtime),
+                provider_context,
+            ));
+            let settings_service = Arc::new(bkmrx_lib::settings::SettingsService::new(
+                settings_path,
+                provider_manager,
+            ));
+            if let Err(error) = settings_service.initialize() {
+                log::error!(
+                    "provider_runtime_initialization_failed error_code={} error={:?}",
+                    error.code(),
+                    bkmrx_lib::logging::sanitize_error(&error.to_string())
+                );
+            }
+            let translation_service =
+                bkmrx_lib::translation::TranslationService::new(translation_runtime);
+            app.manage(Arc::clone(&settings_service));
             app.manage(runtime_paths);
             let note_handle = handle.clone();
             let note_service = Arc::new(bkmrx_lib::notes::NoteService::new(Arc::new(
@@ -121,7 +152,7 @@ fn main() {
             app.manage(Arc::clone(&note_service));
             tauri::async_runtime::spawn(bkmrx_lib::http_server::start_server(
                 service,
-                settings_path,
+                translation_service,
                 shutdown_rx,
             ));
             log::info!("application_initialized");
@@ -169,6 +200,9 @@ fn main() {
             bkmrx_lib::commands::rename_note,
             bkmrx_lib::commands::get_settings,
             bkmrx_lib::commands::update_settings,
+            bkmrx_lib::commands::list_providers,
+            bkmrx_lib::commands::activate_provider,
+            bkmrx_lib::commands::deactivate_provider,
             bkmrx_lib::commands::get_server_status,
             bkmrx_lib::commands::get_system_info,
         ])

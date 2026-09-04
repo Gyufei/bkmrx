@@ -7,6 +7,7 @@ pub mod http_server;
 pub mod logging;
 pub mod notes;
 pub mod preview;
+pub mod providers;
 pub mod rss;
 pub mod safe_http;
 pub mod settings;

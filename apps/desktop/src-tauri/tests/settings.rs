@@ -6,6 +6,7 @@ fn settings_round_trip_at_explicit_app_data_path() {
     let app_data = TempDir::new().unwrap();
     let path = app_data.path().join("settings.json");
     let settings = Settings {
+        schema_version: bkmrx_lib::settings::SETTINGS_SCHEMA_VERSION,
         common: bkmrx_lib::settings::CommonSettings {
             paths: bkmrx_lib::settings::PathSettings {
                 notes_dir: Some("/tmp/notes".to_owned()),
@@ -82,16 +83,81 @@ fn missing_groups_use_defaults() {
 }
 
 #[test]
-fn saves_niutrans_credentials_under_services() {
+fn migrates_complete_legacy_niutrans_settings_to_active_provider() {
+    let app_data = TempDir::new().unwrap();
+    let path = app_data.path().join("settings.json");
+    std::fs::write(
+        &path,
+        br#"{"services":{"niutrans":{"app_id":"app","api_key":"key"}}}"#,
+    )
+    .unwrap();
+
+    let settings = load(&path).unwrap();
+
+    assert_eq!(
+        settings
+            .capabilities
+            .translation
+            .primary_provider
+            .as_ref()
+            .map(|provider| provider.as_str()),
+        Some("niutrans")
+    );
+    assert_eq!(
+        settings.schema_version,
+        bkmrx_lib::settings::SETTINGS_SCHEMA_VERSION
+    );
+}
+
+#[test]
+fn preserves_explicitly_disabled_translation_in_current_schema() {
+    let app_data = TempDir::new().unwrap();
+    let path = app_data.path().join("settings.json");
+    std::fs::write(
+        &path,
+        br#"{
+            "schema_version": 1,
+            "capabilities": {"translation": {"primary_provider": null}},
+            "services": {"niutrans": {"app_id": "app", "api_key": "key"}}
+        }"#,
+    )
+    .unwrap();
+
+    let settings = load(&path).unwrap();
+
+    assert!(settings.capabilities.translation.primary_provider.is_none());
+}
+
+#[test]
+fn rejects_duplicate_translation_route_entries() {
+    let app_data = TempDir::new().unwrap();
+    let path = app_data.path().join("settings.json");
+    let niutrans = bkmrx_lib::providers::ProviderId::new("niutrans").unwrap();
+    let settings = Settings {
+        capabilities: bkmrx_lib::settings::CapabilitySettings {
+            translation: bkmrx_lib::settings::ProviderRouteSettings {
+                primary_provider: Some(niutrans.clone()),
+                fallback_providers: vec![niutrans],
+            },
+        },
+        ..Settings::default()
+    };
+
+    let error = save(&path, &settings).unwrap_err();
+
+    assert_eq!(error.code(), "settings_invalid_provider_route");
+}
+
+#[test]
+fn saves_niutrans_credentials_under_providers() {
     let app_data = TempDir::new().unwrap();
     let path = app_data.path().join("settings.json");
     let settings = Settings {
-        services: bkmrx_lib::settings::ServiceSettings {
+        providers: bkmrx_lib::settings::ProviderSettings {
             niutrans: bkmrx_lib::settings::NiuTransSettings {
                 app_id: Some("app-id".into()),
                 api_key: Some("api-key".into()),
             },
-            ..Default::default()
         },
         ..Settings::default()
     };
@@ -99,8 +165,9 @@ fn saves_niutrans_credentials_under_services() {
     save(&path, &settings).unwrap();
 
     let json: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-    assert_eq!(json["services"]["niutrans"]["app_id"], "app-id");
-    assert_eq!(json["services"]["niutrans"]["api_key"], "api-key");
+    assert_eq!(json["providers"]["niutrans"]["app_id"], "app-id");
+    assert_eq!(json["providers"]["niutrans"]["api_key"], "api-key");
+    assert!(json["services"].get("niutrans").is_none());
 }
 
 #[test]
@@ -108,6 +175,7 @@ fn saves_only_the_new_grouped_structure() {
     let app_data = TempDir::new().unwrap();
     let path = app_data.path().join("settings.json");
     let settings = Settings {
+        schema_version: bkmrx_lib::settings::SETTINGS_SCHEMA_VERSION,
         common: bkmrx_lib::settings::CommonSettings {
             paths: bkmrx_lib::settings::PathSettings {
                 bookmark_export_dir: Some("/tmp/bookmarks".into()),
@@ -120,8 +188,9 @@ fn saves_only_the_new_grouped_structure() {
                 base_url: Some("https://rss.example.com".into()),
                 access_key: Some("secret".into()),
             },
-            ..Default::default()
         },
+        capabilities: Default::default(),
+        providers: Default::default(),
     };
 
     save(&path, &settings).unwrap();

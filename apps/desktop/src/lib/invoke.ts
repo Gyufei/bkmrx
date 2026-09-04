@@ -155,6 +155,7 @@ export function invokeGetServerStatus(): Promise<{ running: boolean; url: string
 /* ───── Settings ───── */
 
 export interface AppSettings {
+  schema_version: number;
   common: {
     paths: {
       bookmark_export_dir: string | null;
@@ -162,16 +163,35 @@ export interface AppSettings {
       notes_dir: string | null;
     };
   };
-  services: {
-    rsshub: {
-      base_url: string | null;
-      access_key: string | null;
+  capabilities: {
+    translation: {
+      primary_provider: string | null;
+      fallback_providers: string[];
     };
+  };
+  providers: {
     niutrans: {
       app_id: string | null;
       api_key: string | null;
     };
   };
+  services: {
+    rsshub: {
+      base_url: string | null;
+      access_key: string | null;
+    };
+  };
+}
+
+export interface ProviderStatus {
+  descriptor: {
+    id: string;
+    capability: 'translation' | 'ai';
+    display_name: string;
+    description: string;
+  };
+  configured: boolean;
+  activation: 'inactive' | 'primary' | { fallback: { priority: number } };
 }
 
 export function invokeGetSettings(): Promise<AppSettings> {
@@ -180,6 +200,23 @@ export function invokeGetSettings(): Promise<AppSettings> {
 
 export function invokeUpdateSettings(settings: AppSettings): Promise<void> {
   return invoke('update_settings', { settings });
+}
+
+export function invokeListProviders(): Promise<ProviderStatus[]> {
+  return invoke<ProviderStatus[]>('list_providers');
+}
+
+export function invokeActivateProvider(
+  capability: ProviderStatus['descriptor']['capability'],
+  providerId: string,
+): Promise<void> {
+  return invoke('activate_provider', { capability, providerId });
+}
+
+export function invokeDeactivateProvider(
+  capability: ProviderStatus['descriptor']['capability'],
+): Promise<void> {
+  return invoke('deactivate_provider', { capability });
 }
 
 /* ───── System ───── */

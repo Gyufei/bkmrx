@@ -81,7 +81,7 @@ pub fn router_with_translation(
 
 pub async fn start_server(
     service: SharedBookmarkService,
-    settings_path: std::path::PathBuf,
+    translation: TranslationService,
     shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) {
     let operation = Operation::start();
@@ -114,7 +114,6 @@ pub async fn start_server(
         operation.id(),
         operation.elapsed_ms()
     );
-    let translation = TranslationService::from_settings_path(settings_path);
     if let Err(error) = axum::serve(listener, router_with_translation(service, translation))
         .with_graceful_shutdown(async {
             let _ = shutdown_rx.await;
@@ -296,17 +295,16 @@ async fn translate_handler(
     request: Result<Json<TranslationRequest>, JsonRejection>,
 ) -> Result<Json<crate::translation::Translation>, ApiError> {
     let Json(request) = request.map_err(ApiError::Json)?;
-    let provider = state.translation.provider_name();
     state
         .translation
-        .translate(request)
+        .translate_with_context(request)
         .await
         .map(Json)
-        .map_err(|error| {
+        .map_err(|failure| {
             ApiError::App(AppError::translation_error(
-                error.code(),
-                error.to_string(),
-                provider,
+                failure.error.code(),
+                failure.error.to_string(),
+                failure.provider.as_ref().map(|provider| provider.as_str()),
             ))
         })
 }
@@ -368,19 +366,48 @@ mod tests {
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
-    use super::router;
+    use futures_util::future::BoxFuture;
+
+    use super::{router, router_with_translation};
     use crate::{
-        bookmarks::{BookmarkService, SqliteBookmarkRepository, SqliteFtsSearch},
+        bookmarks::{
+            BookmarkService, SharedBookmarkService, SqliteBookmarkRepository, SqliteFtsSearch,
+        },
         database::Database,
+        providers::ProviderId,
+        translation::{
+            ActiveTranslationProvider, Translation, TranslationError, TranslationProvider,
+            TranslationRequest, TranslationRoute, TranslationRuntime, TranslationService,
+        },
     };
 
-    fn test_router() -> axum::Router {
+    struct FailingTranslationProvider {
+        id: ProviderId,
+    }
+
+    impl TranslationProvider for FailingTranslationProvider {
+        fn id(&self) -> &ProviderId {
+            &self.id
+        }
+
+        fn translate<'a>(
+            &'a self,
+            _request: &'a TranslationRequest,
+        ) -> BoxFuture<'a, Result<Translation, TranslationError>> {
+            Box::pin(async { Err(TranslationError::ProviderRequest) })
+        }
+    }
+
+    fn test_bookmark_service() -> SharedBookmarkService {
         let database = Arc::new(Database::open_in_memory().expect("open test database"));
-        let service = Arc::new(BookmarkService::new(
+        Arc::new(BookmarkService::new(
             SqliteBookmarkRepository::new(Arc::clone(&database)),
             SqliteFtsSearch::new(database),
-        ));
-        router(service)
+        ))
+    }
+
+    fn test_router() -> axum::Router {
+        router(test_bookmark_service())
     }
 
     #[tokio::test]
@@ -469,6 +496,37 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["error"]["code"], "translation_unavailable");
+    }
+
+    #[tokio::test]
+    async fn translation_provider_errors_include_the_executed_provider() {
+        let runtime = Arc::new(TranslationRuntime::default());
+        let id = ProviderId::new("test-provider").unwrap();
+        runtime.publish(TranslationRoute {
+            primary: ActiveTranslationProvider {
+                id: id.clone(),
+                provider: Arc::new(FailingTranslationProvider { id }),
+            },
+            fallbacks: Vec::new(),
+        });
+        let response =
+            router_with_translation(test_bookmark_service(), TranslationService::new(runtime))
+                .oneshot(
+                    Request::builder()
+                        .method(Method::POST)
+                        .uri("/api/translations")
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .body(Body::from(r#"{"text":"Hello"}"#))
+                        .expect("build request"),
+                )
+                .await
+                .expect("serve request");
+
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["error"]["code"], "translation_failed");
+        assert_eq!(json["error"]["details"]["provider"], "test-provider");
     }
 
     #[tokio::test]

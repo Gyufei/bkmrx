@@ -6,7 +6,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import AboutSettings from './sections/AboutSettings';
 import GeneralSettings from './sections/GeneralSettings';
 import ServicesSettings from './sections/ServicesSettings';
-import { getSettingsApi, SettingsQueryApiKey } from './settings.api';
+import { getSettingsApi, listProvidersApi, SettingsQueryApiKey } from './settings.api';
 import SettingsTabs, { type SettingsTab } from './SettingsTabs';
 
 function SettingsPage() {
@@ -15,6 +15,10 @@ function SettingsPage() {
   const { data: settings } = useQuery({
     queryKey: [SettingsQueryApiKey.SETTINGS],
     queryFn: getSettingsApi,
+  });
+  const { data: providers = [] } = useQuery({
+    queryKey: [SettingsQueryApiKey.PROVIDERS],
+    queryFn: listProvidersApi,
   });
 
   const setTabDirty = useCallback((tab: SettingsTab, dirty: boolean) => {
@@ -43,7 +47,11 @@ function SettingsPage() {
             <GeneralSettings settings={settings} onDirtyChange={setGeneralDirty} />
           </TabsContent>
           <TabsContent value="services" keepMounted className="data-inactive:hidden">
-            <ServicesSettings settings={settings} onDirtyChange={setServicesDirty} />
+            <ServicesSettings
+              settings={settings}
+              providers={providers}
+              onDirtyChange={setServicesDirty}
+            />
           </TabsContent>
           <TabsContent value="about" keepMounted className="data-inactive:hidden">
             <AboutSettings active={activeTab === 'about'} />
