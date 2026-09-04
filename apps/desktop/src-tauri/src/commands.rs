@@ -328,6 +328,14 @@ pub async fn delete_note(
 }
 
 #[tauri::command]
+pub async fn delete_note_folder(
+    service: State<'_, SharedNoteService>,
+    path: String,
+) -> crate::error::AppResult<()> {
+    service.delete_folder(&path)
+}
+
+#[tauri::command]
 pub async fn rename_note(
     service: State<'_, SharedNoteService>,
     old_path: String,

@@ -68,6 +68,22 @@ impl NoteService {
         repository::delete(&path.to_string_lossy()).map_err(note_io_error)
     }
 
+    pub fn delete_folder(&self, path: &str) -> AppResult<()> {
+        let path = self.authorize_existing(path)?;
+        let root = self
+            .root
+            .lock()
+            .map_err(|_| root_lock_error())?
+            .clone()
+            .ok_or_else(|| {
+                AppError::note_error("notes_root_unset", "Scan a notes directory first")
+            })?;
+        if path == root || !path.is_dir() {
+            return Err(path_outside_root());
+        }
+        repository::delete_folder(&path.to_string_lossy()).map_err(note_io_error)
+    }
+
     pub fn rename(&self, old_path: &str, new_path: &str) -> AppResult<()> {
         let old_path = self.authorize_existing(old_path)?;
         let new_path = Path::new(new_path);

@@ -10,8 +10,10 @@ import NoteNameDialog from './NoteNameDialog';
 import NotesList from './NotesList';
 import NotesSidebar from './NotesSidebar';
 import { useNotesWorkspace } from './use-notes-workspace';
+import { joinDirectoryAndFilename } from '@/lib/path';
 
 type NameDialogState = { mode: 'create' } | { mode: 'rename'; note: NoteFile };
+type DeletingFolder = { path: string; name: string };
 
 const SELECTED_FOLDER_STORAGE_PREFIX = 'bkmrx:notes:selected-folder:';
 
@@ -42,7 +44,8 @@ export default function NotesPanel() {
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
   const [deletingNote, setDeletingNote] = useState<NoteFile | null>(null);
-  const { notesDir, notes, loading, error, createNote, deleteNote, renameNote } =
+  const [deletingFolder, setDeletingFolder] = useState<DeletingFolder | null>(null);
+  const { notesDir, notes, loading, error, createNote, deleteNote, deleteFolder, renameNote } =
     useNotesWorkspace();
 
   useEffect(() => {
@@ -124,6 +127,10 @@ export default function NotesPanel() {
             writeSelectedFolder(notesDir, path);
             setSelectedFilePath(null);
           }}
+          onDeleteFolder={(folder) => {
+            deleteFolder.reset();
+            setDeletingFolder(folder);
+          }}
         />
         <NotesList
           notes={notes}
@@ -178,6 +185,26 @@ export default function NotesPanel() {
             onSuccess: (_, deletedPath) => {
               setSelectedFilePath((current) => (current === deletedPath ? null : current));
               setDeletingNote(null);
+            },
+          });
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={deletingFolder !== null}
+        title={`删除文件夹“${deletingFolder?.name}”？`}
+        description="文件夹及其中所有内容将被删除，此操作不可撤销。"
+        pending={deleteFolder.isPending}
+        error={deleteFolder.error}
+        onOpenChange={(open) => !open && setDeletingFolder(null)}
+        onConfirm={() => {
+          if (!deletingFolder) return;
+          deleteFolder.mutate(joinDirectoryAndFilename(notesDir, deletingFolder.path), {
+            onSuccess: () => {
+              setSelectedFolder(null);
+              writeSelectedFolder(notesDir, null);
+              setSelectedFilePath(null);
+              setDeletingFolder(null);
             },
           });
         }}

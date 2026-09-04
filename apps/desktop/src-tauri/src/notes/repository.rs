@@ -52,6 +52,10 @@ pub fn delete(path: &str) -> io::Result<()> {
     fs::remove_file(path)
 }
 
+pub fn delete_folder(path: &str) -> io::Result<()> {
+    fs::remove_dir_all(path)
+}
+
 pub fn rename(old_path: &str, new_path: &str) -> io::Result<()> {
     if Path::new(new_path).exists() {
         return Err(io::Error::new(io::ErrorKind::AlreadyExists, "文件已存在"));

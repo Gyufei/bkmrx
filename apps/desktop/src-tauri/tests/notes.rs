@@ -20,6 +20,28 @@ fn service_round_trips_note_file_operations() {
 }
 
 #[test]
+fn service_deletes_nested_note_folder_but_not_notes_root() {
+    let temp = TempDir::new().unwrap();
+    let nested = temp.path().join("nested");
+    std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(nested.join("note.md"), "# note\n").unwrap();
+    let service = NoteService::without_events();
+    service.scan(temp.path().to_str().unwrap()).unwrap();
+
+    service.delete_folder(nested.to_str().unwrap()).unwrap();
+
+    assert!(!nested.exists());
+    assert_eq!(
+        service
+            .delete_folder(temp.path().to_str().unwrap())
+            .unwrap_err()
+            .code(),
+        "note_path_outside_root"
+    );
+    assert!(temp.path().exists());
+}
+
+#[test]
 fn scan_returns_nested_markdown_in_title_order() {
     let temp = TempDir::new().unwrap();
     let nested = temp.path().join("nested");

@@ -218,6 +218,10 @@ export function invokeDeleteNote(path: string): Promise<void> {
   return invoke('delete_note', { path });
 }
 
+export function invokeDeleteNoteFolder(path: string): Promise<void> {
+  return invoke('delete_note_folder', { path });
+}
+
 export function invokeRenameNote(oldPath: string, newPath: string): Promise<void> {
   return invoke('rename_note', { oldPath, newPath });
 }

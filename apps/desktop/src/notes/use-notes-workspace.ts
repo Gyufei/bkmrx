@@ -5,6 +5,7 @@ import { getSettingsApi, SettingsQueryApiKey } from '@/settings/settings.api';
 import type { NoteFile } from '../types';
 import {
   createNoteApi,
+  deleteNoteFolderApi,
   deleteNoteFileApi,
   NotesQueryApiKey,
   renameNoteFileApi,
@@ -57,6 +58,10 @@ export function useNotesWorkspace() {
     mutationFn: (path: string) => deleteNoteFileApi(path),
     onSuccess: invalidateNotes,
   });
+  const deleteFolder = useMutation({
+    mutationFn: (path: string) => deleteNoteFolderApi(path),
+    onSuccess: invalidateNotes,
+  });
   const renameNote = useMutation({
     mutationFn: (input: Parameters<typeof renameNoteFileApi>[0]) => renameNoteFileApi(input),
     onSuccess: invalidateNotes,
@@ -69,6 +74,7 @@ export function useNotesWorkspace() {
     error: notesQuery.error,
     createNote,
     deleteNote,
+    deleteFolder,
     renameNote,
   };
 }

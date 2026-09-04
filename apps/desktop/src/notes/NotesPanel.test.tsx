@@ -8,6 +8,7 @@ import NotesPanel from './NotesPanel';
 
 const renameNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFileApi = vi.hoisted(() => vi.fn());
+const deleteNoteFolderApi = vi.hoisted(() => vi.fn());
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn().mockResolvedValue(() => undefined),
@@ -48,6 +49,7 @@ vi.mock('./notes.api', () => ({
   ]),
   createNoteApi: vi.fn(),
   deleteNoteFileApi,
+  deleteNoteFolderApi,
   renameNoteFileApi,
 }));
 
@@ -175,6 +177,35 @@ it('requires confirmation before deleting a note', async () => {
 
   await waitFor(() => expect(deleteNoteFileApi).toHaveBeenCalledOnce());
   expect(deleteNoteFileApi).toHaveBeenCalledWith('/notes/first.md');
+});
+
+it('requires confirmation before deleting a folder', async () => {
+  deleteNoteFolderApi.mockResolvedValue(undefined);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  const folder = await screen.findByRole('button', { name: '资料' });
+
+  fireEvent.contextMenu(folder);
+  fireEvent.click(await screen.findByText('删除文件夹'));
+
+  expect(deleteNoteFolderApi).not.toHaveBeenCalled();
+  expect(await screen.findByText('删除文件夹“资料”？')).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: '取消' }));
+  expect(deleteNoteFolderApi).not.toHaveBeenCalled();
+
+  fireEvent.contextMenu(folder);
+  fireEvent.click(await screen.findByText('删除文件夹'));
+  fireEvent.click(screen.getByRole('button', { name: '删除' }));
+
+  await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledOnce());
+  expect(deleteNoteFolderApi).toHaveBeenCalledWith('/notes/资料');
 });
 
 it('clears a previous deletion error before opening another note', async () => {

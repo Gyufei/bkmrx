@@ -1,10 +1,11 @@
-import { Copy } from 'lucide-react';
+import { Copy, Trash2 } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import {
   ContextMenu,
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
 } from '@/components/ui/context-menu';
 
 export interface FolderNode {
@@ -18,6 +19,7 @@ interface Props {
   tree: FolderNode[];
   selectedPath: string | null;
   onSelect: (path: string | null) => void;
+  onDelete: (folder: Pick<FolderNode, 'path' | 'name'>) => void;
 }
 
 function FolderTreeItem({
@@ -26,12 +28,14 @@ function FolderTreeItem({
   selectedPath,
   onSelect,
   onToggle,
+  onDelete,
 }: {
   node: FolderNode;
   depth: number;
   selectedPath: string | null;
   onSelect: (path: string | null) => void;
   onToggle: (path: string) => void;
+  onDelete: (folder: Pick<FolderNode, 'path' | 'name'>) => void;
 }) {
   const isSelected = selectedPath === node.path;
   const hasChildren = node.children.length > 0;
@@ -96,6 +100,11 @@ function FolderTreeItem({
             <Copy className="h-4 w-4" />
             <span>复制路径</span>
           </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem variant="destructive" onClick={() => onDelete(node)}>
+            <Trash2 className="h-4 w-4" />
+            <span className="text-destructive">删除</span>
+          </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
       {hasChildren && node.isExpanded && (
@@ -108,6 +117,7 @@ function FolderTreeItem({
               selectedPath={selectedPath}
               onSelect={onSelect}
               onToggle={onToggle}
+              onDelete={onDelete}
             />
           ))}
         </div>
@@ -116,7 +126,7 @@ function FolderTreeItem({
   );
 }
 
-export default function FolderTree({ tree, selectedPath, onSelect }: Props) {
+export default function FolderTree({ tree, selectedPath, onSelect, onDelete }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     // Expand first level by default
     const init = new Set<string>();
@@ -157,6 +167,7 @@ export default function FolderTree({ tree, selectedPath, onSelect }: Props) {
             selectedPath={selectedPath}
             onSelect={(p) => onSelect(p)}
             onToggle={handleToggle}
+            onDelete={onDelete}
           />
         ))
       )}

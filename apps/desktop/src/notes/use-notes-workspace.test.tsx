@@ -13,6 +13,7 @@ const eventHandlers = vi.hoisted(
 );
 const createNoteApi = vi.hoisted(() => vi.fn());
 const deleteNoteFileApi = vi.hoisted(() => vi.fn());
+const deleteNoteFolderApi = vi.hoisted(() => vi.fn());
 const renameNoteFileApi = vi.hoisted(() => vi.fn());
 const scanNotesDirectoryApi = vi.hoisted(() => vi.fn());
 
@@ -31,6 +32,7 @@ vi.mock('./notes.api', () => ({
   scanNotesDirectoryApi,
   createNoteApi,
   deleteNoteFileApi,
+  deleteNoteFolderApi,
   renameNoteFileApi,
 }));
 
@@ -76,6 +78,7 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
   createNoteApi.mockResolvedValue('/notes/new.md');
   renameNoteFileApi.mockResolvedValue(undefined);
   deleteNoteFileApi.mockResolvedValue(undefined);
+  deleteNoteFolderApi.mockResolvedValue(undefined);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { result } = renderHook(() => useNotesWorkspace(), {
     wrapper: createWrapper(queryClient),
@@ -100,4 +103,7 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
 
   act(() => result.current.deleteNote.mutate('/notes/first.md'));
   await waitFor(() => expect(deleteNoteFileApi).toHaveBeenCalledWith('/notes/first.md'));
+
+  act(() => result.current.deleteFolder.mutate('/notes/folder'));
+  await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledWith('/notes/folder'));
 });

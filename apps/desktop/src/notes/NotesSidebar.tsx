@@ -9,9 +9,15 @@ interface NotesSidebarProps {
   notes: NoteFile[];
   selectedFolder: string | null;
   onSelectFolder: (path: string | null) => void;
+  onDeleteFolder: (folder: { path: string; name: string }) => void;
 }
 
-export default function NotesSidebar({ notes, selectedFolder, onSelectFolder }: NotesSidebarProps) {
+export default function NotesSidebar({
+  notes,
+  selectedFolder,
+  onSelectFolder,
+  onDeleteFolder,
+}: NotesSidebarProps) {
   const folderTree = useMemo(() => buildFolderTree(notes), [notes]);
 
   return (
@@ -20,7 +26,12 @@ export default function NotesSidebar({ notes, selectedFolder, onSelectFolder }: 
       className="w-48"
       contentClassName="flex flex-col px-2 pb-2"
     >
-      <FolderTree tree={folderTree} selectedPath={selectedFolder} onSelect={onSelectFolder} />
+      <FolderTree
+        tree={folderTree}
+        selectedPath={selectedFolder}
+        onSelect={onSelectFolder}
+        onDelete={onDeleteFolder}
+      />
     </CollapsibleSidebar>
   );
 }
