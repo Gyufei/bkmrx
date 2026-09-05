@@ -49,7 +49,10 @@ pub struct SettingsStore {
 
 impl SettingsStore {
     pub fn open(path: PathBuf, providers: Arc<TranslationProviderManager>) -> SettingsOpen {
-        let (settings, warning, recovery) = match persistence::load(&path) {
+        let (settings, warning, recovery) = match persistence::load(&path).and_then(|settings| {
+            persistence::validate(&settings)?;
+            Ok(settings)
+        }) {
             Ok(settings) => match providers.prepare(&settings) {
                 Ok(prepared) => {
                     providers.commit(prepared);
@@ -306,6 +309,32 @@ mod tests {
 
         assert!(opened.warning.is_some());
         assert_eq!(std::fs::read(&path).unwrap(), b"{");
+
+        let snapshot = opened.store.replace(1, Settings::default()).unwrap();
+
+        assert_eq!(snapshot.revision, 2);
+        assert_eq!(
+            crate::settings::persistence::load(&path).unwrap(),
+            Settings::default()
+        );
+    }
+
+    #[test]
+    fn unsupported_schema_starts_in_recovery_and_can_be_repaired() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("settings.json");
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value["schema_version"] = serde_json::json!(2);
+        let original = serde_json::to_vec_pretty(&value).unwrap();
+        std::fs::write(&path, &original).unwrap();
+
+        let opened = SettingsStore::open(path.clone(), provider_manager());
+
+        assert_eq!(
+            opened.warning.as_ref().map(|warning| warning.code.as_str()),
+            Some("settings_unsupported_version")
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), original);
 
         let snapshot = opened.store.replace(1, Settings::default()).unwrap();
 

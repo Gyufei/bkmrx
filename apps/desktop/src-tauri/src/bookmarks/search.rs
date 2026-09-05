@@ -86,15 +86,10 @@ impl SqliteFtsSearch {
 
     fn search_random(&self, connection: &Connection, limit: u32) -> AppResult<SearchPage> {
         validate_page_size(limit)?;
-        let mut statement = connection
-            .prepare("SELECT id FROM bookmarks ORDER BY RANDOM() LIMIT ?")
-            .map_err(database_error)?;
-        let rows = statement
-            .query_map(params![limit], |row| row.get::<_, i64>(0))
-            .map_err(database_error)?;
-        let bookmark_ids = rows
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(database_error)?;
+        let mut statement =
+            connection.prepare("SELECT id FROM bookmarks ORDER BY RANDOM() LIMIT ?")?;
+        let rows = statement.query_map(params![limit], |row| row.get::<_, i64>(0))?;
+        let bookmark_ids = rows.collect::<Result<Vec<_>, _>>()?;
         Ok(SearchPage {
             bookmark_ids,
             next_cursor: None,
@@ -123,15 +118,11 @@ impl SqliteFtsSearch {
         sql.push_str(" ORDER BY starred_at DESC, id DESC LIMIT ?");
         values.push(Value::Integer(i64::from(page_size) + 1));
 
-        let mut statement = connection.prepare(&sql).map_err(database_error)?;
-        let rows = statement
-            .query_map(params_from_iter(values.iter()), |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
-            })
-            .map_err(database_error)?;
-        let mut hits = rows
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(database_error)?;
+        let mut statement = connection.prepare(&sql)?;
+        let rows = statement.query_map(params_from_iter(values.iter()), |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
+        })?;
+        let mut hits = rows.collect::<Result<Vec<_>, _>>()?;
         let has_more = hits.len() > page_size as usize;
         hits.truncate(page_size as usize);
         let next_cursor = if has_more {
@@ -183,15 +174,11 @@ impl SqliteFtsSearch {
         sql.push_str(" ORDER BY b.updated_at DESC, b.id DESC LIMIT ?");
         values.push(Value::Integer(i64::from(page_size) + 1));
 
-        let mut statement = connection.prepare(&sql).map_err(database_error)?;
-        let rows = statement
-            .query_map(params_from_iter(values.iter()), |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
-            })
-            .map_err(database_error)?;
-        let mut hits = rows
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(database_error)?;
+        let mut statement = connection.prepare(&sql)?;
+        let rows = statement.query_map(params_from_iter(values.iter()), |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
+        })?;
+        let mut hits = rows.collect::<Result<Vec<_>, _>>()?;
         let has_more = hits.len() > page_size as usize;
         hits.truncate(page_size as usize);
         let next_cursor = if has_more {
@@ -293,13 +280,10 @@ impl SqliteFtsSearch {
         offset: u64,
         query_hash: String,
     ) -> AppResult<SearchPage> {
-        let mut statement = connection.prepare(&sql).map_err(database_error)?;
-        let rows = statement
-            .query_map(params_from_iter(values.iter()), |row| row.get::<_, i64>(0))
-            .map_err(database_error)?;
-        let mut ids = rows
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(database_error)?;
+        let mut statement = connection.prepare(&sql)?;
+        let rows =
+            statement.query_map(params_from_iter(values.iter()), |row| row.get::<_, i64>(0))?;
+        let mut ids = rows.collect::<Result<Vec<_>, _>>()?;
         let has_more = ids.len() > page_size as usize;
         ids.truncate(page_size as usize);
         let next_cursor = if has_more {
@@ -415,8 +399,4 @@ fn validate_page_size(page_size: u32) -> AppResult<()> {
 
 fn fts_literal_phrase(query: &str) -> String {
     format!("\"{}\"", query.replace('"', "\"\""))
-}
-
-fn database_error(error: rusqlite::Error) -> AppError {
-    AppError::database_error(error.to_string())
 }

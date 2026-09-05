@@ -53,17 +53,13 @@ fn run_pending(
                 "database migration registry contains an invalid step",
             ));
         }
-        let transaction = connection
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(database_error)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if let Err(error) = (migration.apply)(&transaction) {
             log_migration_failure(operation, version, migration.to, &error);
             return Err(error);
         }
-        transaction
-            .pragma_update(None, "user_version", migration.to)
-            .map_err(database_error)?;
-        transaction.commit().map_err(database_error)?;
+        transaction.pragma_update(None, "user_version", migration.to)?;
+        transaction.commit()?;
         version = migration.to;
         log::info!(
             "database_migration_step_completed operation_id={} schema_version={}",
@@ -83,11 +79,7 @@ fn run_pending(
 fn schema_version(connection: &Connection) -> AppResult<i64> {
     connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
-        .map_err(database_error)
-}
-
-fn database_error(error: rusqlite::Error) -> AppError {
-    AppError::database_error(error.to_string())
+        .map_err(AppError::from)
 }
 
 fn log_migration_failure(operation: Operation, from: i64, to: i64, error: &AppError) {

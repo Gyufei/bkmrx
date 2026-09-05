@@ -1,7 +1,7 @@
 use std::path::Path;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::Mutex;
 
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction};
 
 use crate::error::{AppError, AppResult};
 use crate::logging::{sanitize_error, Operation};
@@ -53,23 +53,27 @@ impl Database {
     }
 
     pub fn schema_version(&self) -> AppResult<i64> {
-        self.connection()?
-            .query_row("PRAGMA user_version", [], |row| row.get(0))
-            .map_err(database_error)
+        self.read(|connection| {
+            connection
+                .query_row("PRAGMA user_version", [], |row| row.get(0))
+                .map_err(AppError::from)
+        })
     }
 
     pub fn has_table(&self, table: &str) -> AppResult<bool> {
-        self.connection()?
-            .query_row(
-                "SELECT EXISTS(
+        self.read(|connection| {
+            connection
+                .query_row(
+                    "SELECT EXISTS(
                     SELECT 1
                     FROM sqlite_master
                     WHERE type IN ('table', 'view') AND name = ?1
                 )",
-                [table],
-                |row| row.get(0),
-            )
-            .map_err(database_error)
+                    [table],
+                    |row| row.get(0),
+                )
+                .map_err(AppError::from)
+        })
     }
 
     pub fn assert_fts5_trigram(&self) -> AppResult<()> {
@@ -78,16 +82,16 @@ impl Database {
             "database_capability_check_started operation_id={} capability=fts5_trigram",
             operation.id()
         );
-        let connection = self.connection()?;
-        connection
+        self.write(|transaction| {
+        transaction
             .execute(
                 "INSERT INTO bookmarks_fts(rowid, url, title, description, tags)
                  VALUES (9223372036854775807, '', '中文分词验证', '', '')",
                 [],
             )
-            .map_err(database_error)?;
+            ?;
 
-        let matched: bool = connection
+        let matched: bool = transaction
             .query_row(
                 "SELECT EXISTS(
                     SELECT 1 FROM bookmarks_fts
@@ -97,14 +101,14 @@ impl Database {
                 [],
                 |row| row.get(0),
             )
-            .map_err(database_error)?;
+            ?;
 
-        connection
+        transaction
             .execute(
                 "DELETE FROM bookmarks_fts WHERE rowid = 9223372036854775807",
                 [],
             )
-            .map_err(database_error)?;
+            ?;
 
         if !matched {
             let error = AppError::database_error(
@@ -119,6 +123,7 @@ impl Database {
             operation.elapsed_ms()
         );
         Ok(())
+        })
     }
 
     fn initialize(mut connection: Connection) -> AppResult<Self> {
@@ -139,19 +144,71 @@ impl Database {
 
     #[doc(hidden)]
     pub fn execute_batch_for_test(&self, sql: &str) -> AppResult<()> {
-        self.connection()?
+        self.lock_connection()?
             .execute_batch(sql)
-            .map_err(database_error)
+            .map_err(AppError::from)
     }
 
     #[doc(hidden)]
     pub fn query_i64_for_test(&self, sql: &str) -> AppResult<i64> {
-        self.connection()?
-            .query_row(sql, [], |row| row.get(0))
-            .map_err(database_error)
+        self.read(|connection| {
+            connection
+                .query_row(sql, [], |row| row.get(0))
+                .map_err(AppError::from)
+        })
     }
 
-    pub(crate) fn connection(&self) -> AppResult<MutexGuard<'_, Connection>> {
+    pub(crate) fn read<T>(
+        &self,
+        operation: impl FnOnce(&Connection) -> AppResult<T>,
+    ) -> AppResult<T> {
+        let mut connection = self.lock_connection()?;
+        let transaction = connection.transaction()?;
+        let result = operation(&transaction);
+        match result {
+            Ok(value) => {
+                transaction.rollback()?;
+                Ok(value)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    pub(crate) fn snapshot<T>(
+        &self,
+        operation: impl FnOnce(&Transaction<'_>) -> AppResult<T>,
+    ) -> AppResult<T> {
+        let mut connection = self.lock_connection()?;
+        let transaction = connection.transaction()?;
+        let result = operation(&transaction);
+        match result {
+            Ok(value) => {
+                transaction.rollback()?;
+                Ok(value)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    pub(crate) fn write<T>(
+        &self,
+        operation: impl FnOnce(&Transaction<'_>) -> AppResult<T>,
+    ) -> AppResult<T> {
+        self.in_transaction(operation)
+    }
+
+    fn in_transaction<T>(
+        &self,
+        operation: impl FnOnce(&Transaction<'_>) -> AppResult<T>,
+    ) -> AppResult<T> {
+        let mut connection = self.lock_connection()?;
+        let transaction = connection.transaction()?;
+        let result = operation(&transaction)?;
+        transaction.commit()?;
+        Ok(result)
+    }
+
+    fn lock_connection(&self) -> AppResult<std::sync::MutexGuard<'_, Connection>> {
         self.connection
             .lock()
             .map_err(|_| AppError::internal_error("database lock is poisoned"))
@@ -160,6 +217,12 @@ impl Database {
 
 fn database_error(error: rusqlite::Error) -> AppError {
     AppError::database_error(error.to_string())
+}
+
+impl From<rusqlite::Error> for AppError {
+    fn from(error: rusqlite::Error) -> Self {
+        database_error(error)
+    }
 }
 
 fn log_database_failure(action: &str, operation: Operation, error: &AppError) {
@@ -171,4 +234,153 @@ fn log_database_failure(action: &str, operation: Operation, error: &AppError) {
         operation.elapsed_ms(),
         sanitize_error(&error.to_string())
     );
+}
+
+#[cfg(test)]
+mod interface_tests {
+    use super::Database;
+    use crate::error::{AppError, AppResult};
+
+    #[test]
+    fn read_returns_values_and_maps_sqlite_errors() {
+        let database = Database::open_in_memory().unwrap();
+
+        assert_eq!(
+            database
+                .read(|connection| {
+                    connection
+                        .query_row("SELECT 42", [], |row| row.get::<_, i64>(0))
+                        .map_err(AppError::from)
+                })
+                .unwrap(),
+            42
+        );
+        assert_eq!(
+            database
+                .read(|connection| {
+                    connection.execute("INVALID SQL", [])?;
+                    Ok(())
+                })
+                .unwrap_err()
+                .code(),
+            "database_error"
+        );
+    }
+
+    #[test]
+    fn write_commits_success_and_rolls_back_domain_errors() {
+        let database = Database::open_in_memory().unwrap();
+        database
+            .write(|transaction| {
+                transaction.execute("INSERT INTO tags(name) VALUES ('committed')", [])?;
+                Ok(())
+            })
+            .unwrap();
+
+        let error = database
+            .write(|transaction| {
+                transaction.execute("INSERT INTO tags(name) VALUES ('rolled-back')", [])?;
+                Err::<(), _>(AppError::validation_error("stop"))
+            })
+            .unwrap_err();
+
+        assert_eq!(error.code(), "validation_error");
+        assert_eq!(
+            database
+                .read(|connection| {
+                    connection
+                        .query_row("SELECT count(*) FROM tags", [], |row| row.get::<_, i64>(0))
+                        .map_err(AppError::from)
+                })
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn snapshot_rolls_back_without_exposing_transaction_control() {
+        let database = Database::open_in_memory().unwrap();
+
+        let value = database
+            .snapshot(|transaction| {
+                transaction.execute("INSERT INTO tags(name) VALUES ('temporary')", [])?;
+                transaction
+                    .query_row("SELECT 7", [], |row| row.get::<_, i64>(0))
+                    .map_err(AppError::from)
+            })
+            .unwrap();
+
+        assert_eq!(value, 7);
+        assert_eq!(
+            database
+                .read(|connection| {
+                    connection
+                        .query_row("SELECT count(*) FROM tags", [], |row| row.get::<_, i64>(0))
+                        .map_err(AppError::from)
+                })
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn read_does_not_persist_accidental_writes() {
+        let database = Database::open_in_memory().unwrap();
+
+        database
+            .read(|connection| {
+                connection.execute("INSERT INTO tags(name) VALUES ('temporary')", [])?;
+                Ok(())
+            })
+            .unwrap();
+
+        assert_eq!(
+            database
+                .read(|connection| {
+                    connection
+                        .query_row("SELECT count(*) FROM tags", [], |row| row.get::<_, i64>(0))
+                        .map_err(AppError::from)
+                })
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn write_rolls_back_when_sql_execution_fails() {
+        let database = Database::open_in_memory().unwrap();
+
+        let error = database
+            .write(|transaction| {
+                transaction.execute("INSERT INTO tags(name) VALUES ('rolled-back')", [])?;
+                transaction.execute("INVALID SQL", [])?;
+                Ok(())
+            })
+            .unwrap_err();
+
+        assert_eq!(error.code(), "database_error");
+        assert_eq!(
+            database
+                .read(|connection| {
+                    connection
+                        .query_row("SELECT count(*) FROM tags", [], |row| row.get::<_, i64>(0))
+                        .map_err(AppError::from)
+                })
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn poisoned_connection_lock_returns_a_stable_error() {
+        let database = Database::open_in_memory().unwrap();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _: AppResult<()> = database.read(|_| panic!("poison database lock"));
+        }));
+
+        let error = database.read(|_| Ok(())).unwrap_err();
+
+        assert_eq!(error.code(), "internal_error");
+        assert_eq!(error.message, "database lock is poisoned");
+    }
 }

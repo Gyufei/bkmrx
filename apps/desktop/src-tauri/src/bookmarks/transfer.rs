@@ -31,8 +31,7 @@ pub(crate) fn export_bookmarks(database: &Database, destination: &Path) -> AppRe
 pub(crate) fn preview_import(database: &Database, path: &Path) -> AppResult<ImportPreview> {
     let bytes = fs::read(path).map_err(file_error)?;
     let validated = parse_and_validate(&bytes)?;
-    let connection = database.connection()?;
-    preview_validated(&connection, &validated, hash_bytes(&bytes))
+    database.read(|connection| preview_validated(connection, &validated, hash_bytes(&bytes)))
 }
 
 pub(crate) fn apply_import(
@@ -48,37 +47,34 @@ pub(crate) fn apply_import(
         ));
     }
     let validated = parse_and_validate(&bytes)?;
-    let mut connection = database.connection()?;
-    let transaction = connection.transaction().map_err(database_error)?;
-    let preview = preview_validated(&transaction, &validated, actual_hash)?;
+    database.write(|transaction| {
+        let preview = preview_validated(transaction, &validated, actual_hash)?;
 
-    for record in &validated.records {
-        let existing = transaction
-            .query_row(
-                "SELECT id, title, description, access_count,
+        for record in &validated.records {
+            let existing = transaction
+                .query_row(
+                    "SELECT id, title, description, access_count,
                         created_at, updated_at, accessed_at, starred_at
                  FROM bookmarks WHERE url = ?1",
-                [&record.url],
-                |row| {
-                    Ok(ExistingBookmark {
-                        id: row.get(0)?,
-                        title: row.get(1)?,
-                        description: row.get(2)?,
-                        access_count: row.get(3)?,
-                        created_at: row.get(4)?,
-                        updated_at: row.get(5)?,
-                        accessed_at: row.get(6)?,
-                        starred_at: row.get(7)?,
-                    })
-                },
-            )
-            .optional()
-            .map_err(database_error)?;
+                    [&record.url],
+                    |row| {
+                        Ok(ExistingBookmark {
+                            id: row.get(0)?,
+                            title: row.get(1)?,
+                            description: row.get(2)?,
+                            access_count: row.get(3)?,
+                            created_at: row.get(4)?,
+                            updated_at: row.get(5)?,
+                            accessed_at: row.get(6)?,
+                            starred_at: row.get(7)?,
+                        })
+                    },
+                )
+                .optional()?;
 
-        match existing {
-            None => {
-                transaction
-                    .execute(
+            match existing {
+                None => {
+                    transaction.execute(
                         "INSERT INTO bookmarks (
                             url, title, description, access_count,
                             created_at, updated_at, accessed_at, starred_at
@@ -93,39 +89,37 @@ pub(crate) fn apply_import(
                             record.accessed_at,
                             record.starred_at,
                         ],
-                    )
-                    .map_err(database_error)?;
-                let id = transaction.last_insert_rowid();
-                persist_searchable_content(
-                    &transaction,
-                    id,
-                    &record.url,
-                    &record.title,
-                    &record.description,
-                    &record.tags,
-                )?;
-            }
-            Some(existing) => {
-                let content_is_newer = record.updated_at > existing.updated_at;
-                let title = if content_is_newer {
-                    &record.title
-                } else {
-                    &existing.title
-                };
-                let description = if content_is_newer {
-                    &record.description
-                } else {
-                    &existing.description
-                };
-                let updated_at = existing.updated_at.max(record.updated_at);
-                let accessed_at = latest_optional(existing.accessed_at, record.accessed_at);
-                let starred_at = if content_is_newer {
-                    record.starred_at
-                } else {
-                    existing.starred_at
-                };
-                transaction
-                    .execute(
+                    )?;
+                    let id = transaction.last_insert_rowid();
+                    persist_searchable_content(
+                        transaction,
+                        id,
+                        &record.url,
+                        &record.title,
+                        &record.description,
+                        &record.tags,
+                    )?;
+                }
+                Some(existing) => {
+                    let content_is_newer = record.updated_at > existing.updated_at;
+                    let title = if content_is_newer {
+                        &record.title
+                    } else {
+                        &existing.title
+                    };
+                    let description = if content_is_newer {
+                        &record.description
+                    } else {
+                        &existing.description
+                    };
+                    let updated_at = existing.updated_at.max(record.updated_at);
+                    let accessed_at = latest_optional(existing.accessed_at, record.accessed_at);
+                    let starred_at = if content_is_newer {
+                        record.starred_at
+                    } else {
+                        existing.starred_at
+                    };
+                    transaction.execute(
                         "UPDATE bookmarks
                          SET title = ?1,
                              description = ?2,
@@ -145,39 +139,34 @@ pub(crate) fn apply_import(
                             starred_at,
                             existing.id,
                         ],
-                    )
-                    .map_err(database_error)?;
-                if content_is_newer {
-                    persist_searchable_content(
-                        &transaction,
-                        existing.id,
-                        &record.url,
-                        title,
-                        description,
-                        &record.tags,
                     )?;
+                    if content_is_newer {
+                        persist_searchable_content(
+                            transaction,
+                            existing.id,
+                            &record.url,
+                            title,
+                            description,
+                            &record.tags,
+                        )?;
+                    }
                 }
             }
         }
-    }
-    remove_unused_tags(&transaction)?;
-    transaction.commit().map_err(database_error)?;
-    Ok(preview)
+        remove_unused_tags(transaction)?;
+        Ok(preview)
+    })
 }
 
 fn snapshot(database: &Database) -> AppResult<BookmarkExportV1> {
-    let mut connection = database.connection()?;
-    let transaction = connection.transaction().map_err(database_error)?;
-    let mut statement = transaction
-        .prepare(
+    database.snapshot(|transaction| {
+        let mut statement = transaction.prepare(
             "SELECT id, url, title, description, access_count,
                     created_at, updated_at, accessed_at, starred_at
              FROM bookmarks
              ORDER BY url",
-        )
-        .map_err(database_error)?;
-    let rows = statement
-        .query_map([], |row| {
+        )?;
+        let rows = statement.query_map([], |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 BookmarkTransferRecord {
@@ -198,44 +187,38 @@ fn snapshot(database: &Database) -> AppResult<BookmarkExportV1> {
                         .transpose()?,
                 },
             ))
-        })
-        .map_err(database_error)?;
-    let mut records = Vec::new();
-    let mut positions = BTreeMap::new();
-    for row in rows {
-        let (id, record) = row.map_err(database_error)?;
-        positions.insert(id, records.len());
-        records.push(record);
-    }
-    drop(statement);
+        })?;
+        let mut records = Vec::new();
+        let mut positions = BTreeMap::new();
+        for row in rows {
+            let (id, record) = row?;
+            positions.insert(id, records.len());
+            records.push(record);
+        }
+        drop(statement);
 
-    let mut tag_statement = transaction
-        .prepare(
+        let mut tag_statement = transaction.prepare(
             "SELECT bt.bookmark_id, t.name
              FROM bookmark_tags bt
              JOIN tags t ON t.id = bt.tag_id
              ORDER BY bt.bookmark_id, t.name",
-        )
-        .map_err(database_error)?;
-    let tags = tag_statement
-        .query_map([], |row| {
+        )?;
+        let tags = tag_statement.query_map([], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-        })
-        .map_err(database_error)?;
-    for tag in tags {
-        let (bookmark_id, name) = tag.map_err(database_error)?;
-        if let Some(position) = positions.get(&bookmark_id) {
-            records[*position].tags.push(name);
+        })?;
+        for tag in tags {
+            let (bookmark_id, name) = tag?;
+            if let Some(position) = positions.get(&bookmark_id) {
+                records[*position].tags.push(name);
+            }
         }
-    }
-    drop(tag_statement);
-    transaction.commit().map_err(database_error)?;
-
-    Ok(BookmarkExportV1 {
-        format_version: 1,
-        exported_at: Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-        app_version: env!("CARGO_PKG_VERSION").to_owned(),
-        bookmarks: records,
+        drop(tag_statement);
+        Ok(BookmarkExportV1 {
+            format_version: 1,
+            exported_at: Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+            app_version: env!("CARGO_PKG_VERSION").to_owned(),
+            bookmarks: records,
+        })
     })
 }
 
@@ -322,17 +305,11 @@ fn preview_validated(
     export: &ValidatedExport,
     file_hash: String,
 ) -> AppResult<ImportPreview> {
-    let mut statement = connection
-        .prepare("SELECT url, updated_at FROM bookmarks")
-        .map_err(database_error)?;
-    let rows = statement
-        .query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-        })
-        .map_err(database_error)?;
-    let existing = rows
-        .collect::<Result<HashMap<_, _>, _>>()
-        .map_err(database_error)?;
+    let mut statement = connection.prepare("SELECT url, updated_at FROM bookmarks")?;
+    let rows = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+    })?;
+    let existing = rows.collect::<Result<HashMap<_, _>, _>>()?;
     let mut create_count = 0;
     let mut update_count = 0;
     let mut skip_count = 0;
@@ -417,8 +394,4 @@ fn record_error(index: usize, message: &str) -> AppError {
 
 fn file_error(error: std::io::Error) -> AppError {
     AppError::internal_error(error.to_string())
-}
-
-fn database_error(error: rusqlite::Error) -> AppError {
-    AppError::database_error(error.to_string())
 }

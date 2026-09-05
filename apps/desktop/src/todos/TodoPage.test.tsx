@@ -82,7 +82,11 @@ describe('TodoPage', () => {
     mocks.archiveDelete.mockResolvedValue(undefined);
     mocks.export.mockResolvedValue('/tmp/2026-08-24-待办-工作.md');
     mocks.save.mockResolvedValue(null);
-    mocks.settings.mockResolvedValue({ common: { paths: { todo_export_dir: null } } });
+    mocks.settings.mockResolvedValue({
+      revision: 1,
+      settings: { common: { paths: { todo_export_dir: null } } },
+      providers: [],
+    });
     mocks.listen.mockResolvedValue(() => {});
   });
 
@@ -267,7 +271,11 @@ describe('TodoPage', () => {
   });
 
   it('uses the configured Todo export directory as the save default', async () => {
-    mocks.settings.mockResolvedValue({ common: { paths: { todo_export_dir: '/tmp/todos' } } });
+    mocks.settings.mockResolvedValue({
+      revision: 1,
+      settings: { common: { paths: { todo_export_dir: '/tmp/todos' } } },
+      providers: [],
+    });
     renderPage();
     const tag = await screen.findByText('工作', { selector: 'span.truncate' });
     fireEvent.contextMenu(tag);

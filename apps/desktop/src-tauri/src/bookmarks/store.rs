@@ -53,14 +53,13 @@ impl BookmarkStore {
 
     pub fn query(&self, request: BookmarkPageRequest) -> AppResult<BookmarkPage> {
         observe_database("bookmarks", "query", || {
-            let mut connection = self.database.connection()?;
-            let transaction = connection.transaction().map_err(database_error)?;
-            let hits = self.search.search_with_connection(&transaction, &request)?;
-            let items = hydrate_ordered(&transaction, &hits.bookmark_ids)?;
-            transaction.commit().map_err(database_error)?;
-            Ok(BookmarkPage {
-                items,
-                next_cursor: hits.next_cursor,
+            self.database.snapshot(|transaction| {
+                let hits = self.search.search_with_connection(transaction, &request)?;
+                let items = hydrate_ordered(transaction, &hits.bookmark_ids)?;
+                Ok(BookmarkPage {
+                    items,
+                    next_cursor: hits.next_cursor,
+                })
             })
         })
     }
@@ -164,7 +163,3 @@ impl BookmarkStore {
 }
 
 pub type SharedBookmarkStore = Arc<BookmarkStore>;
-
-fn database_error(error: rusqlite::Error) -> AppError {
-    AppError::database_error(error.to_string())
-}

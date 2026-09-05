@@ -24,10 +24,9 @@ impl SqliteTodoRepository {
     }
 
     pub fn query(&self, request: &TodoQuery) -> AppResult<TodoList> {
-        let connection = self.database.connection()?;
-        let status = request.status.map(TodoStatus::as_str);
-        let mut statement = connection
-            .prepare(
+        self.database.read(|connection| {
+            let status = request.status.map(TodoStatus::as_str);
+            let mut statement = connection.prepare(
                 "SELECT DISTINCT t.id, t.title, t.description, t.status, t.is_high_priority,
                         t.created_at, t.updated_at, t.completed_at
                  FROM todos t
@@ -43,25 +42,21 @@ impl SqliteTodoRepository {
                         WHEN t.status = 'completed' THEN t.completed_at
                         ELSE t.updated_at END DESC,
                    t.id DESC",
-            )
-            .map_err(database_error)?;
-        let rows = statement
-            .query_map(params![status, request.tag_id], todo_from_row)
-            .map_err(database_error)?;
-        let mut items = Vec::new();
-        for row in rows {
-            items.push(row.map_err(database_error)?);
-        }
-        drop(statement);
-        let tags_by_todo = tags_for_todos(
-            &connection,
-            &items.iter().map(|todo| todo.id).collect::<Vec<_>>(),
-        )?;
-        for todo in &mut items {
-            todo.tags = tags_by_todo.get(&todo.id).cloned().unwrap_or_default();
-        }
-        let (total, completed) = connection
-            .query_row(
+            )?;
+            let rows = statement.query_map(params![status, request.tag_id], todo_from_row)?;
+            let mut items = Vec::new();
+            for row in rows {
+                items.push(row?);
+            }
+            drop(statement);
+            let tags_by_todo = tags_for_todos(
+                connection,
+                &items.iter().map(|todo| todo.id).collect::<Vec<_>>(),
+            )?;
+            for todo in &mut items {
+                todo.tags = tags_by_todo.get(&todo.id).cloned().unwrap_or_default();
+            }
+            let (total, completed) = connection.query_row(
                 "SELECT count(DISTINCT t.id),
                         count(DISTINCT CASE WHEN t.status = 'completed' THEN t.id END)
                  FROM todos t
@@ -69,12 +64,12 @@ impl SqliteTodoRepository {
                  WHERE (?1 IS NULL OR rel.tag_id = ?1)",
                 [request.tag_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .map_err(database_error)?;
-        Ok(TodoList {
-            items,
-            total,
-            completed,
+            )?;
+            Ok(TodoList {
+                items,
+                total,
+                completed,
+            })
         })
     }
 
@@ -82,19 +77,18 @@ impl SqliteTodoRepository {
         let title = normalize_title(&input.title)?;
         let tags = normalize_tags(input.tags)?;
         let now = Utc::now().timestamp_millis();
-        let mut connection = self.database.connection()?;
-        let transaction = connection.transaction().map_err(database_error)?;
+        let id = self.database.write(|transaction| {
         transaction
             .execute(
                 "INSERT INTO todos (title, description, status, is_high_priority, created_at, updated_at)
                  VALUES (?1, ?2, 'in_progress', ?3, ?4, ?4)",
                 params![title, input.description, input.is_high_priority, now],
             )
-            .map_err(database_error)?;
+            ?;
         let id = transaction.last_insert_rowid();
-        replace_tags(&transaction, id, &tags)?;
-        transaction.commit().map_err(database_error)?;
-        drop(connection);
+        replace_tags(transaction, id, &tags)?;
+        Ok(id)
+        })?;
         self.get(id)?
             .ok_or_else(|| AppError::internal_error("created todo could not be reloaded"))
     }
@@ -103,35 +97,31 @@ impl SqliteTodoRepository {
         let title = normalize_title(&input.title)?;
         let tags = normalize_tags(input.tags)?;
         let now = Utc::now().timestamp_millis();
-        let mut connection = self.database.connection()?;
-        let transaction = connection.transaction().map_err(database_error)?;
-        let updated = transaction
-            .execute(
+        self.database.write(|transaction| {
+            let updated = transaction.execute(
                 "UPDATE todos SET title = ?1, description = ?2, is_high_priority = ?3,
                     updated_at = ?4 WHERE id = ?5",
                 params![title, input.description, input.is_high_priority, now, id],
-            )
-            .map_err(database_error)?;
-        if updated == 0 {
-            return Err(AppError::todo_not_found(id));
-        }
-        replace_tags(&transaction, id, &tags)?;
-        transaction.commit().map_err(database_error)?;
-        drop(connection);
+            )?;
+            if updated == 0 {
+                return Err(AppError::todo_not_found(id));
+            }
+            replace_tags(transaction, id, &tags)?;
+            Ok(())
+        })?;
         self.get(id)?.ok_or_else(|| AppError::todo_not_found(id))
     }
 
     pub fn set_status(&self, id: i64, status: TodoStatus) -> AppResult<Todo> {
         let now = Utc::now().timestamp_millis();
         let completed_at = (status == TodoStatus::Completed).then_some(now);
-        let updated = self
-            .database
-            .connection()?
-            .execute(
+        let updated = self.database.write(|transaction| {
+            transaction.execute(
                 "UPDATE todos SET status = ?1, updated_at = ?2, completed_at = ?3 WHERE id = ?4",
                 params![status.as_str(), now, completed_at, id],
             )
-            .map_err(database_error)?;
+            .map_err(AppError::from)
+        })?;
         if updated == 0 {
             return Err(AppError::todo_not_found(id));
         }
@@ -139,11 +129,11 @@ impl SqliteTodoRepository {
     }
 
     pub fn delete(&self, id: i64) -> AppResult<()> {
-        let deleted = self
-            .database
-            .connection()?
-            .execute("DELETE FROM todos WHERE id = ?1", [id])
-            .map_err(database_error)?;
+        let deleted = self.database.write(|transaction| {
+            transaction
+                .execute("DELETE FROM todos WHERE id = ?1", [id])
+                .map_err(AppError::from)
+        })?;
         if deleted == 0 {
             return Err(AppError::todo_not_found(id));
         }
@@ -151,79 +141,69 @@ impl SqliteTodoRepository {
     }
 
     pub fn get(&self, id: i64) -> AppResult<Option<Todo>> {
-        let connection = self.database.connection()?;
+        self.database.read(|connection| {
         let mut todo = connection.query_row(
             "SELECT id, title, description, status, is_high_priority, created_at, updated_at, completed_at
              FROM todos WHERE id = ?1", [id], todo_from_row,
-        ).optional().map_err(database_error)?;
+        ).optional()?;
         if let Some(todo) = todo.as_mut() {
-            todo.tags = tags_for_todo(&connection, id)?;
+            todo.tags = tags_for_todo(connection, id)?;
         }
         Ok(todo)
+        })
     }
 
     pub fn tags(&self) -> AppResult<Vec<TodoTag>> {
-        let connection = self.database.connection()?;
-        let mut statement = connection
-            .prepare(
+        self.database.read(|connection| {
+            let mut statement = connection.prepare(
                 "SELECT tag.id, tag.name, count(rel.todo_id) AS todo_count
              FROM todo_tags tag
              LEFT JOIN todo_tag_relations rel ON rel.tag_id = tag.id
              GROUP BY tag.id, tag.name
              ORDER BY todo_count DESC, tag.name COLLATE NOCASE ASC",
-            )
-            .map_err(database_error)?;
-        let rows = statement
-            .query_map([], |row| {
+            )?;
+            let rows = statement.query_map([], |row| {
                 Ok(TodoTag {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     count: row.get(2)?,
                 })
-            })
-            .map_err(database_error)?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(database_error)
+            })?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
+        })
     }
 
     pub fn rename_tag(&self, id: i64, name: String) -> AppResult<TodoTag> {
         let name = normalize_tag(&name)?;
-        let mut connection = self.database.connection()?;
-        let transaction = connection.transaction().map_err(database_error)?;
-        ensure_tag_exists(&transaction, id)?;
-        let target_id = transaction
-            .query_row(
-                "SELECT id FROM todo_tags WHERE name = ?1 COLLATE NOCASE",
-                [&name],
-                |row| row.get::<_, i64>(0),
-            )
-            .optional()
-            .map_err(database_error)?;
-        let result_id = match target_id {
-            Some(target_id) if target_id != id => {
-                transaction
-                    .execute(
+        let result_id = self.database.write(|transaction| {
+            ensure_tag_exists(transaction, id)?;
+            let target_id = transaction
+                .query_row(
+                    "SELECT id FROM todo_tags WHERE name = ?1 COLLATE NOCASE",
+                    [&name],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()?;
+            let result_id = match target_id {
+                Some(target_id) if target_id != id => {
+                    transaction.execute(
                         "INSERT OR IGNORE INTO todo_tag_relations(todo_id, tag_id)
                      SELECT todo_id, ?1 FROM todo_tag_relations WHERE tag_id = ?2",
                         params![target_id, id],
-                    )
-                    .map_err(database_error)?;
-                transaction
-                    .execute("DELETE FROM todo_tags WHERE id = ?1", [id])
-                    .map_err(database_error)?;
-                target_id
-            }
-            _ => {
-                transaction
-                    .execute(
+                    )?;
+                    transaction.execute("DELETE FROM todo_tags WHERE id = ?1", [id])?;
+                    target_id
+                }
+                _ => {
+                    transaction.execute(
                         "UPDATE todo_tags SET name = ?1 WHERE id = ?2",
                         params![name, id],
-                    )
-                    .map_err(database_error)?;
-                id
-            }
-        };
-        transaction.commit().map_err(database_error)?;
-        drop(connection);
+                    )?;
+                    id
+                }
+            };
+            Ok(result_id)
+        })?;
         self.tags()?
             .into_iter()
             .find(|tag| tag.id == result_id)
@@ -231,11 +211,11 @@ impl SqliteTodoRepository {
     }
 
     pub fn delete_tag(&self, id: i64) -> AppResult<()> {
-        let deleted = self
-            .database
-            .connection()?
-            .execute("DELETE FROM todo_tags WHERE id = ?1", [id])
-            .map_err(database_error)?;
+        let deleted = self.database.write(|transaction| {
+            transaction
+                .execute("DELETE FROM todo_tags WHERE id = ?1", [id])
+                .map_err(AppError::from)
+        })?;
         if deleted == 0 {
             return Err(AppError::todo_tag_not_found(id));
         }
@@ -243,11 +223,9 @@ impl SqliteTodoRepository {
     }
 
     pub fn archive_delete_tag(&self, id: i64) -> AppResult<()> {
-        let mut connection = self.database.connection()?;
-        let transaction = connection.transaction().map_err(database_error)?;
-        ensure_tag_exists(&transaction, id)?;
-        let has_active: bool = transaction
-            .query_row(
+        self.database.write(|transaction| {
+            ensure_tag_exists(transaction, id)?;
+            let has_active: bool = transaction.query_row(
                 "SELECT EXISTS(
                      SELECT 1 FROM todo_tag_relations rel
                      JOIN todos t ON t.id = rel.todo_id
@@ -255,68 +233,51 @@ impl SqliteTodoRepository {
                  )",
                 [id],
                 |row| row.get(0),
-            )
-            .map_err(database_error)?;
-        if has_active {
-            return Err(AppError::todo_tag_has_active_todos());
-        }
-        transaction
-            .execute(
+            )?;
+            if has_active {
+                return Err(AppError::todo_tag_has_active_todos());
+            }
+            transaction.execute(
                 "DELETE FROM todos
                  WHERE id IN (SELECT todo_id FROM todo_tag_relations WHERE tag_id = ?1)",
                 [id],
-            )
-            .map_err(database_error)?;
-        transaction
-            .execute("DELETE FROM todo_tags WHERE id = ?1", [id])
-            .map_err(database_error)?;
-        transaction.commit().map_err(database_error)?;
-        Ok(())
+            )?;
+            transaction.execute("DELETE FROM todo_tags WHERE id = ?1", [id])?;
+            Ok(())
+        })
     }
 }
 
 fn replace_tags(transaction: &Transaction<'_>, todo_id: i64, tags: &[String]) -> AppResult<()> {
-    transaction
-        .execute(
-            "DELETE FROM todo_tag_relations WHERE todo_id = ?1",
-            [todo_id],
-        )
-        .map_err(database_error)?;
+    transaction.execute(
+        "DELETE FROM todo_tag_relations WHERE todo_id = ?1",
+        [todo_id],
+    )?;
     for tag in tags {
-        transaction
-            .execute(
-                "INSERT INTO todo_tags(name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
-                [tag],
-            )
-            .map_err(database_error)?;
-        let tag_id: i64 = transaction
-            .query_row(
-                "SELECT id FROM todo_tags WHERE name = ?1 COLLATE NOCASE",
-                [tag],
-                |row| row.get(0),
-            )
-            .map_err(database_error)?;
-        transaction
-            .execute(
-                "INSERT INTO todo_tag_relations(todo_id, tag_id) VALUES (?1, ?2)",
-                params![todo_id, tag_id],
-            )
-            .map_err(database_error)?;
+        transaction.execute(
+            "INSERT INTO todo_tags(name) VALUES (?1) ON CONFLICT(name) DO NOTHING",
+            [tag],
+        )?;
+        let tag_id: i64 = transaction.query_row(
+            "SELECT id FROM todo_tags WHERE name = ?1 COLLATE NOCASE",
+            [tag],
+            |row| row.get(0),
+        )?;
+        transaction.execute(
+            "INSERT INTO todo_tag_relations(todo_id, tag_id) VALUES (?1, ?2)",
+            params![todo_id, tag_id],
+        )?;
     }
     Ok(())
 }
 
 fn tags_for_todo(connection: &rusqlite::Connection, todo_id: i64) -> AppResult<Vec<String>> {
-    let mut statement = connection
-        .prepare(
-            "SELECT tag.name FROM todo_tags tag JOIN todo_tag_relations rel ON rel.tag_id = tag.id
+    let mut statement = connection.prepare(
+        "SELECT tag.name FROM todo_tags tag JOIN todo_tag_relations rel ON rel.tag_id = tag.id
          WHERE rel.todo_id = ?1 ORDER BY tag.name COLLATE NOCASE ASC",
-        )
-        .map_err(database_error)?;
-    let rows = statement
-        .query_map([todo_id], |row| row.get(0))
-        .map_err(database_error)?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(database_error)
+    )?;
+    let rows = statement.query_map([todo_id], |row| row.get(0))?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(AppError::from)
 }
 
 fn tags_for_todos(
@@ -329,36 +290,30 @@ fn tags_for_todos(
     let placeholders = std::iter::repeat_n("?", todo_ids.len())
         .collect::<Vec<_>>()
         .join(",");
-    let mut statement = connection
-        .prepare(&format!(
-            "SELECT rel.todo_id, tag.name
+    let mut statement = connection.prepare(&format!(
+        "SELECT rel.todo_id, tag.name
              FROM todo_tag_relations rel
              JOIN todo_tags tag ON tag.id = rel.tag_id
              WHERE rel.todo_id IN ({placeholders})
              ORDER BY rel.todo_id, tag.name COLLATE NOCASE ASC"
-        ))
-        .map_err(database_error)?;
-    let rows = statement
-        .query_map(params_from_iter(todo_ids.iter()), |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-        })
-        .map_err(database_error)?;
+    ))?;
+    let rows = statement.query_map(params_from_iter(todo_ids.iter()), |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+    })?;
     let mut tags = HashMap::<i64, Vec<String>>::new();
     for row in rows {
-        let (todo_id, name) = row.map_err(database_error)?;
+        let (todo_id, name) = row?;
         tags.entry(todo_id).or_default().push(name);
     }
     Ok(tags)
 }
 
 fn ensure_tag_exists(transaction: &Transaction<'_>, id: i64) -> AppResult<()> {
-    let exists: bool = transaction
-        .query_row(
-            "SELECT EXISTS(SELECT 1 FROM todo_tags WHERE id = ?1)",
-            [id],
-            |row| row.get(0),
-        )
-        .map_err(database_error)?;
+    let exists: bool = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM todo_tags WHERE id = ?1)",
+        [id],
+        |row| row.get(0),
+    )?;
     if !exists {
         return Err(AppError::todo_tag_not_found(id));
     }
@@ -412,8 +367,4 @@ fn timestamp(value: i64) -> rusqlite::Result<String> {
     chrono::DateTime::<Utc>::from_timestamp_millis(value)
         .map(|value| value.to_rfc3339_opts(SecondsFormat::Secs, true))
         .ok_or_else(|| rusqlite::Error::IntegralValueOutOfRange(0, value))
-}
-
-fn database_error(error: rusqlite::Error) -> AppError {
-    AppError::database_error(error.to_string())
 }

@@ -3,7 +3,7 @@ use rusqlite::Transaction;
 use crate::error::{AppError, AppResult};
 
 pub(super) fn apply(transaction: &Transaction<'_>) -> AppResult<()> {
-    transaction.execute_batch(SCHEMA).map_err(database_error)
+    transaction.execute_batch(SCHEMA).map_err(AppError::from)
 }
 
 const SCHEMA: &str = r#"
@@ -113,7 +113,3 @@ CREATE INDEX idx_rss_entries_feed_sort
 CREATE INDEX idx_rss_entries_unread_sort
     ON rss_entries(is_read, COALESCE(published_at, fetched_at) DESC, id DESC);
 "#;
-
-fn database_error(error: rusqlite::Error) -> AppError {
-    AppError::database_error(error.to_string())
-}

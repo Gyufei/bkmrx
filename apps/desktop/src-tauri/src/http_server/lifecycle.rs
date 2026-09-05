@@ -1,6 +1,7 @@
 use std::{
     net::SocketAddr,
     sync::{Arc, Mutex, RwLock},
+    time::Duration,
 };
 
 use axum::Router;
@@ -12,12 +13,14 @@ use crate::logging::{sanitize_error, Operation};
 #[derive(Debug, Clone, Copy)]
 pub struct HttpServerOptions {
     pub address: SocketAddr,
+    pub graceful_shutdown_timeout: Duration,
 }
 
 impl Default for HttpServerOptions {
     fn default() -> Self {
         Self {
             address: SocketAddr::from(([127, 0, 0, 1], 8733)),
+            graceful_shutdown_timeout: Duration::from_secs(5),
         }
     }
 }
@@ -57,6 +60,7 @@ pub struct LocalHttpServer {
     state: Arc<RwLock<ServerStatus>>,
     shutdown: Mutex<Option<oneshot::Sender<()>>>,
     task: tokio::sync::Mutex<Option<JoinHandle<()>>>,
+    graceful_shutdown_timeout: Duration,
 }
 
 impl LocalHttpServer {
@@ -78,7 +82,11 @@ impl LocalHttpServer {
                     operation.elapsed_ms(),
                     message
                 );
-                let server = Arc::new(Self::failed(options.address, "http_server_bind_failed"));
+                let server = Arc::new(Self::failed(
+                    options.address,
+                    options.graceful_shutdown_timeout,
+                    "http_server_bind_failed",
+                ));
                 return HttpServerLaunch {
                     server,
                     warning: Some(HttpStartupWarning {
@@ -131,6 +139,7 @@ impl LocalHttpServer {
                 state,
                 shutdown: Mutex::new(Some(shutdown_tx)),
                 task: tokio::sync::Mutex::new(Some(task)),
+                graceful_shutdown_timeout: options.graceful_shutdown_timeout,
             }),
             warning: None,
         }
@@ -162,13 +171,26 @@ impl LocalHttpServer {
             let _ = sender.send(());
         }
         let mut task = self.task.lock().await;
-        if let Some(task) = task.take() {
-            let _ = task.await;
+        if let Some(mut task) = task.take() {
+            if tokio::time::timeout(self.graceful_shutdown_timeout, &mut task)
+                .await
+                .is_err()
+            {
+                log::warn!("http_server_shutdown_timed_out");
+                task.abort();
+                let _ = task.await;
+                let mut status = self
+                    .state
+                    .write()
+                    .unwrap_or_else(|error| error.into_inner());
+                status.running = false;
+                status.phase = HttpServerPhase::Stopped;
+            }
         }
         self.status()
     }
 
-    fn failed(address: SocketAddr, code: &str) -> Self {
+    fn failed(address: SocketAddr, graceful_shutdown_timeout: Duration, code: &str) -> Self {
         Self {
             state: Arc::new(RwLock::new(ServerStatus {
                 running: false,
@@ -178,6 +200,7 @@ impl LocalHttpServer {
             })),
             shutdown: Mutex::new(None),
             task: tokio::sync::Mutex::new(None),
+            graceful_shutdown_timeout,
         }
     }
 }
@@ -213,6 +236,7 @@ mod tests {
         let launched = LocalHttpServer::launch(
             HttpServerOptions {
                 address: "127.0.0.1:0".parse().unwrap(),
+                ..HttpServerOptions::default()
             },
             test_router(),
         )
@@ -232,7 +256,14 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
 
-        let launched = LocalHttpServer::launch(HttpServerOptions { address }, test_router()).await;
+        let launched = LocalHttpServer::launch(
+            HttpServerOptions {
+                address,
+                ..HttpServerOptions::default()
+            },
+            test_router(),
+        )
+        .await;
 
         assert_eq!(launched.server.status().phase, HttpServerPhase::Failed);
         assert_eq!(
@@ -247,6 +278,7 @@ mod tests {
         let launched = LocalHttpServer::launch(
             HttpServerOptions {
                 address: "127.0.0.1:0".parse().unwrap(),
+                ..HttpServerOptions::default()
             },
             test_router(),
         )
@@ -283,6 +315,7 @@ mod tests {
         let launched = LocalHttpServer::launch(
             HttpServerOptions {
                 address: "127.0.0.1:0".parse().unwrap(),
+                ..HttpServerOptions::default()
             },
             router,
         )
@@ -302,5 +335,39 @@ mod tests {
 
         assert_eq!(request.await.unwrap().unwrap(), "done");
         assert_eq!(shutdown.await.unwrap().phase, HttpServerPhase::Stopped);
+    }
+
+    #[tokio::test]
+    async fn shutdown_aborts_a_request_after_the_grace_period() {
+        let request_started = Arc::new(Notify::new());
+        let started = Arc::clone(&request_started);
+        let router = Router::new().route(
+            "/stuck",
+            get(move || {
+                let started = Arc::clone(&started);
+                async move {
+                    started.notify_one();
+                    std::future::pending::<&'static str>().await
+                }
+            }),
+        );
+        let launched = LocalHttpServer::launch(
+            HttpServerOptions {
+                address: "127.0.0.1:0".parse().unwrap(),
+                graceful_shutdown_timeout: Duration::from_millis(20),
+            },
+            router,
+        )
+        .await;
+        let url = format!("{}/stuck", launched.server.status().url);
+        let request = tokio::spawn(async move { reqwest::get(url).await });
+        request_started.notified().await;
+
+        let status = tokio::time::timeout(Duration::from_secs(1), launched.server.shutdown())
+            .await
+            .expect("shutdown must be bounded");
+
+        assert_eq!(status.phase, HttpServerPhase::Stopped);
+        request.abort();
     }
 }
