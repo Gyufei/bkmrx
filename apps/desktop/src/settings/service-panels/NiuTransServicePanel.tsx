@@ -6,31 +6,32 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import type { AppSettings } from '@/lib/invoke';
+import type { AppSettings, SettingsSnapshot } from '@/lib/invoke';
 import { SettingsQueryApiKey, updateSettingsApi } from '../settings.api';
 import { errorMessage } from '../settings.utils';
 
 interface Props {
-  settings?: AppSettings;
+  snapshot?: SettingsSnapshot;
   onDirtyChange: (dirty: boolean) => void;
 }
 
-export default function NiuTransServicePanel({ settings, onDirtyChange }: Props) {
+export default function NiuTransServicePanel({ snapshot, onDirtyChange }: Props) {
   const queryClient = useQueryClient();
+  const settings = snapshot?.settings;
   const [appId, setAppId] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [editing, setEditing] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const mutation = useMutation({
-    mutationFn: (nextSettings: AppSettings) => updateSettingsApi(nextSettings),
-    onSuccess: async () => {
+    mutationFn: (nextSettings: AppSettings) => {
+      if (!snapshot) throw new Error('设置尚未加载');
+      return updateSettingsApi(snapshot.revision, nextSettings);
+    },
+    onSuccess: (next) => {
+      queryClient.setQueryData([SettingsQueryApiKey.SETTINGS], next);
       setEditing(false);
       setShowApiKey(false);
       onDirtyChange(false);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.SETTINGS] }),
-        queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.PROVIDERS] }),
-      ]);
     },
   });
 

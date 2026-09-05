@@ -1,13 +1,32 @@
 use std::sync::{Arc, Mutex};
 
 use bkmrx_lib::{
-    bookmarks::{BookmarkService, SqliteBookmarkRepository, SqliteFtsSearch},
+    bookmarks::{Bookmark, BookmarkEvents, BookmarkStore},
     database::Database,
     preview::PreviewService,
     rss::{RssRepository, RssService},
     todos::{SqliteTodoRepository, TodoService},
 };
 use tauri::{Emitter, Manager};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+
+struct TauriBookmarkEvents {
+    handle: tauri::AppHandle,
+}
+
+impl BookmarkEvents for TauriBookmarkEvents {
+    fn changed(&self) {
+        if let Err(error) = self.handle.emit("bookmarks-changed", ()) {
+            log::warn!("frontend_event_emit_failed event=bookmarks-changed error={error}");
+        }
+    }
+
+    fn accessed(&self, bookmark: &Bookmark) {
+        if let Err(error) = self.handle.emit("bookmark-accessed", bookmark) {
+            log::warn!("frontend_event_emit_failed event=bookmark-accessed error={error}");
+        }
+    }
+}
 
 fn is_allowed_app_navigation(url: &tauri::Url) -> bool {
     if url.scheme() == "tauri" && url.host_str() == Some("localhost") {
@@ -56,35 +75,14 @@ fn main() {
             let runtime_paths =
                 bkmrx_lib::settings::RuntimePaths::new(app_data_dir, database.schema_version()?);
 
-            let notify_handle = handle.clone();
-            let access_handle = handle.clone();
-            let service = Arc::new(
-                BookmarkService::new(
-                    SqliteBookmarkRepository::new(Arc::clone(&database)),
-                    SqliteFtsSearch::new(Arc::clone(&database)),
-                )
-                .with_change_notifier(Arc::new(move || {
-                    if let Err(error) = notify_handle.emit("bookmarks-changed", ()) {
-                        log::warn!(
-                            "frontend_event_emit_failed event=bookmarks-changed error={error}"
-                        );
-                    }
-                }))
-                .with_access_notifier(Arc::new(move |bookmark| {
-                    if let Err(error) = access_handle.emit("bookmark-accessed", bookmark) {
-                        log::warn!(
-                            "frontend_event_emit_failed event=bookmark-accessed error={error}"
-                        );
-                    }
-                })),
-            );
+            let service = Arc::new(BookmarkStore::new(Arc::clone(&database)).with_events(
+                Arc::new(TauriBookmarkEvents {
+                    handle: handle.clone(),
+                }),
+            ));
 
             app.manage(Arc::clone(&service));
             app.manage(Arc::new(PreviewService::new(None)?));
-            app.manage(Arc::new(
-                RssService::new(RssRepository::new(Arc::clone(&database)))
-                    .with_settings_path(runtime_paths.settings_path().to_path_buf()),
-            ));
             let todo_handle = handle.clone();
             let todo_service = Arc::new(
                 TodoService::new(SqliteTodoRepository::new(Arc::clone(&database)))
@@ -115,20 +113,24 @@ fn main() {
                 Arc::clone(&translation_runtime),
                 provider_context,
             ));
-            let settings_service = Arc::new(bkmrx_lib::settings::SettingsService::new(
-                settings_path,
-                provider_manager,
-            ));
-            if let Err(error) = settings_service.initialize() {
-                log::error!(
-                    "provider_runtime_initialization_failed error_code={} error={:?}",
-                    error.code(),
-                    bkmrx_lib::logging::sanitize_error(&error.to_string())
-                );
+            let opened = bkmrx_lib::settings::SettingsStore::open(settings_path, provider_manager);
+            if let Some(warning) = opened.warning {
+                log::error!("settings_recovery_started error_code={}", warning.code,);
+                handle
+                    .dialog()
+                    .message(warning.message)
+                    .title("设置需要修复")
+                    .kind(MessageDialogKind::Warning)
+                    .show(|_| {});
             }
+            let settings_store = Arc::new(opened.store);
+            app.manage(Arc::new(
+                RssService::new(RssRepository::new(Arc::clone(&database)))
+                    .with_settings_store(Arc::clone(&settings_store)),
+            ));
             let translation_service =
                 bkmrx_lib::translation::TranslationService::new(translation_runtime);
-            app.manage(Arc::clone(&settings_service));
+            app.manage(settings_store);
             app.manage(runtime_paths);
             let note_handle = handle.clone();
             let note_service = Arc::new(bkmrx_lib::notes::NoteService::new(Arc::new(
@@ -200,7 +202,6 @@ fn main() {
             bkmrx_lib::commands::rename_note,
             bkmrx_lib::commands::get_settings,
             bkmrx_lib::commands::update_settings,
-            bkmrx_lib::commands::list_providers,
             bkmrx_lib::commands::activate_provider,
             bkmrx_lib::commands::deactivate_provider,
             bkmrx_lib::commands::get_server_status,

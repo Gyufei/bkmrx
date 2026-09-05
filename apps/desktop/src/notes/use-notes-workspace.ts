@@ -18,7 +18,7 @@ export function useNotesWorkspace() {
     queryKey: [SettingsQueryApiKey.SETTINGS],
     queryFn: getSettingsApi,
   });
-  const notesDir = settings?.common.paths.notes_dir ?? null;
+  const notesDir = settings?.settings.common.paths.notes_dir ?? null;
   const notesQueryKey = [NotesQueryApiKey.NOTES, notesDir] as const;
   const notesQuery = useQuery({
     queryKey: notesQueryKey,

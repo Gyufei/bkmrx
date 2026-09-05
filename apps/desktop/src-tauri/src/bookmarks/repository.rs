@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use chrono::{SecondsFormat, Utc};
-use rusqlite::{params, params_from_iter, OptionalExtension, Transaction};
+use rusqlite::{params, params_from_iter, Connection, OptionalExtension, Transaction};
 
 use crate::database::Database;
 use crate::error::{AppError, AppResult};
@@ -12,31 +12,8 @@ use super::{
     Bookmark, CreateBookmark, TagQueryRequest, TagSummary, UpdateBookmark,
 };
 
-pub trait BookmarkRepository: Send + Sync {
-    /// Creates a bookmark after normalizing its URL, title, and tags.
-    fn create(&self, input: CreateBookmark) -> AppResult<Bookmark>;
-    /// Merges the supplied fields into the existing bookmark and returns the result.
-    fn update(&self, id: i64, input: UpdateBookmark) -> AppResult<Bookmark>;
-    /// Deletes the bookmarks, their search entries and tag relations, then removes unused tags.
-    fn delete_many(&self, ids: &[i64]) -> AppResult<u64>;
-    /// Returns the bookmark with the given ID, if it exists.
-    fn get_by_id(&self, id: i64) -> AppResult<Option<Bookmark>>;
-    /// Returns the bookmark whose normalized URL matches the supplied URL, if any.
-    fn get_by_url(&self, url: &str) -> AppResult<Option<Bookmark>>;
-    /// Returns existing bookmarks in first-occurrence input order, omitting duplicate IDs.
-    fn get_by_ids_ordered(&self, ids: &[i64]) -> AppResult<Vec<Bookmark>>;
-    /// Returns matching tags ordered by bookmark count descending, then name ascending.
-    fn get_tags(&self, request: &TagQueryRequest) -> AppResult<Vec<TagSummary>>;
-    /// Increments a bookmark's access count and records its latest access time.
-    fn record_access(&self, id: i64) -> AppResult<Bookmark>;
-    /// Adds or removes a bookmark star without changing content updated_at.
-    fn set_starred(&self, id: i64, starred: bool) -> AppResult<Bookmark>;
-    /// Rebuilds the full-text search index from the current bookmarks and tags.
-    fn rebuild_search_index(&self) -> AppResult<()>;
-}
-
 #[derive(Debug, Clone)]
-pub struct SqliteBookmarkRepository {
+pub(crate) struct SqliteBookmarkRepository {
     database: Arc<Database>,
 }
 
@@ -44,14 +21,10 @@ impl SqliteBookmarkRepository {
     pub fn new(database: Arc<Database>) -> Self {
         Self { database }
     }
-
-    pub(crate) fn database(&self) -> &Arc<Database> {
-        &self.database
-    }
 }
 
-impl BookmarkRepository for SqliteBookmarkRepository {
-    fn create(&self, input: CreateBookmark) -> AppResult<Bookmark> {
+impl SqliteBookmarkRepository {
+    pub(super) fn create(&self, input: CreateBookmark) -> AppResult<Bookmark> {
         let url = normalize_url(&input.url)?;
         let title = normalize_title(&input.title, &url);
         let tags = normalize_tags(input.tags)?;
@@ -68,18 +41,21 @@ impl BookmarkRepository for SqliteBookmarkRepository {
             return Err(write_error(error, &url));
         }
         let id = transaction.last_insert_rowid();
-        replace_tags(&transaction, id, &tags)?;
-        upsert_fts(&transaction, id, &url, &title, &input.description, &tags)?;
+        persist_searchable_content(&transaction, id, &url, &title, &input.description, &tags)?;
+        let bookmark = hydrate_ordered(&transaction, &[id])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::internal_error("created bookmark could not be reloaded"))?;
         transaction.commit().map_err(database_error)?;
-        drop(connection);
-
-        self.get_by_id(id)?
-            .ok_or_else(|| AppError::internal_error("created bookmark could not be reloaded"))
+        Ok(bookmark)
     }
 
-    fn update(&self, id: i64, input: UpdateBookmark) -> AppResult<Bookmark> {
-        let existing = self
-            .get_by_id(id)?
+    pub(super) fn update(&self, id: i64, input: UpdateBookmark) -> AppResult<Bookmark> {
+        let mut connection = self.database.connection()?;
+        let transaction = connection.transaction().map_err(database_error)?;
+        let existing = hydrate_ordered(&transaction, &[id])?
+            .into_iter()
+            .next()
             .ok_or_else(|| AppError::bookmark_not_found(id))?;
         let url = match input.url {
             Some(url) => normalize_url(&url)?,
@@ -93,8 +69,6 @@ impl BookmarkRepository for SqliteBookmarkRepository {
             .transpose()?
             .unwrap_or(existing.tags);
         let now = Utc::now().timestamp_millis();
-        let mut connection = self.database.connection()?;
-        let transaction = connection.transaction().map_err(database_error)?;
 
         if let Err(error) = transaction.execute(
             "UPDATE bookmarks
@@ -104,17 +78,17 @@ impl BookmarkRepository for SqliteBookmarkRepository {
         ) {
             return Err(write_error(error, &url));
         }
-        replace_tags(&transaction, id, &tags)?;
-        upsert_fts(&transaction, id, &url, &title, &description, &tags)?;
+        persist_searchable_content(&transaction, id, &url, &title, &description, &tags)?;
         remove_unused_tags(&transaction)?;
+        let bookmark = hydrate_ordered(&transaction, &[id])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::internal_error("updated bookmark could not be reloaded"))?;
         transaction.commit().map_err(database_error)?;
-        drop(connection);
-
-        self.get_by_id(id)?
-            .ok_or_else(|| AppError::internal_error("updated bookmark could not be reloaded"))
+        Ok(bookmark)
     }
 
-    fn delete_many(&self, ids: &[i64]) -> AppResult<u64> {
+    pub(super) fn delete_many(&self, ids: &[i64]) -> AppResult<u64> {
         if ids.is_empty() {
             return Ok(0);
         }
@@ -138,11 +112,34 @@ impl BookmarkRepository for SqliteBookmarkRepository {
         Ok(deleted as u64)
     }
 
-    fn get_by_id(&self, id: i64) -> AppResult<Option<Bookmark>> {
+    pub(super) fn delete(&self, id: i64) -> AppResult<()> {
+        let mut connection = self.database.connection()?;
+        let transaction = connection.transaction().map_err(database_error)?;
+        let exists = transaction
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE id = ?1)",
+                [id],
+                |row| row.get::<_, bool>(0),
+            )
+            .map_err(database_error)?;
+        if !exists {
+            return Err(AppError::bookmark_not_found(id));
+        }
+        transaction
+            .execute("DELETE FROM bookmarks_fts WHERE rowid = ?1", [id])
+            .map_err(database_error)?;
+        transaction
+            .execute("DELETE FROM bookmarks WHERE id = ?1", [id])
+            .map_err(database_error)?;
+        remove_unused_tags(&transaction)?;
+        transaction.commit().map_err(database_error)
+    }
+
+    pub(super) fn get_by_id(&self, id: i64) -> AppResult<Option<Bookmark>> {
         Ok(self.get_by_ids_ordered(&[id])?.into_iter().next())
     }
 
-    fn get_by_url(&self, url: &str) -> AppResult<Option<Bookmark>> {
+    pub(super) fn get_by_url(&self, url: &str) -> AppResult<Option<Bookmark>> {
         let url = normalize_url(url)?;
         let id = self
             .database
@@ -159,54 +156,11 @@ impl BookmarkRepository for SqliteBookmarkRepository {
     }
 
     fn get_by_ids_ordered(&self, ids: &[i64]) -> AppResult<Vec<Bookmark>> {
-        if ids.is_empty() {
-            return Ok(Vec::new());
-        }
-        let placeholders = placeholders(ids.len());
         let connection = self.database.connection()?;
-        let mut statement = connection
-            .prepare(&format!(
-                "SELECT id, url, title, description, access_count,
-                        created_at, updated_at, accessed_at, starred_at
-                 FROM bookmarks
-                 WHERE id IN ({placeholders})"
-            ))
-            .map_err(database_error)?;
-        let rows = statement
-            .query_map(params_from_iter(ids.iter()), bookmark_from_row)
-            .map_err(database_error)?;
-        let mut bookmarks = HashMap::new();
-        for row in rows {
-            let bookmark = row.map_err(database_error)?;
-            bookmarks.insert(bookmark.id, bookmark);
-        }
-        drop(statement);
-
-        let mut tag_statement = connection
-            .prepare(&format!(
-                "SELECT bt.bookmark_id, t.name
-                 FROM bookmark_tags bt
-                 JOIN tags t ON t.id = bt.tag_id
-                 WHERE bt.bookmark_id IN ({placeholders})
-                 ORDER BY t.name"
-            ))
-            .map_err(database_error)?;
-        let tags = tag_statement
-            .query_map(params_from_iter(ids.iter()), |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-            })
-            .map_err(database_error)?;
-        for tag in tags {
-            let (bookmark_id, name) = tag.map_err(database_error)?;
-            if let Some(bookmark) = bookmarks.get_mut(&bookmark_id) {
-                bookmark.tags.push(name);
-            }
-        }
-
-        Ok(ids.iter().filter_map(|id| bookmarks.remove(id)).collect())
+        hydrate_ordered(&connection, ids)
     }
 
-    fn get_tags(&self, request: &TagQueryRequest) -> AppResult<Vec<TagSummary>> {
+    pub(super) fn get_tags(&self, request: &TagQueryRequest) -> AppResult<Vec<TagSummary>> {
         if request
             .limit
             .is_some_and(|limit| !(1..=100).contains(&limit))
@@ -241,10 +195,10 @@ impl BookmarkRepository for SqliteBookmarkRepository {
         rows.collect::<Result<Vec<_>, _>>().map_err(database_error)
     }
 
-    fn record_access(&self, id: i64) -> AppResult<Bookmark> {
-        let changed = self
-            .database
-            .connection()?
+    pub(super) fn record_access(&self, id: i64) -> AppResult<Bookmark> {
+        let mut connection = self.database.connection()?;
+        let transaction = connection.transaction().map_err(database_error)?;
+        let changed = transaction
             .execute(
                 "UPDATE bookmarks
                  SET access_count = access_count + 1, accessed_at = ?1
@@ -255,15 +209,19 @@ impl BookmarkRepository for SqliteBookmarkRepository {
         if changed == 0 {
             return Err(AppError::bookmark_not_found(id));
         }
-        self.get_by_id(id)?
-            .ok_or_else(|| AppError::internal_error("accessed bookmark could not be reloaded"))
+        let bookmark = hydrate_ordered(&transaction, &[id])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::internal_error("accessed bookmark could not be reloaded"))?;
+        transaction.commit().map_err(database_error)?;
+        Ok(bookmark)
     }
 
-    fn set_starred(&self, id: i64, starred: bool) -> AppResult<Bookmark> {
+    pub(super) fn set_starred(&self, id: i64, starred: bool) -> AppResult<Bookmark> {
         let starred_at = starred.then(|| Utc::now().timestamp_millis());
-        let changed = self
-            .database
-            .connection()?
+        let mut connection = self.database.connection()?;
+        let transaction = connection.transaction().map_err(database_error)?;
+        let changed = transaction
             .execute(
                 "UPDATE bookmarks SET starred_at = ?1 WHERE id = ?2",
                 params![starred_at, id],
@@ -272,36 +230,60 @@ impl BookmarkRepository for SqliteBookmarkRepository {
         if changed == 0 {
             return Err(AppError::bookmark_not_found(id));
         }
-        self.get_by_id(id)?
-            .ok_or_else(|| AppError::internal_error("starred bookmark could not be reloaded"))
+        let bookmark = hydrate_ordered(&transaction, &[id])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::internal_error("starred bookmark could not be reloaded"))?;
+        transaction.commit().map_err(database_error)?;
+        Ok(bookmark)
+    }
+}
+
+pub(crate) fn hydrate_ordered(connection: &Connection, ids: &[i64]) -> AppResult<Vec<Bookmark>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = placeholders(ids.len());
+    let mut statement = connection
+        .prepare(&format!(
+            "SELECT id, url, title, description, access_count,
+                    created_at, updated_at, accessed_at, starred_at
+             FROM bookmarks
+             WHERE id IN ({placeholders})"
+        ))
+        .map_err(database_error)?;
+    let rows = statement
+        .query_map(params_from_iter(ids.iter()), bookmark_from_row)
+        .map_err(database_error)?;
+    let mut bookmarks = HashMap::new();
+    for row in rows {
+        let bookmark = row.map_err(database_error)?;
+        bookmarks.insert(bookmark.id, bookmark);
+    }
+    drop(statement);
+
+    let mut tag_statement = connection
+        .prepare(&format!(
+            "SELECT bt.bookmark_id, t.name
+             FROM bookmark_tags bt
+             JOIN tags t ON t.id = bt.tag_id
+             WHERE bt.bookmark_id IN ({placeholders})
+             ORDER BY t.name"
+        ))
+        .map_err(database_error)?;
+    let tags = tag_statement
+        .query_map(params_from_iter(ids.iter()), |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(database_error)?;
+    for tag in tags {
+        let (bookmark_id, name) = tag.map_err(database_error)?;
+        if let Some(bookmark) = bookmarks.get_mut(&bookmark_id) {
+            bookmark.tags.push(name);
+        }
     }
 
-    fn rebuild_search_index(&self) -> AppResult<()> {
-        let mut connection = self.database.connection()?;
-        let transaction = connection.transaction().map_err(database_error)?;
-        transaction
-            .execute("DELETE FROM bookmarks_fts", [])
-            .map_err(database_error)?;
-        transaction
-            .execute(
-                "INSERT INTO bookmarks_fts(rowid, url, title, description, tags)
-                 SELECT b.id, b.url, b.title, b.description,
-                        coalesce((
-                            SELECT group_concat(name, ' ')
-                            FROM (
-                                SELECT t.name AS name
-                                FROM bookmark_tags bt
-                                JOIN tags t ON t.id = bt.tag_id
-                                WHERE bt.bookmark_id = b.id
-                                ORDER BY t.name
-                            )
-                        ), '')
-                 FROM bookmarks b",
-                [],
-            )
-            .map_err(database_error)?;
-        transaction.commit().map_err(database_error)
-    }
+    Ok(ids.iter().filter_map(|id| bookmarks.remove(id)).collect())
 }
 
 fn normalize_url(url: &str) -> AppResult<String> {
@@ -337,11 +319,19 @@ fn normalize_tags(tags: Vec<String>) -> AppResult<Vec<String>> {
     Ok(tags)
 }
 
-pub(crate) fn replace_tags(
+pub(crate) fn persist_searchable_content(
     transaction: &Transaction<'_>,
     bookmark_id: i64,
+    url: &str,
+    title: &str,
+    description: &str,
     tags: &[String],
 ) -> AppResult<()> {
+    replace_tags(transaction, bookmark_id, tags)?;
+    upsert_fts(transaction, bookmark_id, url, title, description, tags)
+}
+
+fn replace_tags(transaction: &Transaction<'_>, bookmark_id: i64, tags: &[String]) -> AppResult<()> {
     transaction
         .execute(
             "DELETE FROM bookmark_tags WHERE bookmark_id = ?1",
@@ -367,7 +357,7 @@ pub(crate) fn replace_tags(
     Ok(())
 }
 
-pub(crate) fn upsert_fts(
+fn upsert_fts(
     transaction: &Transaction<'_>,
     id: i64,
     url: &str,

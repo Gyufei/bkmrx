@@ -5,10 +5,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use bkmrx_lib::{
-    bookmarks::{
-        BookmarkService, CreateBookmark, SharedBookmarkService, SqliteBookmarkRepository,
-        SqliteFtsSearch,
-    },
+    bookmarks::{BookmarkStore, CreateBookmark, SharedBookmarkStore},
     database::Database,
     http_server,
 };
@@ -16,12 +13,9 @@ use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
-fn service() -> SharedBookmarkService {
+fn service() -> SharedBookmarkStore {
     let database = Arc::new(Database::open_in_memory().unwrap());
-    Arc::new(BookmarkService::new(
-        SqliteBookmarkRepository::new(Arc::clone(&database)),
-        SqliteFtsSearch::new(database),
-    ))
+    Arc::new(BookmarkStore::new(database))
 }
 
 async fn json_response(response: axum::response::Response) -> (StatusCode, Value) {
@@ -200,11 +194,11 @@ async fn update_uses_path_id_and_rejects_a_url_owned_by_another_bookmark() {
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(conflict["error"]["code"], "bookmark_url_conflict");
     assert_eq!(
-        service.get_by_id(first.id).unwrap().url,
+        service.get(first.id).unwrap().url,
         "https://updated.example"
     );
     assert_eq!(
-        service.get_by_id(second.id).unwrap().url,
+        service.get(second.id).unwrap().url,
         "https://second.example"
     );
 }

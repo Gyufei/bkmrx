@@ -2,24 +2,18 @@ use std::{fs, path::Path, sync::Arc};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use bkmrx_lib::{
-    bookmarks::{
-        BookmarkPageRequest, BookmarkService, CreateBookmark, SqliteBookmarkRepository,
-        SqliteFtsSearch,
-    },
+    bookmarks::{BookmarkPageRequest, BookmarkStore, CreateBookmark},
     database::Database,
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
-type Service = BookmarkService<SqliteBookmarkRepository, SqliteFtsSearch>;
+type Service = BookmarkStore;
 
 fn service() -> (Arc<Database>, Service) {
     let database = Arc::new(Database::open_in_memory().unwrap());
-    let service = BookmarkService::new(
-        SqliteBookmarkRepository::new(Arc::clone(&database)),
-        SqliteFtsSearch::new(Arc::clone(&database)),
-    );
+    let service = BookmarkStore::new(Arc::clone(&database));
     (database, service)
 }
 
@@ -72,7 +66,7 @@ fn export_v1_omits_database_ids() {
     create(&service, "https://example.com");
     let directory = TempDir::new().unwrap();
 
-    let path = service.export_bookmarks(directory.path()).unwrap();
+    let path = service.export(directory.path()).unwrap();
     let json: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
 
     assert_eq!(json["format_version"], 1);
@@ -86,22 +80,17 @@ fn export_v1_omits_database_ids() {
 fn exported_starred_at_round_trips_into_empty_database() {
     let (_, source) = service();
     create(&source, "https://example.com");
-    let source_bookmark = source
-        .get_by_url("https://example.com".to_owned())
-        .unwrap()
-        .unwrap();
+    let source_bookmark = source.find_by_url("https://example.com").unwrap().unwrap();
     source.set_starred(source_bookmark.id, true).unwrap();
     let directory = TempDir::new().unwrap();
-    let path = source.export_bookmarks(directory.path()).unwrap();
+    let path = source.export(directory.path()).unwrap();
     let (_, target) = service();
 
-    let preview = target.preview_bookmark_import(&path).unwrap();
-    target
-        .apply_bookmark_import(&path, &preview.file_hash)
-        .unwrap();
+    let preview = target.preview_import(&path).unwrap();
+    target.apply_import(&path, &preview.file_hash).unwrap();
 
     assert!(target
-        .get_by_url("https://example.com".to_owned())
+        .find_by_url("https://example.com")
         .unwrap()
         .unwrap()
         .starred_at
@@ -113,14 +102,8 @@ fn exported_starred_at_preserves_milliseconds_and_import_order() {
     let (source_database, source) = service();
     create(&source, "https://a.example");
     create(&source, "https://z.example");
-    let later = source
-        .get_by_url("https://a.example".to_owned())
-        .unwrap()
-        .unwrap();
-    let earlier = source
-        .get_by_url("https://z.example".to_owned())
-        .unwrap()
-        .unwrap();
+    let later = source.find_by_url("https://a.example").unwrap().unwrap();
+    let earlier = source.find_by_url("https://z.example").unwrap().unwrap();
     source_database
         .execute_batch_for_test(&format!(
             "UPDATE bookmarks SET starred_at = 1767225600456 WHERE id = {};
@@ -129,7 +112,7 @@ fn exported_starred_at_preserves_milliseconds_and_import_order() {
         ))
         .unwrap();
     let directory = TempDir::new().unwrap();
-    let path = source.export_bookmarks(directory.path()).unwrap();
+    let path = source.export(directory.path()).unwrap();
     let exported: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
 
     assert_eq!(
@@ -142,10 +125,8 @@ fn exported_starred_at_preserves_milliseconds_and_import_order() {
     );
 
     let (_, target) = service();
-    let preview = target.preview_bookmark_import(&path).unwrap();
-    target
-        .apply_bookmark_import(&path, &preview.file_hash)
-        .unwrap();
+    let preview = target.preview_import(&path).unwrap();
+    target.apply_import(&path, &preview.file_hash).unwrap();
     let page = target
         .query(BookmarkPageRequest::Browse {
             starred: true,
@@ -167,10 +148,7 @@ fn exported_starred_at_preserves_milliseconds_and_import_order() {
 fn newer_import_without_starred_at_clears_existing_local_star() {
     let (_, service) = service();
     create(&service, "https://example.com");
-    let local = service
-        .get_by_url("https://example.com".to_owned())
-        .unwrap()
-        .unwrap();
+    let local = service.find_by_url("https://example.com").unwrap().unwrap();
     service.set_starred(local.id, true).unwrap();
     let directory = TempDir::new().unwrap();
     let path = write_json(
@@ -179,14 +157,12 @@ fn newer_import_without_starred_at_clears_existing_local_star() {
         export(vec![record("https://example.com")]),
     );
 
-    let preview = service.preview_bookmark_import(&path).unwrap();
-    service
-        .apply_bookmark_import(&path, &preview.file_hash)
-        .unwrap();
+    let preview = service.preview_import(&path).unwrap();
+    service.apply_import(&path, &preview.file_hash).unwrap();
 
     assert_eq!(
         service
-            .get_by_url("https://example.com".to_owned())
+            .find_by_url("https://example.com")
             .unwrap()
             .unwrap()
             .starred_at,
@@ -198,24 +174,19 @@ fn newer_import_without_starred_at_clears_existing_local_star() {
 fn newer_import_with_explicit_null_clears_existing_local_star() {
     let (_, service) = service();
     create(&service, "https://example.com");
-    let local = service
-        .get_by_url("https://example.com".to_owned())
-        .unwrap()
-        .unwrap();
+    let local = service.find_by_url("https://example.com").unwrap().unwrap();
     service.set_starred(local.id, true).unwrap();
     let directory = TempDir::new().unwrap();
     let mut imported = record("https://example.com");
     imported["starred_at"] = Value::Null;
     let path = write_json(&directory, "clear-star.json", export(vec![imported]));
 
-    let preview = service.preview_bookmark_import(&path).unwrap();
-    service
-        .apply_bookmark_import(&path, &preview.file_hash)
-        .unwrap();
+    let preview = service.preview_import(&path).unwrap();
+    service.apply_import(&path, &preview.file_hash).unwrap();
 
     assert_eq!(
         service
-            .get_by_url("https://example.com".to_owned())
+            .find_by_url("https://example.com")
             .unwrap()
             .unwrap()
             .starred_at,
@@ -228,17 +199,15 @@ fn exported_json_round_trips_into_empty_database() {
     let (_, source) = service();
     create(&source, "legacy value that is not a parsed URL");
     let directory = TempDir::new().unwrap();
-    let path = source.export_bookmarks(directory.path()).unwrap();
+    let path = source.export(directory.path()).unwrap();
     let (_, target) = service();
 
-    let preview = target.preview_bookmark_import(&path).unwrap();
+    let preview = target.preview_import(&path).unwrap();
     assert_eq!(preview.create_count, 1);
-    target
-        .apply_bookmark_import(&path, &preview.file_hash)
-        .unwrap();
+    target.apply_import(&path, &preview.file_hash).unwrap();
 
     let imported = target
-        .get_by_url("legacy value that is not a parsed URL".to_owned())
+        .find_by_url("legacy value that is not a parsed URL")
         .unwrap()
         .unwrap();
     assert_eq!(imported.title, "Example");
@@ -253,7 +222,7 @@ fn preview_rejects_tags_that_cannot_use_the_http_filter_contract() {
     invalid["tags"] = json!(["a,b"]);
     let path = write_json(&directory, "comma-tag.json", export(vec![invalid]));
 
-    let error = service.preview_bookmark_import(path).unwrap_err();
+    let error = service.preview_import(path).unwrap_err();
 
     assert_eq!(error.code(), "import_validation_failed");
 }
@@ -266,7 +235,7 @@ fn preview_rejects_invalid_starred_at() {
     invalid["starred_at"] = json!("not-a-timestamp");
     let path = write_json(&directory, "invalid-star.json", export(vec![invalid]));
 
-    let error = service.preview_bookmark_import(path).unwrap_err();
+    let error = service.preview_import(path).unwrap_err();
 
     assert_eq!(error.code(), "import_validation_failed");
 }
@@ -281,14 +250,12 @@ fn import_without_starred_at_creates_unstarred_bookmark() {
         export(vec![record("https://example.com")]),
     );
 
-    let preview = service.preview_bookmark_import(&path).unwrap();
-    service
-        .apply_bookmark_import(&path, &preview.file_hash)
-        .unwrap();
+    let preview = service.preview_import(&path).unwrap();
+    service.apply_import(&path, &preview.file_hash).unwrap();
 
     assert_eq!(
         service
-            .get_by_url("https://example.com".to_owned())
+            .find_by_url("https://example.com")
             .unwrap()
             .unwrap()
             .starred_at,
@@ -306,7 +273,7 @@ fn preview_rejects_unknown_format() {
         json!({ "format_version": 2, "bookmarks": [] }),
     );
 
-    let error = service.preview_bookmark_import(path).unwrap_err();
+    let error = service.preview_import(path).unwrap_err();
 
     assert_eq!(error.code(), "unsupported_import_format");
 }
@@ -324,7 +291,7 @@ fn preview_rejects_duplicate_urls() {
         ]),
     );
 
-    let error = service.preview_bookmark_import(path).unwrap_err();
+    let error = service.preview_import(path).unwrap_err();
 
     assert_eq!(error.code(), "import_validation_failed");
 }
@@ -338,18 +305,36 @@ fn apply_rejects_file_changed_after_preview() {
         "changed.json",
         export(vec![record("https://example.com")]),
     );
-    let preview = service.preview_bookmark_import(&path).unwrap();
+    let preview = service.preview_import(&path).unwrap();
     fs::write(
         &path,
         serde_json::to_vec_pretty(&export(Vec::new())).unwrap(),
     )
     .unwrap();
 
-    let error = service
-        .apply_bookmark_import(path, &preview.file_hash)
-        .unwrap_err();
+    let error = service.apply_import(path, &preview.file_hash).unwrap_err();
 
     assert_eq!(error.code(), "import_validation_failed");
+}
+
+#[test]
+fn apply_recomputes_outcome_when_database_changes_after_preview() {
+    let directory = TempDir::new().unwrap();
+    let path = write_json(
+        &directory,
+        "database-changed.json",
+        export(vec![record("https://example.com")]),
+    );
+    let (_, service) = service();
+    let preview = service.preview_import(&path).unwrap();
+    assert_eq!(preview.create_count, 1);
+
+    create(&service, "https://example.com");
+
+    let outcome = service.apply_import(&path, &preview.file_hash).unwrap();
+    assert_eq!(outcome.create_count, 0);
+    assert_eq!(outcome.update_count, 1);
+    assert_eq!(outcome.skip_count, 0);
 }
 
 #[test]
@@ -372,16 +357,11 @@ fn merge_uses_newer_content_earlier_created_and_larger_access_count() {
         export(vec![record("https://example.com")]),
     );
 
-    let preview = service.preview_bookmark_import(&path).unwrap();
+    let preview = service.preview_import(&path).unwrap();
     assert_eq!(preview.update_count, 1);
-    service
-        .apply_bookmark_import(path, &preview.file_hash)
-        .unwrap();
+    service.apply_import(path, &preview.file_hash).unwrap();
 
-    let bookmark = service
-        .get_by_url("https://example.com".to_owned())
-        .unwrap()
-        .unwrap();
+    let bookmark = service.find_by_url("https://example.com").unwrap().unwrap();
     assert_eq!(bookmark.title, "Imported");
     assert_eq!(bookmark.description, "Imported description");
     assert_eq!(bookmark.tags, vec!["imported", "中文"]);
@@ -405,7 +385,7 @@ fn one_invalid_record_rolls_back_entire_import() {
     );
     let hash = hash_file(&path);
 
-    let error = service.apply_bookmark_import(path, &hash).unwrap_err();
+    let error = service.apply_import(path, &hash).unwrap_err();
 
     assert_eq!(error.code(), "import_validation_failed");
     assert_eq!(
@@ -438,11 +418,9 @@ fn database_failure_rolls_back_records_already_imported_in_same_transaction() {
             record("https://reject.example/"),
         ]),
     );
-    let preview = service.preview_bookmark_import(&path).unwrap();
+    let preview = service.preview_import(&path).unwrap();
 
-    let error = service
-        .apply_bookmark_import(path, &preview.file_hash)
-        .unwrap_err();
+    let error = service.apply_import(path, &preview.file_hash).unwrap_err();
 
     assert_eq!(error.code(), "database_error");
     assert_eq!(

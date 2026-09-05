@@ -3,21 +3,21 @@ use std::sync::Arc;
 
 use bkmrx_lib::{
     bookmarks::{
-        BookmarkPageRequest, BookmarkRepository, BookmarkSearch, BookmarkService, CreateBookmark,
-        SqliteBookmarkRepository, SqliteFtsSearch, UpdateBookmark,
+        Bookmark, BookmarkEvents, BookmarkPage, BookmarkPageRequest, BookmarkStore, CreateBookmark,
+        UpdateBookmark,
     },
     database::Database,
 };
 
 struct Fixture {
     database: Arc<Database>,
-    search: SqliteFtsSearch,
+    store: BookmarkStore,
     ids: Vec<i64>,
 }
 
 fn fixture() -> Fixture {
     let database = Arc::new(Database::open_in_memory().unwrap());
-    let repository = SqliteBookmarkRepository::new(Arc::clone(&database));
+    let store = BookmarkStore::new(Arc::clone(&database));
     let inputs = [
         (
             "https://example.com/china",
@@ -65,7 +65,7 @@ fn fixture() -> Fixture {
     let ids = inputs
         .into_iter()
         .map(|(url, title, description, tags)| {
-            repository
+            store
                 .create(CreateBookmark {
                     url: url.to_owned(),
                     title: title.to_owned(),
@@ -88,10 +88,14 @@ fn fixture() -> Fixture {
     }
 
     Fixture {
-        search: SqliteFtsSearch::new(Arc::clone(&database)),
+        store,
         database,
         ids,
     }
+}
+
+fn page_ids(page: &BookmarkPage) -> Vec<i64> {
+    page.items.iter().map(|bookmark| bookmark.id).collect()
 }
 
 fn request(query: &str, tags: &[&str], page_size: u32) -> BookmarkPageRequest {
@@ -139,10 +143,10 @@ fn empty_query_without_tags_only_pages_starred_by_starred_at_then_id() {
         ))
         .unwrap();
 
-    let page = fixture.search.search(&starred_request(3)).unwrap();
+    let page = fixture.store.query(starred_request(3)).unwrap();
 
     assert_eq!(
-        page.bookmark_ids,
+        page_ids(&page),
         vec![fixture.ids[4], fixture.ids[2], fixture.ids[1]]
     );
     assert!(page.next_cursor.is_none());
@@ -153,11 +157,11 @@ fn tag_filter_requires_all_selected_tags() {
     let fixture = fixture();
 
     let page = fixture
-        .search
-        .search(&request("", &["search", "rust"], 50))
+        .store
+        .query(request("", &["search", "rust"], 50))
         .unwrap();
 
-    assert_eq!(page.bookmark_ids, vec![fixture.ids[6], fixture.ids[5]]);
+    assert_eq!(page_ids(&page), vec![fixture.ids[6], fixture.ids[5]]);
 }
 
 #[test]
@@ -165,42 +169,44 @@ fn empty_query_with_tags_keeps_recent_tag_filter_behavior() {
     let fixture = fixture();
 
     let page = fixture
-        .search
-        .search(&request("", &["search", "rust"], 50))
+        .store
+        .query(request("", &["search", "rust"], 50))
         .unwrap();
 
-    assert_eq!(page.bookmark_ids, vec![fixture.ids[6], fixture.ids[5]]);
+    assert_eq!(page_ids(&page), vec![fixture.ids[6], fixture.ids[5]]);
 }
 
 #[test]
 fn one_character_chinese_query_uses_like() {
     let fixture = fixture();
 
-    let page = fixture.search.search(&request("中", &[], 50)).unwrap();
+    let page = fixture.store.query(request("中", &[], 50)).unwrap();
 
-    assert_eq!(page.bookmark_ids.len(), 2);
-    assert!(page.bookmark_ids.contains(&fixture.ids[0]));
-    assert!(page.bookmark_ids.contains(&fixture.ids[1]));
+    let ids = page_ids(&page);
+    assert_eq!(ids.len(), 2);
+    assert!(ids.contains(&fixture.ids[0]));
+    assert!(ids.contains(&fixture.ids[1]));
 }
 
 #[test]
 fn two_character_chinese_query_uses_like() {
     let fixture = fixture();
 
-    let page = fixture.search.search(&request("中文", &[], 50)).unwrap();
+    let page = fixture.store.query(request("中文", &[], 50)).unwrap();
 
-    assert_eq!(page.bookmark_ids.len(), 2);
-    assert!(page.bookmark_ids.contains(&fixture.ids[0]));
-    assert!(page.bookmark_ids.contains(&fixture.ids[1]));
+    let ids = page_ids(&page);
+    assert_eq!(ids.len(), 2);
+    assert!(ids.contains(&fixture.ids[0]));
+    assert!(ids.contains(&fixture.ids[1]));
 }
 
 #[test]
 fn three_character_chinese_query_uses_trigram() {
     let fixture = fixture();
 
-    let page = fixture.search.search(&request("中文搜", &[], 50)).unwrap();
+    let page = fixture.store.query(request("中文搜", &[], 50)).unwrap();
 
-    assert_eq!(page.bookmark_ids, vec![fixture.ids[1]]);
+    assert_eq!(page_ids(&page), vec![fixture.ids[1]]);
 }
 
 #[test]
@@ -208,7 +214,7 @@ fn special_characters_never_raise_fts_syntax_errors() {
     let fixture = fixture();
 
     for query in ["%", "_", "\" OR *", "hello-world", "q=hello"] {
-        fixture.search.search(&request(query, &[], 50)).unwrap();
+        fixture.store.query(request(query, &[], 50)).unwrap();
     }
 }
 
@@ -217,11 +223,11 @@ fn text_and_tags_compose() {
     let fixture = fixture();
 
     let page = fixture
-        .search
-        .search(&request("中文", &["search"], 50))
+        .store
+        .query(request("中文", &["search"], 50))
         .unwrap();
 
-    assert_eq!(page.bookmark_ids, vec![fixture.ids[1]]);
+    assert_eq!(page_ids(&page), vec![fixture.ids[1]]);
 }
 
 #[test]
@@ -229,17 +235,13 @@ fn page_size_is_limited_to_one_through_one_hundred() {
     let fixture = fixture();
 
     assert_eq!(
-        fixture
-            .search
-            .search(&request("", &[], 0))
-            .unwrap_err()
-            .code(),
+        fixture.store.query(request("", &[], 0)).unwrap_err().code(),
         "validation_error"
     );
     assert_eq!(
         fixture
-            .search
-            .search(&request("", &[], 101))
+            .store
+            .query(request("", &[], 101))
             .unwrap_err()
             .code(),
         "validation_error"
@@ -250,20 +252,20 @@ fn page_size_is_limited_to_one_through_one_hundred() {
 fn random_request_returns_unique_items_without_a_cursor() {
     let fixture = fixture();
     let page = fixture
-        .search
-        .search(&BookmarkPageRequest::Random { limit: 5 })
+        .store
+        .query(BookmarkPageRequest::Random { limit: 5 })
         .unwrap();
 
-    assert_eq!(page.bookmark_ids.len(), 5);
+    let ids = page_ids(&page);
+    assert_eq!(ids.len(), 5);
     assert_eq!(
-        page.bookmark_ids
-            .iter()
+        ids.iter()
             .copied()
             .collect::<std::collections::HashSet<_>>()
             .len(),
         5
     );
-    assert!(page.bookmark_ids.iter().all(|id| fixture.ids.contains(id)));
+    assert!(ids.iter().all(|id| fixture.ids.contains(id)));
     assert_eq!(page.next_cursor, None);
 }
 
@@ -271,11 +273,11 @@ fn random_request_returns_unique_items_without_a_cursor() {
 fn random_request_returns_all_items_when_limit_exceeds_the_collection() {
     let fixture = fixture();
     let page = fixture
-        .search
-        .search(&BookmarkPageRequest::Random { limit: 7 })
+        .store
+        .query(BookmarkPageRequest::Random { limit: 7 })
         .unwrap();
 
-    assert_eq!(page.bookmark_ids.len(), fixture.ids.len());
+    assert_eq!(page_ids(&page).len(), fixture.ids.len());
 }
 
 #[test]
@@ -293,17 +295,17 @@ fn bookmark_request_rejects_unknown_fields() {
 fn cursor_is_bound_to_query_and_sorted_tags() {
     let fixture = fixture();
     let first = fixture
-        .search
-        .search(&request("", &["rust", "search"], 1))
+        .store
+        .query(request("", &["rust", "search"], 1))
         .unwrap();
     let cursor = first.next_cursor.unwrap();
 
     let reordered = with_cursor(request("", &["search", "rust"], 1), cursor.clone());
-    fixture.search.search(&reordered).unwrap();
+    fixture.store.query(reordered).unwrap();
 
     let changed = with_cursor(request("", &["search"], 1), cursor);
     assert_eq!(
-        fixture.search.search(&changed).unwrap_err().code(),
+        fixture.store.query(changed).unwrap_err().code(),
         "invalid_cursor"
     );
 }
@@ -315,8 +317,8 @@ fn pages_contain_no_duplicates_or_omissions() {
     let mut ids = Vec::new();
 
     loop {
-        let page = fixture.search.search(&request).unwrap();
-        ids.extend(page.bookmark_ids);
+        let page = fixture.store.query(request.clone()).unwrap();
+        ids.extend(page_ids(&page));
         match page.next_cursor {
             Some(cursor) => request = with_cursor(request, cursor),
             None => break,
@@ -345,10 +347,7 @@ fn pages_contain_no_duplicates_or_omissions() {
 #[test]
 fn service_query_hydrates_in_search_order_and_forwards_validation() {
     let fixture = fixture();
-    let repository = SqliteBookmarkRepository::new(Arc::clone(&fixture.database));
-    let service = BookmarkService::new(repository, fixture.search);
-
-    let page = service.query(starred_request(3)).unwrap();
+    let page = fixture.store.query(starred_request(3)).unwrap();
 
     assert_eq!(
         page.items
@@ -358,7 +357,7 @@ fn service_query_hydrates_in_search_order_and_forwards_validation() {
         vec![fixture.ids[6], fixture.ids[5], fixture.ids[4]]
     );
     assert_eq!(
-        service.query(request("", &[], 0)).unwrap_err().code(),
+        fixture.store.query(request("", &[], 0)).unwrap_err().code(),
         "validation_error"
     );
 }
@@ -367,24 +366,25 @@ fn service_query_hydrates_in_search_order_and_forwards_validation() {
 fn service_maps_not_found_and_notifies_only_successful_mutations() {
     let database = Arc::new(Database::open_in_memory().unwrap());
     let notifications = Arc::new(AtomicUsize::new(0));
-    let notifier_count = Arc::clone(&notifications);
     let accesses = Arc::new(AtomicUsize::new(0));
-    let access_count = Arc::clone(&accesses);
-    let service = BookmarkService::new(
-        SqliteBookmarkRepository::new(Arc::clone(&database)),
-        SqliteFtsSearch::new(database),
-    )
-    .with_change_notifier(Arc::new(move || {
-        notifier_count.fetch_add(1, Ordering::SeqCst);
-    }))
-    .with_access_notifier(Arc::new(move |_| {
-        access_count.fetch_add(1, Ordering::SeqCst);
+    struct RecordingEvents {
+        changed: Arc<AtomicUsize>,
+        accessed: Arc<AtomicUsize>,
+    }
+    impl BookmarkEvents for RecordingEvents {
+        fn changed(&self) {
+            self.changed.fetch_add(1, Ordering::SeqCst);
+        }
+        fn accessed(&self, _bookmark: &Bookmark) {
+            self.accessed.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    let service = BookmarkStore::new(database).with_events(Arc::new(RecordingEvents {
+        changed: Arc::clone(&notifications),
+        accessed: Arc::clone(&accesses),
     }));
 
-    assert_eq!(
-        service.get_by_id(99).unwrap_err().code(),
-        "bookmark_not_found"
-    );
+    assert_eq!(service.get(99).unwrap_err().code(), "bookmark_not_found");
     assert_eq!(notifications.load(Ordering::SeqCst), 0);
 
     let created = service
@@ -418,8 +418,8 @@ fn service_maps_not_found_and_notifies_only_successful_mutations() {
             .code(),
         "bookmark_url_conflict"
     );
-    service.delete_many(vec![created.id]).unwrap();
-    service.delete_many(Vec::new()).unwrap();
+    service.delete_many(&[created.id]).unwrap();
+    service.delete_many(&[]).unwrap();
 
     assert_eq!(notifications.load(Ordering::SeqCst), 4);
     assert_eq!(accesses.load(Ordering::SeqCst), 1);

@@ -2,18 +2,18 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { AppSettings } from '@/lib/invoke';
+import type { AppSettings, SettingsSnapshot } from '@/lib/invoke';
 
 import BookmarkTransferCard from '../BookmarkTransferCard';
 import DirectorySettingRow from '../DirectorySettingRow';
 import { SettingsQueryApiKey, updateSettingsApi } from '../settings.api';
 
 interface GeneralSettingsProps {
-  settings?: AppSettings;
+  snapshot?: SettingsSnapshot;
   onDirtyChange: (dirty: boolean) => void;
 }
 
-export default function GeneralSettings({ settings, onDirtyChange }: GeneralSettingsProps) {
+export default function GeneralSettings({ snapshot, onDirtyChange }: GeneralSettingsProps) {
   const queryClient = useQueryClient();
   const [dirtyRows, setDirtyRows] = useState<Set<string>>(new Set());
 
@@ -31,15 +31,15 @@ export default function GeneralSettings({ settings, onDirtyChange }: GeneralSett
   };
 
   const savePath = async (key: keyof AppSettings['common']['paths'], value: string | null) => {
-    if (!settings) return;
-    await updateSettingsApi({
-      ...settings,
-      common: { paths: { ...settings.common.paths, [key]: value } },
+    if (!snapshot) return;
+    const next = await updateSettingsApi(snapshot.revision, {
+      ...snapshot.settings,
+      common: { paths: { ...snapshot.settings.common.paths, [key]: value } },
     });
-    await queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.SETTINGS] });
+    queryClient.setQueryData([SettingsQueryApiKey.SETTINGS], next);
   };
 
-  const paths = settings?.common.paths;
+  const paths = snapshot?.settings.common.paths;
   return (
     <section aria-labelledby="general-settings-title" className="flex flex-col gap-6">
       <div>
@@ -57,7 +57,7 @@ export default function GeneralSettings({ settings, onDirtyChange }: GeneralSett
             label="书签导出目录"
             value={paths?.bookmark_export_dir}
             placeholder="选择书签默认导出目录"
-            disabled={!settings}
+            disabled={!snapshot}
             onDirtyChange={(dirty) => setRowDirty('bookmark', dirty)}
             onSave={(value) => savePath('bookmark_export_dir', value)}
           />
@@ -65,7 +65,7 @@ export default function GeneralSettings({ settings, onDirtyChange }: GeneralSett
             label="Todo 导出目录"
             value={paths?.todo_export_dir}
             placeholder="选择 Todo 默认导出目录"
-            disabled={!settings}
+            disabled={!snapshot}
             onDirtyChange={(dirty) => setRowDirty('todo', dirty)}
             onSave={(value) => savePath('todo_export_dir', value)}
           />
@@ -73,7 +73,7 @@ export default function GeneralSettings({ settings, onDirtyChange }: GeneralSett
             label="Obsidian 笔记"
             value={paths?.notes_dir}
             placeholder="选择 Obsidian 笔记目录"
-            disabled={!settings}
+            disabled={!snapshot}
             onDirtyChange={(dirty) => setRowDirty('notes', dirty)}
             onSave={(value) => savePath('notes_dir', value)}
           />

@@ -16,6 +16,12 @@ pub struct PreparedProviderRoutes {
     pub(crate) translation: Option<TranslationRoute>,
 }
 
+impl PreparedProviderRoutes {
+    pub(crate) fn disabled() -> Self {
+        Self { translation: None }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ProviderStatusView {
     pub descriptor: ProviderDescriptor,

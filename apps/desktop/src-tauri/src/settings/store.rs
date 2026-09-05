@@ -1,162 +1,316 @@
 use std::{
-    fs::{File, OpenOptions},
-    io::Write,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    path::PathBuf,
+    sync::{Arc, Mutex},
 };
 
-use crate::error::{AppError, AppResult};
+use serde::Serialize;
 
-use super::{Settings, SETTINGS_SCHEMA_VERSION};
+use crate::{
+    error::{AppError, AppResult},
+    providers::{Capability, ProviderId, ProviderManager, ProviderStatusView},
+    translation::ProviderError,
+};
 
-static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
+use super::{persistence, RssHubSettings, Settings};
 
-pub fn load(path: &Path) -> AppResult<Settings> {
-    if !path.exists() {
-        return Ok(Settings::default());
-    }
-    let json = std::fs::read(path).map_err(settings_io_error)?;
-    let mut value: serde_json::Value = serde_json::from_slice(&json).map_err(|error| {
-        AppError::settings_error(
-            "settings_invalid",
-            format!("failed to parse settings: {error}"),
-        )
-    })?;
-    let legacy = value
-        .get("schema_version")
-        .and_then(serde_json::Value::as_u64)
-        .unwrap_or_default()
-        == 0;
-    if legacy && value.get("providers").is_none() {
-        let niutrans = value
-            .pointer("/services/niutrans")
-            .cloned()
-            .unwrap_or_else(|| serde_json::json!({}));
-        value["providers"] = serde_json::json!({ "niutrans": niutrans });
-    }
-    let mut settings: Settings = serde_json::from_value(value).map_err(|error| {
-        AppError::settings_error(
-            "settings_invalid",
-            format!("failed to parse settings: {error}"),
-        )
-    })?;
-    if settings.schema_version == 0 {
-        let niutrans = &settings.providers.niutrans;
-        let configured = niutrans
-            .app_id
-            .as_deref()
-            .is_some_and(|value| !value.trim().is_empty())
-            && niutrans
-                .api_key
-                .as_deref()
-                .is_some_and(|value| !value.trim().is_empty());
-        settings.capabilities.translation.primary_provider = configured
-            .then(|| crate::providers::ProviderId::new("niutrans").expect("static ID is valid"));
-        settings.schema_version = SETTINGS_SCHEMA_VERSION;
-    }
-    Ok(settings)
+pub type SharedSettingsStore = Arc<SettingsStore>;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SettingsSnapshot {
+    pub revision: u64,
+    pub settings: Settings,
+    pub providers: Vec<ProviderStatusView>,
 }
 
-pub fn save(path: &Path, settings: &Settings) -> AppResult<()> {
-    validate(settings)?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(settings_io_error)?;
-    }
-    let json = serde_json::to_vec_pretty(settings).map_err(|error| {
-        AppError::settings_error(
-            "settings_serialize_error",
-            format!("failed to serialize settings: {error}"),
-        )
-    })?;
-    let (mut file, temp_path) = create_temp_file(path).map_err(settings_io_error)?;
-    let result = (|| -> AppResult<()> {
-        file.write_all(&json).map_err(settings_io_error)?;
-        file.sync_all().map_err(settings_io_error)?;
-        std::fs::rename(&temp_path, path).map_err(settings_io_error)
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&temp_path);
-    }
-    result
+#[derive(Debug, Clone)]
+pub struct SettingsStartupWarning {
+    pub code: String,
+    pub message: String,
 }
 
-fn validate(settings: &Settings) -> AppResult<()> {
-    if settings.schema_version != SETTINGS_SCHEMA_VERSION {
-        return Err(AppError::settings_error(
-            "settings_unsupported_version",
-            format!(
-                "Unsupported settings schema version: {}",
-                settings.schema_version
-            ),
-        ));
-    }
-    validate_translation_route(settings)?;
-    let Some(raw_url) = settings.services.rsshub.base_url.as_deref() else {
-        return Ok(());
-    };
-    let url = url::Url::parse(raw_url).map_err(|_| invalid_rsshub_url())?;
-    if !matches!(url.scheme(), "http" | "https")
-        || url.host_str().is_none()
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || url.query().is_some()
-        || url.fragment().is_some()
-    {
-        return Err(invalid_rsshub_url());
-    }
-    Ok(())
+pub struct SettingsOpen {
+    pub store: SettingsStore,
+    pub warning: Option<SettingsStartupWarning>,
 }
 
-fn validate_translation_route(settings: &Settings) -> AppResult<()> {
-    let route = &settings.capabilities.translation;
-    if route.primary_provider.as_ref().is_some_and(|primary| {
-        route
-            .fallback_providers
-            .iter()
-            .any(|fallback| fallback == primary)
-    }) {
-        return Err(AppError::settings_error(
-            "settings_invalid_provider_route",
-            "Primary translation provider cannot also be a fallback",
-        ));
-    }
-    let mut unique = std::collections::HashSet::new();
-    if route
-        .fallback_providers
-        .iter()
-        .any(|provider| !unique.insert(provider))
-    {
-        return Err(AppError::settings_error(
-            "settings_invalid_provider_route",
-            "Translation fallback providers must be unique",
-        ));
-    }
-    Ok(())
+struct SettingsState {
+    revision: u64,
+    settings: Settings,
+    recovery: bool,
 }
 
-fn invalid_rsshub_url() -> AppError {
-    AppError::settings_error(
-        "settings_invalid_rsshub_url",
-        "RSSHub service URL must be an HTTP(S) origin without credentials, query, or fragment",
-    )
+pub struct SettingsStore {
+    path: PathBuf,
+    providers: Arc<ProviderManager>,
+    state: Mutex<SettingsState>,
 }
 
-fn create_temp_file(path: &Path) -> std::io::Result<(File, PathBuf)> {
-    loop {
-        let counter = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let temp_path = path.with_extension(format!("json.tmp-{}-{counter}", std::process::id()));
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp_path)
-        {
-            Ok(file) => return Ok((file, temp_path)),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error),
+impl SettingsStore {
+    pub fn open(path: PathBuf, providers: Arc<ProviderManager>) -> SettingsOpen {
+        let (settings, warning, recovery) = match persistence::load(&path) {
+            Ok(settings) => match providers.prepare(&settings) {
+                Ok(prepared) => {
+                    providers.commit(prepared);
+                    (settings, None, false)
+                }
+                Err(error) => (
+                    settings,
+                    Some(startup_warning(&provider_error(error))),
+                    true,
+                ),
+            },
+            Err(error) => (Settings::default(), Some(startup_warning(&error)), true),
+        };
+        if recovery {
+            providers.commit(crate::providers::PreparedProviderRoutes::disabled());
+        }
+        SettingsOpen {
+            store: Self {
+                path,
+                providers,
+                state: Mutex::new(SettingsState {
+                    revision: 1,
+                    settings,
+                    recovery,
+                }),
+            },
+            warning,
+        }
+    }
+
+    pub fn snapshot(&self) -> SettingsSnapshot {
+        let state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        self.snapshot_from(&state)
+    }
+
+    pub fn replace(
+        &self,
+        expected_revision: u64,
+        settings: Settings,
+    ) -> AppResult<SettingsSnapshot> {
+        self.commit_change(expected_revision, settings)
+    }
+
+    pub fn activate_provider(
+        &self,
+        expected_revision: u64,
+        capability: Capability,
+        provider: ProviderId,
+    ) -> AppResult<SettingsSnapshot> {
+        let settings = self.settings_at(expected_revision)?;
+        let settings = match capability {
+            Capability::Translation => Settings {
+                capabilities: super::CapabilitySettings {
+                    translation: super::ProviderRouteSettings {
+                        primary_provider: Some(provider),
+                        ..settings.capabilities.translation
+                    },
+                },
+                ..settings
+            },
+            Capability::Ai => return Err(unsupported_capability()),
+        };
+        self.commit_change(expected_revision, settings)
+    }
+
+    pub fn deactivate_provider(
+        &self,
+        expected_revision: u64,
+        capability: Capability,
+    ) -> AppResult<SettingsSnapshot> {
+        let settings = self.settings_at(expected_revision)?;
+        let settings = match capability {
+            Capability::Translation => Settings {
+                capabilities: super::CapabilitySettings {
+                    translation: super::ProviderRouteSettings {
+                        primary_provider: None,
+                        ..settings.capabilities.translation
+                    },
+                },
+                ..settings
+            },
+            Capability::Ai => return Err(unsupported_capability()),
+        };
+        self.commit_change(expected_revision, settings)
+    }
+
+    pub fn rsshub_configuration(&self) -> RssHubSettings {
+        self.state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .settings
+            .services
+            .rsshub
+            .clone()
+    }
+
+    fn settings_at(&self, expected_revision: u64) -> AppResult<Settings> {
+        let state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        ensure_revision(expected_revision, state.revision)?;
+        Ok(state.settings.clone())
+    }
+
+    fn commit_change(
+        &self,
+        expected_revision: u64,
+        settings: Settings,
+    ) -> AppResult<SettingsSnapshot> {
+        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        ensure_revision(expected_revision, state.revision)?;
+        if !state.recovery && state.settings == settings {
+            return Ok(self.snapshot_from(&state));
+        }
+        persistence::validate(&settings)?;
+        let prepared = self.providers.prepare(&settings).map_err(provider_error)?;
+        persistence::save(&self.path, &settings)?;
+        self.providers.commit(prepared);
+        *state = SettingsState {
+            revision: state.revision + 1,
+            settings,
+            recovery: false,
+        };
+        Ok(self.snapshot_from(&state))
+    }
+
+    fn snapshot_from(&self, state: &SettingsState) -> SettingsSnapshot {
+        SettingsSnapshot {
+            revision: state.revision,
+            settings: state.settings.clone(),
+            providers: self.providers.statuses(&state.settings),
         }
     }
 }
 
-fn settings_io_error(error: std::io::Error) -> AppError {
-    AppError::settings_error("settings_io_error", error.to_string())
+fn ensure_revision(expected: u64, actual: u64) -> AppResult<()> {
+    if expected == actual {
+        Ok(())
+    } else {
+        Err(AppError::settings_revision_conflict(expected, actual))
+    }
+}
+
+fn unsupported_capability() -> AppError {
+    AppError::settings_error(
+        "settings_unsupported_capability",
+        "AI providers are not supported yet",
+    )
+}
+
+fn provider_error(error: ProviderError) -> AppError {
+    let code = match error {
+        ProviderError::AlreadyRegistered { .. } => "settings_provider_already_registered",
+        ProviderError::NotRegistered { .. } => "settings_provider_not_registered",
+        ProviderError::InvalidConfiguration { .. } => "settings_provider_invalid_configuration",
+        ProviderError::BuildFailed { .. } => "settings_provider_build_failed",
+    };
+    AppError::settings_error(code, error.to_string())
+}
+
+fn startup_warning(error: &AppError) -> SettingsStartupWarning {
+    SettingsStartupWarning {
+        code: error.code().to_owned(),
+        message:
+            "设置文件无法完整应用。原文件已保留，应用已使用临时设置启动；请检查并重新保存设置。"
+                .to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use tempfile::TempDir;
+
+    use super::SettingsStore;
+    use crate::{
+        providers::{ProviderContext, ProviderManager},
+        settings::{CommonSettings, PathSettings, Settings},
+        translation::{TranslationRegistry, TranslationRuntime},
+    };
+
+    fn provider_manager() -> Arc<ProviderManager> {
+        Arc::new(ProviderManager::new(
+            TranslationRegistry::default(),
+            Arc::new(TranslationRuntime::default()),
+            ProviderContext::new(reqwest::Client::new()),
+        ))
+    }
+
+    #[test]
+    fn missing_file_opens_at_revision_one_without_writing() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("settings.json");
+
+        let opened = SettingsStore::open(path.clone(), provider_manager());
+
+        assert!(opened.warning.is_none());
+        assert_eq!(opened.store.snapshot().revision, 1);
+        assert_eq!(opened.store.snapshot().settings, Settings::default());
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn successful_replace_advances_revision_and_persists_snapshot() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("settings.json");
+        let opened = SettingsStore::open(path.clone(), provider_manager());
+        let settings = Settings {
+            common: CommonSettings {
+                paths: PathSettings {
+                    notes_dir: Some("/tmp/notes".into()),
+                    ..Default::default()
+                },
+            },
+            ..Settings::default()
+        };
+
+        let snapshot = opened.store.replace(1, settings.clone()).unwrap();
+
+        assert_eq!(snapshot.revision, 2);
+        assert_eq!(snapshot.settings, settings);
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn stale_replace_does_not_change_the_current_snapshot() {
+        let directory = TempDir::new().unwrap();
+        let opened =
+            SettingsStore::open(directory.path().join("settings.json"), provider_manager());
+
+        let error = opened.store.replace(0, Settings::default()).unwrap_err();
+
+        assert_eq!(error.code(), "settings_revision_conflict");
+        assert_eq!(opened.store.snapshot().revision, 1);
+    }
+
+    #[test]
+    fn normal_no_op_keeps_revision_and_does_not_create_the_file() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("settings.json");
+        let opened = SettingsStore::open(path.clone(), provider_manager());
+
+        let snapshot = opened.store.replace(1, Settings::default()).unwrap();
+
+        assert_eq!(snapshot.revision, 1);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn recovery_preserves_the_bad_file_until_a_successful_save() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("settings.json");
+        std::fs::write(&path, b"{").unwrap();
+        let opened = SettingsStore::open(path.clone(), provider_manager());
+
+        assert!(opened.warning.is_some());
+        assert_eq!(std::fs::read(&path).unwrap(), b"{");
+
+        let snapshot = opened.store.replace(1, Settings::default()).unwrap();
+
+        assert_eq!(snapshot.revision, 2);
+        assert_eq!(
+            crate::settings::persistence::load(&path).unwrap(),
+            Settings::default()
+        );
+    }
 }

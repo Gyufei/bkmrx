@@ -1,6 +1,6 @@
 mod model;
+mod persistence;
 mod runtime;
-mod service;
 mod store;
 
 pub use model::{
@@ -9,5 +9,6 @@ pub use model::{
     SETTINGS_SCHEMA_VERSION,
 };
 pub use runtime::RuntimePaths;
-pub use service::SettingsService;
-pub use store::{load, save};
+pub use store::{
+    SettingsOpen, SettingsSnapshot, SettingsStartupWarning, SettingsStore, SharedSettingsStore,
+};

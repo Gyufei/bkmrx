@@ -194,29 +194,40 @@ export interface ProviderStatus {
   activation: 'inactive' | 'primary' | { fallback: { priority: number } };
 }
 
-export function invokeGetSettings(): Promise<AppSettings> {
-  return invoke<AppSettings>('get_settings');
+export interface SettingsSnapshot {
+  revision: number;
+  settings: AppSettings;
+  providers: ProviderStatus[];
 }
 
-export function invokeUpdateSettings(settings: AppSettings): Promise<void> {
-  return invoke('update_settings', { settings });
+export function invokeGetSettings(): Promise<SettingsSnapshot> {
+  return invoke<SettingsSnapshot>('get_settings');
 }
 
-export function invokeListProviders(): Promise<ProviderStatus[]> {
-  return invoke<ProviderStatus[]>('list_providers');
+export function invokeUpdateSettings(
+  expectedRevision: number,
+  settings: AppSettings,
+): Promise<SettingsSnapshot> {
+  return invoke<SettingsSnapshot>('update_settings', { expectedRevision, settings });
 }
 
 export function invokeActivateProvider(
+  expectedRevision: number,
   capability: ProviderStatus['descriptor']['capability'],
   providerId: string,
-): Promise<void> {
-  return invoke('activate_provider', { capability, providerId });
+): Promise<SettingsSnapshot> {
+  return invoke<SettingsSnapshot>('activate_provider', {
+    expectedRevision,
+    capability,
+    providerId,
+  });
 }
 
 export function invokeDeactivateProvider(
+  expectedRevision: number,
   capability: ProviderStatus['descriptor']['capability'],
-): Promise<void> {
-  return invoke('deactivate_provider', { capability });
+): Promise<SettingsSnapshot> {
+  return invoke<SettingsSnapshot>('deactivate_provider', { expectedRevision, capability });
 }
 
 /* ───── System ───── */

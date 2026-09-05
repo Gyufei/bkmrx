@@ -32,7 +32,7 @@ export function useTodoExport(reportError: (error: unknown) => void) {
     if (mutation.isPending) return;
     const filename = `${todayDate()}-待办-${sanitizeFilenameSegment(tag.name)}.md`;
     const defaultPath = joinDirectoryAndFilename(
-      settings.data?.common.paths.todo_export_dir,
+      settings.data?.settings.common.paths.todo_export_dir,
       filename,
     );
     const selected = await save({

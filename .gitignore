@@ -3,6 +3,7 @@
 .env.local
 **/.env.local
 .claude/
+.workbuddy
 .superpowers/
 .worktrees/
 node_modules/

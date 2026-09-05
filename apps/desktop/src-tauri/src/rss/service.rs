@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    path::PathBuf,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -30,7 +29,7 @@ pub struct RssService {
     repository: RssRepository,
     fetcher: FeedFetcher,
     inflight: InflightRefreshes,
-    settings_path: Option<PathBuf>,
+    settings: Option<crate::settings::SharedSettingsStore>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -52,29 +51,28 @@ impl RssService {
             repository,
             fetcher: FeedFetcher,
             inflight: Arc::new(Mutex::new(HashMap::new())),
-            settings_path: None,
+            settings: None,
         }
     }
 
-    pub fn with_settings_path(mut self, settings_path: PathBuf) -> Self {
-        self.settings_path = Some(settings_path);
+    pub fn with_settings_store(mut self, settings: crate::settings::SharedSettingsStore) -> Self {
+        self.settings = Some(settings);
         self
     }
 
-    fn rss_settings(&self) -> AppResult<crate::settings::RssHubSettings> {
-        self.settings_path
-            .as_deref()
-            .map(crate::settings::load)
-            .transpose()
-            .map(|settings| settings.unwrap_or_default().services.rsshub)
+    fn rss_settings(&self) -> crate::settings::RssHubSettings {
+        self.settings
+            .as_ref()
+            .map(|settings| settings.rsshub_configuration())
+            .unwrap_or_default()
     }
 
     pub async fn preview(&self, url: &str) -> AppResult<FeedPreview> {
-        self.fetcher.preview(url, &self.rss_settings()?).await
+        self.fetcher.preview(url, &self.rss_settings()).await
     }
 
     pub async fn create(&self, input: CreateFeed) -> AppResult<RssFeed> {
-        let settings = self.rss_settings()?;
+        let settings = self.rss_settings();
         let (feed_url, parsed) = self
             .fetcher
             .fetch_and_parse(&input.feed_url, &settings)
@@ -124,7 +122,7 @@ impl RssService {
     async fn refresh_feed_once(&self, id: i64) -> AppResult<FeedRefreshResult> {
         let feed = observe_database("rss", "get_feed", || self.repository.get_feed(id))?
             .ok_or_else(|| feed_not_found(id))?;
-        let settings = self.rss_settings()?;
+        let settings = self.rss_settings();
         let source_is_rsshub = url::Url::parse(&feed.source_url)
             .ok()
             .is_some_and(|url| is_official_rsshub_url(&url));

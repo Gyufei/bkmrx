@@ -134,6 +134,17 @@ impl AppError {
         Self::new(code, message, None)
     }
 
+    pub fn settings_revision_conflict(expected: u64, actual: u64) -> Self {
+        Self::new(
+            "settings_revision_conflict",
+            "Settings changed since this form was loaded. Reload and try again.",
+            Some(serde_json::json!({
+                "expected_revision": expected,
+                "actual_revision": actual,
+            })),
+        )
+    }
+
     pub fn rss_error(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self::new(code, message, None)
     }

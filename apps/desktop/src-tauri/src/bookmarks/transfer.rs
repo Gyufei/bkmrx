@@ -4,13 +4,13 @@ use std::path::{Path, PathBuf};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{DateTime, SecondsFormat, Utc};
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 
 use crate::database::Database;
 use crate::error::{AppError, AppResult};
 
-use super::repository::{remove_unused_tags, replace_tags, upsert_fts};
+use super::repository::{persist_searchable_content, remove_unused_tags};
 use super::{BookmarkExportV1, BookmarkTransferRecord, ImportPreview};
 
 pub(crate) fn export_bookmarks(database: &Database, destination: &Path) -> AppResult<PathBuf> {
@@ -31,7 +31,8 @@ pub(crate) fn export_bookmarks(database: &Database, destination: &Path) -> AppRe
 pub(crate) fn preview_import(database: &Database, path: &Path) -> AppResult<ImportPreview> {
     let bytes = fs::read(path).map_err(file_error)?;
     let validated = parse_and_validate(&bytes)?;
-    preview_validated(database, &validated, hash_bytes(&bytes))
+    let connection = database.connection()?;
+    preview_validated(&connection, &validated, hash_bytes(&bytes))
 }
 
 pub(crate) fn apply_import(
@@ -47,9 +48,9 @@ pub(crate) fn apply_import(
         ));
     }
     let validated = parse_and_validate(&bytes)?;
-    let preview = preview_validated(database, &validated, actual_hash)?;
     let mut connection = database.connection()?;
     let transaction = connection.transaction().map_err(database_error)?;
+    let preview = preview_validated(&transaction, &validated, actual_hash)?;
 
     for record in &validated.records {
         let existing = transaction
@@ -95,8 +96,7 @@ pub(crate) fn apply_import(
                     )
                     .map_err(database_error)?;
                 let id = transaction.last_insert_rowid();
-                replace_tags(&transaction, id, &record.tags)?;
-                upsert_fts(
+                persist_searchable_content(
                     &transaction,
                     id,
                     &record.url,
@@ -148,8 +148,7 @@ pub(crate) fn apply_import(
                     )
                     .map_err(database_error)?;
                 if content_is_newer {
-                    replace_tags(&transaction, existing.id, &record.tags)?;
-                    upsert_fts(
+                    persist_searchable_content(
                         &transaction,
                         existing.id,
                         &record.url,
@@ -319,11 +318,10 @@ fn parse_and_validate(bytes: &[u8]) -> AppResult<ValidatedExport> {
 }
 
 fn preview_validated(
-    database: &Database,
+    connection: &Connection,
     export: &ValidatedExport,
     file_hash: String,
 ) -> AppResult<ImportPreview> {
-    let connection = database.connection()?;
     let mut statement = connection
         .prepare("SELECT url, updated_at FROM bookmarks")
         .map_err(database_error)?;

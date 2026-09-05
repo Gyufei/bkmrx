@@ -6,19 +6,15 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import AboutSettings from './sections/AboutSettings';
 import GeneralSettings from './sections/GeneralSettings';
 import ServicesSettings from './sections/ServicesSettings';
-import { getSettingsApi, listProvidersApi, SettingsQueryApiKey } from './settings.api';
+import { getSettingsApi, SettingsQueryApiKey } from './settings.api';
 import SettingsTabs, { type SettingsTab } from './SettingsTabs';
 
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [dirtyTabs, setDirtyTabs] = useState<Partial<Record<SettingsTab, boolean>>>({});
-  const { data: settings } = useQuery({
+  const { data: snapshot } = useQuery({
     queryKey: [SettingsQueryApiKey.SETTINGS],
     queryFn: getSettingsApi,
-  });
-  const { data: providers = [] } = useQuery({
-    queryKey: [SettingsQueryApiKey.PROVIDERS],
-    queryFn: listProvidersApi,
   });
 
   const setTabDirty = useCallback((tab: SettingsTab, dirty: boolean) => {
@@ -44,14 +40,10 @@ function SettingsPage() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-6 py-8">
           <TabsContent value="general" keepMounted className="data-inactive:hidden">
-            <GeneralSettings settings={settings} onDirtyChange={setGeneralDirty} />
+            <GeneralSettings snapshot={snapshot} onDirtyChange={setGeneralDirty} />
           </TabsContent>
           <TabsContent value="services" keepMounted className="data-inactive:hidden">
-            <ServicesSettings
-              settings={settings}
-              providers={providers}
-              onDirtyChange={setServicesDirty}
-            />
+            <ServicesSettings snapshot={snapshot} onDirtyChange={setServicesDirty} />
           </TabsContent>
           <TabsContent value="about" keepMounted className="data-inactive:hidden">
             <AboutSettings active={activeTab === 'about'} />

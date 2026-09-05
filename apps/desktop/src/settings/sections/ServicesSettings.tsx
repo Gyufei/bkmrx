@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Rss } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { AppSettings, ProviderStatus } from '@/lib/invoke';
+import type { SettingsSnapshot } from '@/lib/invoke';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import NiuTransServicePanel from '../service-panels/NiuTransServicePanel';
@@ -10,36 +10,31 @@ import { activateProviderApi, deactivateProviderApi, SettingsQueryApiKey } from 
 import { errorMessage } from '../settings.utils';
 
 interface ServicesSettingsProps {
-  settings?: AppSettings;
-  providers: ProviderStatus[];
+  snapshot?: SettingsSnapshot;
   onDirtyChange: (dirty: boolean) => void;
 }
 
 type ServiceId = 'rsshub' | 'niutrans';
 
-export default function ServicesSettings({
-  settings,
-  providers,
-  onDirtyChange,
-}: ServicesSettingsProps) {
+export default function ServicesSettings({ snapshot, onDirtyChange }: ServicesSettingsProps) {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<ServiceId>('rsshub');
   const [dirty, setDirty] = useState<Record<ServiceId, boolean>>({
     rsshub: false,
     niutrans: false,
   });
-  const niutrans = providers.find((provider) => provider.descriptor.id === 'niutrans');
+  const settings = snapshot?.settings;
+  const niutrans = snapshot?.providers.find((provider) => provider.descriptor.id === 'niutrans');
   const niutransIsPrimary = niutrans?.activation === 'primary';
   const activation = useMutation({
-    mutationFn: (primaryProvider: string | null) =>
-      primaryProvider
-        ? activateProviderApi('translation', primaryProvider)
-        : deactivateProviderApi('translation'),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.SETTINGS] }),
-        queryClient.invalidateQueries({ queryKey: [SettingsQueryApiKey.PROVIDERS] }),
-      ]);
+    mutationFn: (primaryProvider: string | null) => {
+      if (!snapshot) throw new Error('设置尚未加载');
+      return primaryProvider
+        ? activateProviderApi(snapshot.revision, 'translation', primaryProvider)
+        : deactivateProviderApi(snapshot.revision, 'translation');
+    },
+    onSuccess: (next) => {
+      queryClient.setQueryData([SettingsQueryApiKey.SETTINGS], next);
     },
   });
 
@@ -105,7 +100,7 @@ export default function ServicesSettings({
         <div className="p-5 sm:p-6">
           <div className={selected === 'rsshub' ? undefined : 'hidden'}>
             <RssHubServicePanel
-              settings={settings}
+              snapshot={snapshot}
               onDirtyChange={(next) => setDirty((current) => ({ ...current, rsshub: next }))}
             />
           </div>
@@ -139,7 +134,7 @@ export default function ServicesSettings({
               )}
             </div>
             <NiuTransServicePanel
-              settings={settings}
+              snapshot={snapshot}
               onDirtyChange={(next) => setDirty((current) => ({ ...current, niutrans: next }))}
             />
           </div>

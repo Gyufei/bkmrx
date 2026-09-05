@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 use crate::bookmarks::{
-    Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, SharedBookmarkService,
+    Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, SharedBookmarkStore,
     TagQueryRequest, TagSummary, UpdateBookmark,
 };
 use crate::error::AppError;
@@ -28,7 +28,7 @@ static SERVER_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone)]
 struct HttpState {
-    bookmarks: SharedBookmarkService,
+    bookmarks: SharedBookmarkStore,
     translation: TranslationService,
 }
 
@@ -48,12 +48,12 @@ pub fn status() -> ServerStatus {
     }
 }
 
-pub fn router(service: SharedBookmarkService) -> Router {
+pub fn router(service: SharedBookmarkStore) -> Router {
     router_with_translation(service, TranslationService::unavailable())
 }
 
 pub fn router_with_translation(
-    bookmarks: SharedBookmarkService,
+    bookmarks: SharedBookmarkStore,
     translation: TranslationService,
 ) -> Router {
     Router::new()
@@ -80,7 +80,7 @@ pub fn router_with_translation(
 }
 
 pub async fn start_server(
-    service: SharedBookmarkService,
+    service: SharedBookmarkStore,
     translation: TranslationService,
     shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) {
@@ -232,7 +232,7 @@ async fn get_bookmark_by_url_handler(
     let url = query.url;
     state
         .bookmarks
-        .get_by_url(url.clone())
+        .find_by_url(&url)
         .and_then(|bookmark| bookmark.ok_or_else(|| AppError::bookmark_url_not_found(url)))
         .map(Json)
         .map_err(ApiError::App)
@@ -243,11 +243,7 @@ async fn get_bookmark_handler(
     id: Result<Path<i64>, PathRejection>,
 ) -> Result<Json<Bookmark>, ApiError> {
     let Path(id) = id.map_err(|error| ApiError::Request(error.status()))?;
-    state
-        .bookmarks
-        .get_by_id(id)
-        .map(Json)
-        .map_err(ApiError::App)
+    state.bookmarks.get(id).map(Json).map_err(ApiError::App)
 }
 
 async fn update_bookmark_handler(
@@ -269,11 +265,7 @@ async fn delete_bookmark_handler(
     id: Result<Path<i64>, PathRejection>,
 ) -> Result<StatusCode, ApiError> {
     let Path(id) = id.map_err(|error| ApiError::Request(error.status()))?;
-    state.bookmarks.get_by_id(id).map_err(ApiError::App)?;
-    state
-        .bookmarks
-        .delete_many(vec![id])
-        .map_err(ApiError::App)?;
+    state.bookmarks.delete(id).map_err(ApiError::App)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -282,7 +274,7 @@ async fn get_tags_handler(
 ) -> Result<Json<Vec<TagSummary>>, ApiError> {
     state
         .bookmarks
-        .get_tags(TagQueryRequest {
+        .tags(TagQueryRequest {
             query: String::new(),
             limit: None,
         })
@@ -370,9 +362,7 @@ mod tests {
 
     use super::{router, router_with_translation};
     use crate::{
-        bookmarks::{
-            BookmarkService, SharedBookmarkService, SqliteBookmarkRepository, SqliteFtsSearch,
-        },
+        bookmarks::{BookmarkStore, SharedBookmarkStore},
         database::Database,
         providers::ProviderId,
         translation::{
@@ -398,12 +388,9 @@ mod tests {
         }
     }
 
-    fn test_bookmark_service() -> SharedBookmarkService {
+    fn test_bookmark_service() -> SharedBookmarkStore {
         let database = Arc::new(Database::open_in_memory().expect("open test database"));
-        Arc::new(BookmarkService::new(
-            SqliteBookmarkRepository::new(Arc::clone(&database)),
-            SqliteFtsSearch::new(database),
-        ))
+        Arc::new(BookmarkStore::new(database))
     }
 
     fn test_router() -> axum::Router {

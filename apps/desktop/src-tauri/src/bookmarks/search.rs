@@ -1,12 +1,9 @@
-use std::collections::BTreeSet;
-use std::sync::Arc;
-
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use rusqlite::{params, params_from_iter, types::Value};
+use rusqlite::{params, params_from_iter, types::Value, Connection};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 
-use crate::database::Database;
 use crate::error::{AppError, AppResult};
 
 use super::{
@@ -15,48 +12,39 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SearchPage {
+pub(crate) struct SearchPage {
     pub bookmark_ids: Vec<i64>,
     pub next_cursor: Option<String>,
 }
 
-pub trait BookmarkSearch: Send + Sync {
-    fn search(&self, request: &BookmarkPageRequest) -> AppResult<SearchPage>;
-}
-
-#[derive(Debug, Clone)]
-pub struct SqliteFtsSearch {
-    database: Arc<Database>,
-}
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct SqliteFtsSearch;
 
 impl SqliteFtsSearch {
-    pub fn new(database: Arc<Database>) -> Self {
-        Self { database }
-    }
-}
-
-impl BookmarkSearch for SqliteFtsSearch {
-    fn search(&self, request: &BookmarkPageRequest) -> AppResult<SearchPage> {
+    pub(crate) fn search_with_connection(
+        &self,
+        connection: &Connection,
+        request: &BookmarkPageRequest,
+    ) -> AppResult<SearchPage> {
         match request {
             BookmarkPageRequest::Browse {
                 starred,
                 cursor,
                 page_size,
-            } => self.search_browse(*starred, cursor.as_deref(), *page_size),
+            } => self.search_browse(connection, *starred, cursor.as_deref(), *page_size),
             BookmarkPageRequest::Search {
                 query,
                 tags,
                 cursor,
                 page_size,
-            } => self.search_filtered(query, tags, cursor.as_deref(), *page_size),
-            BookmarkPageRequest::Random { limit } => self.search_random(*limit),
+            } => self.search_filtered(connection, query, tags, cursor.as_deref(), *page_size),
+            BookmarkPageRequest::Random { limit } => self.search_random(connection, *limit),
         }
     }
-}
 
-impl SqliteFtsSearch {
     fn search_browse(
         &self,
+        connection: &Connection,
         starred: bool,
         encoded_cursor: Option<&str>,
         page_size: u32,
@@ -65,14 +53,15 @@ impl SqliteFtsSearch {
         let query_hash = query_hash(&("browse", starred, page_size))?;
         let cursor = validated_cursor(encoded_cursor, &query_hash)?;
         if starred {
-            self.search_starred(page_size, query_hash, cursor)
+            self.search_starred(connection, page_size, query_hash, cursor)
         } else {
-            self.search_recent(&[], page_size, query_hash, cursor)
+            self.search_recent(connection, &[], page_size, query_hash, cursor)
         }
     }
 
     fn search_filtered(
         &self,
+        connection: &Connection,
         raw_query: &str,
         raw_tags: &[String],
         encoded_cursor: Option<&str>,
@@ -89,15 +78,14 @@ impl SqliteFtsSearch {
         let query_hash = query_hash(&("search", query, &tags, page_size))?;
         let cursor = validated_cursor(encoded_cursor, &query_hash)?;
         match query.chars().count() {
-            0 => self.search_recent(&tags, page_size, query_hash, cursor),
-            1 | 2 => self.search_like(query, &tags, page_size, query_hash, cursor),
-            _ => self.search_fts(query, &tags, page_size, query_hash, cursor),
+            0 => self.search_recent(connection, &tags, page_size, query_hash, cursor),
+            1 | 2 => self.search_like(connection, query, &tags, page_size, query_hash, cursor),
+            _ => self.search_fts(connection, query, &tags, page_size, query_hash, cursor),
         }
     }
 
-    fn search_random(&self, limit: u32) -> AppResult<SearchPage> {
+    fn search_random(&self, connection: &Connection, limit: u32) -> AppResult<SearchPage> {
         validate_page_size(limit)?;
-        let connection = self.database.connection()?;
         let mut statement = connection
             .prepare("SELECT id FROM bookmarks ORDER BY RANDOM() LIMIT ?")
             .map_err(database_error)?;
@@ -115,6 +103,7 @@ impl SqliteFtsSearch {
 
     fn search_starred(
         &self,
+        connection: &Connection,
         page_size: u32,
         query_hash: String,
         cursor: Option<CursorMode>,
@@ -134,7 +123,6 @@ impl SqliteFtsSearch {
         sql.push_str(" ORDER BY starred_at DESC, id DESC LIMIT ?");
         values.push(Value::Integer(i64::from(page_size) + 1));
 
-        let connection = self.database.connection()?;
         let mut statement = connection.prepare(&sql).map_err(database_error)?;
         let rows = statement
             .query_map(params_from_iter(values.iter()), |row| {
@@ -170,6 +158,7 @@ impl SqliteFtsSearch {
 
     fn search_recent(
         &self,
+        connection: &Connection,
         tags: &[String],
         page_size: u32,
         query_hash: String,
@@ -194,7 +183,6 @@ impl SqliteFtsSearch {
         sql.push_str(" ORDER BY b.updated_at DESC, b.id DESC LIMIT ?");
         values.push(Value::Integer(i64::from(page_size) + 1));
 
-        let connection = self.database.connection()?;
         let mut statement = connection.prepare(&sql).map_err(database_error)?;
         let rows = statement
             .query_map(params_from_iter(values.iter()), |row| {
@@ -231,6 +219,7 @@ impl SqliteFtsSearch {
 
     fn search_like(
         &self,
+        connection: &Connection,
         query: &str,
         tags: &[String],
         page_size: u32,
@@ -265,11 +254,12 @@ impl SqliteFtsSearch {
         sql.push_str(" ORDER BY b.updated_at DESC, b.id DESC LIMIT ? OFFSET ?");
         values.push(Value::Integer(i64::from(page_size) + 1));
         values.push(Value::Integer(offset as i64));
-        self.text_page(sql, values, page_size, offset, query_hash)
+        self.text_page(connection, sql, values, page_size, offset, query_hash)
     }
 
     fn search_fts(
         &self,
+        connection: &Connection,
         query: &str,
         tags: &[String],
         page_size: u32,
@@ -291,18 +281,18 @@ impl SqliteFtsSearch {
         );
         values.push(Value::Integer(i64::from(page_size) + 1));
         values.push(Value::Integer(offset as i64));
-        self.text_page(sql, values, page_size, offset, query_hash)
+        self.text_page(connection, sql, values, page_size, offset, query_hash)
     }
 
     fn text_page(
         &self,
+        connection: &Connection,
         sql: String,
         values: Vec<Value>,
         page_size: u32,
         offset: u64,
         query_hash: String,
     ) -> AppResult<SearchPage> {
-        let connection = self.database.connection()?;
         let mut statement = connection.prepare(&sql).map_err(database_error)?;
         let rows = statement
             .query_map(params_from_iter(values.iter()), |row| row.get::<_, i64>(0))

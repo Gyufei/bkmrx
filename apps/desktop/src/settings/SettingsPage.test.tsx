@@ -4,14 +4,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { open } from '@tauri-apps/plugin-dialog';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppSettings } from '@/lib/invoke';
+import type { AppSettings, ProviderStatus, SettingsSnapshot } from '@/lib/invoke';
 import SettingsPage from './SettingsPage';
 import {
   applyBookmarkImportApi,
   activateProviderApi,
   deactivateProviderApi,
   getSettingsApi,
-  listProvidersApi,
   previewBookmarkImportApi,
   updateSettingsApi,
 } from './settings.api';
@@ -21,10 +20,8 @@ vi.mock('./settings.api', () => ({
   SettingsQueryApiKey: {
     SYSTEM_INFO: 'systemInfo',
     SETTINGS: 'settings',
-    PROVIDERS: 'providers',
   },
   getSettingsApi: vi.fn(),
-  listProvidersApi: vi.fn(),
   getSystemInfoApi: vi.fn(),
   updateSettingsApi: vi.fn(),
   exportBookmarksApi: vi.fn(),
@@ -54,6 +51,25 @@ const baseSettings = (): AppSettings => ({
   },
 });
 
+const providerStatus = (
+  configured = false,
+  activation: ProviderStatus['activation'] = 'inactive',
+) => ({
+  descriptor: {
+    id: 'niutrans',
+    capability: 'translation' as const,
+    display_name: '小牛翻译',
+    description: '小牛机器翻译服务',
+  },
+  configured,
+  activation,
+});
+
+const settingsSnapshot = (
+  settings = baseSettings(),
+  providers: ProviderStatus[] = [providerStatus()],
+): SettingsSnapshot => ({ revision: 1, settings, providers });
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -72,22 +88,11 @@ async function selectTab(name: '通用' | '服务' | '关于') {
 describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getSettingsApi).mockResolvedValue(baseSettings());
-    vi.mocked(listProvidersApi).mockResolvedValue([
-      {
-        descriptor: {
-          id: 'niutrans',
-          capability: 'translation',
-          display_name: '小牛翻译',
-          description: '小牛机器翻译服务',
-        },
-        configured: false,
-        activation: 'inactive',
-      },
-    ]);
-    vi.mocked(updateSettingsApi).mockResolvedValue(undefined);
-    vi.mocked(activateProviderApi).mockResolvedValue(undefined);
-    vi.mocked(deactivateProviderApi).mockResolvedValue(undefined);
+    const snapshot = settingsSnapshot();
+    vi.mocked(getSettingsApi).mockResolvedValue(snapshot);
+    vi.mocked(updateSettingsApi).mockResolvedValue(snapshot);
+    vi.mocked(activateProviderApi).mockResolvedValue(snapshot);
+    vi.mocked(deactivateProviderApi).mockResolvedValue(snapshot);
   });
   afterEach(cleanup);
 
@@ -113,7 +118,7 @@ describe('SettingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存Todo 导出目录' }));
 
     await waitFor(() =>
-      expect(vi.mocked(updateSettingsApi)).toHaveBeenCalledWith({
+      expect(vi.mocked(updateSettingsApi)).toHaveBeenCalledWith(1, {
         ...baseSettings(),
         common: { paths: { ...baseSettings().common.paths, todo_export_dir: '/new/todos' } },
       }),
@@ -175,7 +180,7 @@ describe('SettingsPage', () => {
     fireEvent.change(screen.getByLabelText('Access Key（可选）'), { target: { value: 'secret' } });
     fireEvent.click(screen.getByRole('button', { name: '保存 RSSHub 设置' }));
     await waitFor(() =>
-      expect(vi.mocked(updateSettingsApi)).toHaveBeenCalledWith({
+      expect(vi.mocked(updateSettingsApi)).toHaveBeenCalledWith(1, {
         ...baseSettings(),
         services: {
           ...baseSettings().services,
@@ -203,54 +208,23 @@ describe('SettingsPage', () => {
   });
 
   it('activates a configured translation provider', async () => {
-    vi.mocked(listProvidersApi).mockResolvedValue([
-      {
-        descriptor: {
-          id: 'niutrans',
-          capability: 'translation',
-          display_name: '小牛翻译',
-          description: '小牛机器翻译服务',
-        },
-        configured: true,
-        activation: 'inactive',
-      },
-    ]);
+    vi.mocked(getSettingsApi).mockResolvedValue(
+      settingsSnapshot(baseSettings(), [providerStatus(true)]),
+    );
     renderPage();
     await selectTab('服务');
     fireEvent.click(screen.getByRole('button', { name: '选择小牛翻译服务' }));
     fireEvent.click(screen.getByRole('button', { name: '启用小牛翻译' }));
 
     await waitFor(() =>
-      expect(vi.mocked(activateProviderApi)).toHaveBeenCalledWith('translation', 'niutrans'),
+      expect(vi.mocked(activateProviderApi)).toHaveBeenCalledWith(1, 'translation', 'niutrans'),
     );
   });
 
   it('refreshes provider configuration after saving credentials', async () => {
-    vi.mocked(listProvidersApi)
-      .mockResolvedValueOnce([
-        {
-          descriptor: {
-            id: 'niutrans',
-            capability: 'translation',
-            display_name: '小牛翻译',
-            description: '小牛机器翻译服务',
-          },
-          configured: false,
-          activation: 'inactive',
-        },
-      ])
-      .mockResolvedValue([
-        {
-          descriptor: {
-            id: 'niutrans',
-            capability: 'translation',
-            display_name: '小牛翻译',
-            description: '小牛机器翻译服务',
-          },
-          configured: true,
-          activation: 'inactive',
-        },
-      ]);
+    vi.mocked(updateSettingsApi).mockResolvedValue(
+      settingsSnapshot(baseSettings(), [providerStatus(true)]),
+    );
     renderPage();
     await selectTab('服务');
     fireEvent.click(screen.getByRole('button', { name: '选择小牛翻译服务' }));
@@ -263,7 +237,7 @@ describe('SettingsPage', () => {
     fireEvent.change(screen.getByLabelText('API Key'), { target: { value: 'key' } });
     fireEvent.click(screen.getByRole('button', { name: '保存服务设置' }));
 
-    await waitFor(() => expect(listProvidersApi).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(updateSettingsApi).toHaveBeenCalledTimes(1));
     expect(
       (screen.getByRole('button', { name: '启用小牛翻译' }) as HTMLButtonElement).disabled,
     ).toBe(false);
@@ -273,26 +247,16 @@ describe('SettingsPage', () => {
     const settings = baseSettings();
     settings.capabilities.translation.primary_provider = 'niutrans';
     settings.providers.niutrans = { app_id: 'app', api_key: 'key' };
-    vi.mocked(getSettingsApi).mockResolvedValue(settings);
-    vi.mocked(listProvidersApi).mockResolvedValue([
-      {
-        descriptor: {
-          id: 'niutrans',
-          capability: 'translation',
-          display_name: '小牛翻译',
-          description: '小牛机器翻译服务',
-        },
-        configured: true,
-        activation: 'primary',
-      },
-    ]);
+    vi.mocked(getSettingsApi).mockResolvedValue(
+      settingsSnapshot(settings, [providerStatus(true, 'primary')]),
+    );
     renderPage();
     await selectTab('服务');
     fireEvent.click(screen.getByRole('button', { name: '选择小牛翻译服务' }));
     fireEvent.click(screen.getByRole('button', { name: '停用翻译' }));
 
     await waitFor(() =>
-      expect(vi.mocked(deactivateProviderApi)).toHaveBeenCalledWith('translation'),
+      expect(vi.mocked(deactivateProviderApi)).toHaveBeenCalledWith(1, 'translation'),
     );
   });
 });

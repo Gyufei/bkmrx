@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
 use tauri::State;
 
 use crate::bookmarks::{
     Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, ImportPreview,
-    SharedBookmarkService, TagQueryRequest, TagSummary, UpdateBookmark,
+    SharedBookmarkStore, TagQueryRequest, TagSummary, UpdateBookmark,
 };
 use crate::error::AppResult;
 use crate::notes::SharedNoteService;
@@ -19,7 +17,7 @@ use crate::todos::{
 
 #[tauri::command]
 pub fn query_bookmarks(
-    service: State<'_, SharedBookmarkService>,
+    service: State<'_, SharedBookmarkStore>,
     request: BookmarkPageRequest,
 ) -> AppResult<BookmarkPage> {
     service.query(request)
@@ -27,7 +25,7 @@ pub fn query_bookmarks(
 
 #[tauri::command]
 pub fn create_bookmark(
-    service: State<'_, SharedBookmarkService>,
+    service: State<'_, SharedBookmarkStore>,
     input: CreateBookmark,
 ) -> AppResult<Bookmark> {
     service.create(input)
@@ -35,7 +33,7 @@ pub fn create_bookmark(
 
 #[tauri::command]
 pub fn update_bookmark(
-    service: State<'_, SharedBookmarkService>,
+    service: State<'_, SharedBookmarkStore>,
     id: i64,
     input: UpdateBookmark,
 ) -> AppResult<Bookmark> {
@@ -43,32 +41,29 @@ pub fn update_bookmark(
 }
 
 #[tauri::command]
-pub fn delete_bookmarks(
-    service: State<'_, SharedBookmarkService>,
-    ids: Vec<i64>,
-) -> AppResult<u64> {
-    service.delete_many(ids)
+pub fn delete_bookmarks(service: State<'_, SharedBookmarkStore>, ids: Vec<i64>) -> AppResult<u64> {
+    service.delete_many(&ids)
 }
 
 #[tauri::command]
 pub fn get_bookmark_by_url(
-    service: State<'_, SharedBookmarkService>,
+    service: State<'_, SharedBookmarkStore>,
     url: String,
 ) -> AppResult<Option<Bookmark>> {
-    service.get_by_url(url)
+    service.find_by_url(&url)
 }
 
 #[tauri::command]
 pub fn get_tags(
-    service: State<'_, SharedBookmarkService>,
+    service: State<'_, SharedBookmarkStore>,
     request: TagQueryRequest,
 ) -> AppResult<Vec<TagSummary>> {
-    service.get_tags(request)
+    service.tags(request)
 }
 
 #[tauri::command]
 pub fn record_bookmark_access(
-    service: State<'_, SharedBookmarkService>,
+    service: State<'_, SharedBookmarkStore>,
     id: i64,
 ) -> AppResult<Bookmark> {
     service.record_access(id)
@@ -76,7 +71,7 @@ pub fn record_bookmark_access(
 
 #[tauri::command]
 pub fn set_bookmark_starred(
-    service: State<'_, SharedBookmarkService>,
+    service: State<'_, SharedBookmarkStore>,
     id: i64,
     starred: bool,
 ) -> AppResult<Bookmark> {
@@ -242,29 +237,29 @@ pub fn export_todos(
 
 #[tauri::command]
 pub fn export_bookmarks(
-    service: State<'_, SharedBookmarkService>,
+    service: State<'_, SharedBookmarkStore>,
     path: String,
 ) -> AppResult<String> {
     service
-        .export_bookmarks(path)
+        .export(std::path::Path::new(&path))
         .map(|path| path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
 pub fn preview_bookmark_import(
-    service: State<'_, SharedBookmarkService>,
+    service: State<'_, SharedBookmarkStore>,
     path: String,
 ) -> AppResult<ImportPreview> {
-    service.preview_bookmark_import(path)
+    service.preview_import(std::path::Path::new(&path))
 }
 
 #[tauri::command]
 pub fn apply_bookmark_import(
-    service: State<'_, SharedBookmarkService>,
+    service: State<'_, SharedBookmarkStore>,
     path: String,
     file_hash: String,
 ) -> AppResult<ImportPreview> {
-    service.apply_bookmark_import(path, &file_hash)
+    service.apply_import(std::path::Path::new(&path), &file_hash)
 }
 
 #[tauri::command]
@@ -303,41 +298,37 @@ pub async fn create_note_file(
 
 #[tauri::command]
 pub fn get_settings(
-    service: State<'_, Arc<crate::settings::SettingsService>>,
-) -> AppResult<crate::settings::Settings> {
-    service.load()
+    store: State<'_, crate::settings::SharedSettingsStore>,
+) -> AppResult<crate::settings::SettingsSnapshot> {
+    Ok(store.snapshot())
 }
 
 #[tauri::command]
 pub fn update_settings(
-    service: State<'_, Arc<crate::settings::SettingsService>>,
+    store: State<'_, crate::settings::SharedSettingsStore>,
+    expected_revision: u64,
     settings: crate::settings::Settings,
-) -> AppResult<()> {
-    service.update(settings)
-}
-
-#[tauri::command]
-pub fn list_providers(
-    service: State<'_, Arc<crate::settings::SettingsService>>,
-) -> AppResult<Vec<crate::providers::ProviderStatusView>> {
-    service.provider_statuses()
+) -> AppResult<crate::settings::SettingsSnapshot> {
+    store.replace(expected_revision, settings)
 }
 
 #[tauri::command]
 pub fn activate_provider(
-    service: State<'_, Arc<crate::settings::SettingsService>>,
+    store: State<'_, crate::settings::SharedSettingsStore>,
+    expected_revision: u64,
     capability: crate::providers::Capability,
     provider_id: crate::providers::ProviderId,
-) -> AppResult<()> {
-    service.activate_provider(capability, provider_id)
+) -> AppResult<crate::settings::SettingsSnapshot> {
+    store.activate_provider(expected_revision, capability, provider_id)
 }
 
 #[tauri::command]
 pub fn deactivate_provider(
-    service: State<'_, Arc<crate::settings::SettingsService>>,
+    store: State<'_, crate::settings::SharedSettingsStore>,
+    expected_revision: u64,
     capability: crate::providers::Capability,
-) -> AppResult<()> {
-    service.deactivate_provider(capability)
+) -> AppResult<crate::settings::SettingsSnapshot> {
+    store.deactivate_provider(expected_revision, capability)
 }
 
 #[tauri::command]

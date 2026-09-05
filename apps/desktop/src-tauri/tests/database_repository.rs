@@ -1,6 +1,4 @@
-use bkmrx_lib::bookmarks::{
-    BookmarkRepository, CreateBookmark, SqliteBookmarkRepository, TagQueryRequest, UpdateBookmark,
-};
+use bkmrx_lib::bookmarks::{BookmarkStore, CreateBookmark, TagQueryRequest, UpdateBookmark};
 use bkmrx_lib::database::Database;
 use std::sync::Arc;
 
@@ -155,10 +153,10 @@ fn rss_schema_enforces_uniqueness_and_cascade_delete() {
     );
 }
 
-fn repository() -> (Arc<Database>, SqliteBookmarkRepository) {
+fn store() -> (Arc<Database>, BookmarkStore) {
     let database = Arc::new(Database::open_in_memory().unwrap());
-    let repository = SqliteBookmarkRepository::new(Arc::clone(&database));
-    (database, repository)
+    let store = BookmarkStore::new(Arc::clone(&database));
+    (database, store)
 }
 
 fn bookmark(url: &str, tags: &[&str]) -> CreateBookmark {
@@ -179,9 +177,9 @@ fn tag_query(query: &str, limit: Option<u32>) -> TagQueryRequest {
 
 #[test]
 fn repository_create_round_trips_bookmark_and_tags() {
-    let (_, repository) = repository();
+    let (_, store) = store();
 
-    let created = repository
+    let created = store
         .create(bookmark(
             " https://example.com/path?x=One#Part ",
             &[" rust ", "中文", "rust", ""],
@@ -192,13 +190,10 @@ fn repository_create_round_trips_bookmark_and_tags() {
     assert_eq!(created.title, "Example");
     assert_eq!(created.tags, vec!["rust", "中文"]);
     assert_eq!(created.starred_at, None);
+    assert_eq!(store.get(created.id).unwrap(), created.clone());
     assert_eq!(
-        repository.get_by_id(created.id).unwrap(),
-        Some(created.clone())
-    );
-    assert_eq!(
-        repository
-            .get_by_url(" https://example.com/path?x=One#Part ")
+        store
+            .find_by_url(" https://example.com/path?x=One#Part ")
             .unwrap(),
         Some(created)
     );
@@ -206,44 +201,42 @@ fn repository_create_round_trips_bookmark_and_tags() {
 
 #[test]
 fn repository_sets_and_clears_starred_at_without_changing_updated_at() {
-    let (_, repository) = repository();
-    let created = repository
-        .create(bookmark("https://example.com", &[]))
-        .unwrap();
+    let (_, store) = store();
+    let created = store.create(bookmark("https://example.com", &[])).unwrap();
 
-    let starred = repository.set_starred(created.id, true).unwrap();
+    let starred = store.set_starred(created.id, true).unwrap();
     assert!(starred.starred_at.is_some());
     assert_eq!(starred.updated_at, created.updated_at);
 
-    let unstarred = repository.set_starred(created.id, false).unwrap();
+    let unstarred = store.set_starred(created.id, false).unwrap();
     assert_eq!(unstarred.starred_at, None);
     assert_eq!(unstarred.updated_at, created.updated_at);
 }
 
 #[test]
 fn repository_set_starred_returns_not_found_for_unknown_id() {
-    let (_, repository) = repository();
+    let (_, store) = store();
 
-    let error = repository.set_starred(99, true).unwrap_err();
+    let error = store.set_starred(99, true).unwrap_err();
 
     assert_eq!(error.code(), "bookmark_not_found");
 }
 
 #[test]
 fn repository_get_tags_orders_by_count_descending_then_name_ascending() {
-    let (_, repository) = repository();
+    let (_, store) = store();
 
-    repository
+    store
         .create(bookmark("https://example.com/one", &["beta", "gamma"]))
         .unwrap();
-    repository
+    store
         .create(bookmark("https://example.com/two", &["alpha", "gamma"]))
         .unwrap();
-    repository
+    store
         .create(bookmark("https://example.com/three", &["gamma"]))
         .unwrap();
 
-    let tags = repository.get_tags(&tag_query("", None)).unwrap();
+    let tags = store.tags(tag_query("", None)).unwrap();
     let ordered = tags
         .iter()
         .map(|tag| (tag.name.as_str(), tag.count))
@@ -254,10 +247,10 @@ fn repository_get_tags_orders_by_count_descending_then_name_ascending() {
 
 #[test]
 fn repository_get_tags_distinguishes_unlimited_popular_and_searched_results() {
-    let (_, repository) = repository();
+    let (_, store) = store();
     for index in 0..55 {
         let tag = format!("tag{index:02}");
-        repository
+        store
             .create(CreateBookmark {
                 url: format!("https://example.com/{index}"),
                 title: format!("Bookmark {index}"),
@@ -267,30 +260,30 @@ fn repository_get_tags_distinguishes_unlimited_popular_and_searched_results() {
             .unwrap();
     }
 
-    let all = repository.get_tags(&tag_query("", None)).unwrap();
+    let all = store.tags(tag_query("", None)).unwrap();
     assert_eq!(all.len(), 55);
 
-    let popular = repository.get_tags(&tag_query("", Some(50))).unwrap();
+    let popular = store.tags(tag_query("", Some(50))).unwrap();
     assert_eq!(popular.len(), 50);
     assert_eq!(popular.first().unwrap().name, "tag00");
     assert_eq!(popular.last().unwrap().name, "tag49");
 
-    let searched = repository.get_tags(&tag_query("tag54", Some(50))).unwrap();
+    let searched = store.tags(tag_query("tag54", Some(50))).unwrap();
     assert_eq!(searched.len(), 1);
     assert_eq!(searched[0].name, "tag54");
 }
 
 #[test]
 fn repository_get_tags_uses_stable_count_order() {
-    let (_, repository) = repository();
-    repository
+    let (_, store) = store();
+    store
         .create(bookmark("https://example.com/one", &["beta", "gamma"]))
         .unwrap();
-    repository
+    store
         .create(bookmark("https://example.com/two", &["alpha", "gamma"]))
         .unwrap();
 
-    let tags = repository.get_tags(&tag_query("", Some(3))).unwrap();
+    let tags = store.tags(tag_query("", Some(3))).unwrap();
     let ordered = tags
         .iter()
         .map(|tag| (tag.name.as_str(), tag.count))
@@ -301,22 +294,22 @@ fn repository_get_tags_uses_stable_count_order() {
 
 #[test]
 fn repository_get_tags_treats_like_characters_as_literals() {
-    let (_, repository) = repository();
-    repository
+    let (_, store) = store();
+    store
         .create(bookmark("https://example.com/percent", &["100%"]))
         .unwrap();
-    repository
+    store
         .create(bookmark("https://example.com/underscore", &["under_score"]))
         .unwrap();
-    repository
+    store
         .create(bookmark("https://example.com/slash", &["back\\slash"]))
         .unwrap();
-    repository
+    store
         .create(bookmark("https://example.com/plain", &["plain"]))
         .unwrap();
 
     for (query, expected) in [("%", "100%"), ("_", "under_score"), ("\\", "back\\slash")] {
-        let tags = repository.get_tags(&tag_query(query, Some(50))).unwrap();
+        let tags = store.tags(tag_query(query, Some(50))).unwrap();
         assert_eq!(tags.len(), 1);
         assert_eq!(tags[0].name, expected);
     }
@@ -324,24 +317,20 @@ fn repository_get_tags_treats_like_characters_as_literals() {
 
 #[test]
 fn repository_get_tags_validates_limit() {
-    let (_, repository) = repository();
+    let (_, store) = store();
 
     for limit in [0, 101] {
-        let error = repository
-            .get_tags(&tag_query("", Some(limit)))
-            .unwrap_err();
+        let error = store.tags(tag_query("", Some(limit))).unwrap_err();
         assert_eq!(error.code(), "validation_error");
     }
 }
 
 #[test]
 fn repository_duplicate_url_returns_stable_conflict_code() {
-    let (_, repository) = repository();
-    repository
-        .create(bookmark("https://example.com", &[]))
-        .unwrap();
+    let (_, store) = store();
+    store.create(bookmark("https://example.com", &[])).unwrap();
 
-    let error = repository
+    let error = store
         .create(bookmark("https://example.com", &[]))
         .unwrap_err();
 
@@ -350,9 +339,9 @@ fn repository_duplicate_url_returns_stable_conflict_code() {
 
 #[test]
 fn repository_rejects_comma_in_tag_names() {
-    let (_, repository) = repository();
+    let (_, store) = store();
 
-    let error = repository
+    let error = store
         .create(bookmark("https://example.com", &["a,b"]))
         .unwrap_err();
 
@@ -361,12 +350,12 @@ fn repository_rejects_comma_in_tag_names() {
 
 #[test]
 fn repository_update_replaces_complete_tag_set() {
-    let (_, repository) = repository();
-    let created = repository
+    let (_, store) = store();
+    let created = store
         .create(bookmark("https://example.com", &["old", "shared"]))
         .unwrap();
 
-    let updated = repository
+    let updated = store
         .update(
             created.id,
             UpdateBookmark {
@@ -380,7 +369,7 @@ fn repository_update_replaces_complete_tag_set() {
     assert_eq!(updated.title, "Updated");
     assert_eq!(updated.tags, vec!["new", "shared"]);
     assert_eq!(
-        repository.get_tags(&tag_query("", None)).unwrap(),
+        store.tags(tag_query("", None)).unwrap(),
         vec![
             bkmrx_lib::bookmarks::TagSummary {
                 name: "new".to_owned(),
@@ -396,14 +385,17 @@ fn repository_update_replaces_complete_tag_set() {
 
 #[test]
 fn repository_delete_cascades_relations_and_fts() {
-    let (database, repository) = repository();
-    let created = repository
+    let (database, store) = store();
+    let created = store
         .create(bookmark("https://example.com", &["tag"]))
         .unwrap();
 
-    assert_eq!(repository.delete_many(&[created.id]).unwrap(), 1);
+    assert_eq!(store.delete_many(&[created.id]).unwrap(), 1);
 
-    assert_eq!(repository.get_by_id(created.id).unwrap(), None);
+    assert_eq!(
+        store.get(created.id).unwrap_err().code(),
+        "bookmark_not_found"
+    );
     assert_eq!(
         database
             .query_i64_for_test("SELECT count(*) FROM bookmark_tags")
@@ -420,12 +412,10 @@ fn repository_delete_cascades_relations_and_fts() {
 
 #[test]
 fn repository_record_access_does_not_change_updated_at() {
-    let (_, repository) = repository();
-    let created = repository
-        .create(bookmark("https://example.com", &[]))
-        .unwrap();
+    let (_, store) = store();
+    let created = store.create(bookmark("https://example.com", &[])).unwrap();
 
-    let accessed = repository.record_access(created.id).unwrap();
+    let accessed = store.record_access(created.id).unwrap();
 
     assert_eq!(accessed.access_count, 1);
     assert!(accessed.accessed_at.is_some());
@@ -433,32 +423,9 @@ fn repository_record_access_does_not_change_updated_at() {
 }
 
 #[test]
-fn repository_get_by_ids_preserves_input_order_and_omits_duplicates() {
-    let (_, repository) = repository();
-    let first = repository
-        .create(bookmark("https://example.com/1", &[]))
-        .unwrap();
-    let second = repository
-        .create(bookmark("https://example.com/2", &[]))
-        .unwrap();
-
-    let bookmarks = repository
-        .get_by_ids_ordered(&[second.id, first.id, second.id])
-        .unwrap();
-
-    assert_eq!(
-        bookmarks
-            .iter()
-            .map(|bookmark| bookmark.id)
-            .collect::<Vec<_>>(),
-        vec![second.id, first.id]
-    );
-}
-
-#[test]
 fn repository_failed_write_rolls_back_bookmark_tags_and_fts() {
-    let (database, repository) = repository();
-    let created = repository
+    let (database, store) = store();
+    let created = store
         .create(bookmark("https://example.com", &["original"]))
         .unwrap();
     database
@@ -472,7 +439,7 @@ fn repository_failed_write_rolls_back_bookmark_tags_and_fts() {
         )
         .unwrap();
 
-    let error = repository
+    let error = store
         .update(
             created.id,
             UpdateBookmark {
@@ -484,12 +451,9 @@ fn repository_failed_write_rolls_back_bookmark_tags_and_fts() {
         .unwrap_err();
 
     assert_eq!(error.code(), "database_error");
+    assert_eq!(store.get(created.id).unwrap(), created.clone());
     assert_eq!(
-        repository.get_by_id(created.id).unwrap(),
-        Some(created.clone())
-    );
-    assert_eq!(
-        repository.get_tags(&tag_query("", None)).unwrap(),
+        store.tags(tag_query("", None)).unwrap(),
         vec![bkmrx_lib::bookmarks::TagSummary {
             name: "original".to_owned(),
             count: 1,
@@ -512,28 +476,5 @@ fn repository_failed_write_rolls_back_bookmark_tags_and_fts() {
             )
             .unwrap(),
         0
-    );
-}
-
-#[test]
-fn repository_rebuild_search_index_restores_missing_document() {
-    let (database, repository) = repository();
-    let created = repository
-        .create(bookmark("https://example.com", &["中文"]))
-        .unwrap();
-    database
-        .execute_batch_for_test(&format!(
-            "DELETE FROM bookmarks_fts WHERE rowid = {}",
-            created.id
-        ))
-        .unwrap();
-
-    repository.rebuild_search_index().unwrap();
-
-    assert_eq!(
-        database
-            .query_i64_for_test("SELECT count(*) FROM bookmarks_fts")
-            .unwrap(),
-        1
     );
 }
