@@ -332,8 +332,10 @@ pub fn deactivate_provider(
 }
 
 #[tauri::command]
-pub async fn get_server_status() -> Result<crate::http_server::ServerStatus, String> {
-    Ok(crate::http_server::status())
+pub fn get_server_status(
+    server: State<'_, crate::http_server::SharedLocalHttpServer>,
+) -> AppResult<crate::http_server::ServerStatus> {
+    Ok(server.status())
 }
 
 #[tauri::command]

@@ -1,6 +1,3 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
-
 use crate::bookmarks::{
     Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, SharedBookmarkStore,
     TagQueryRequest, TagSummary, UpdateBookmark,
@@ -19,33 +16,21 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-use crate::logging::{sanitize_error, Operation};
+use crate::logging::Operation;
 
-static SERVER_URL: OnceLock<String> = OnceLock::new();
-static SERVER_RUNNING: AtomicBool = AtomicBool::new(false);
+mod lifecycle;
+
+pub use lifecycle::{
+    HttpServerLaunch, HttpServerOptions, HttpServerPhase, HttpStartupWarning, LocalHttpServer,
+    ServerStatus, SharedLocalHttpServer,
+};
 
 #[derive(Clone)]
 struct HttpState {
     bookmarks: SharedBookmarkStore,
     translation: TranslationService,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ServerStatus {
-    pub running: bool,
-    pub url: String,
-}
-
-pub fn status() -> ServerStatus {
-    ServerStatus {
-        running: SERVER_RUNNING.load(Ordering::SeqCst),
-        url: SERVER_URL
-            .get()
-            .cloned()
-            .unwrap_or_else(|| "http://127.0.0.1:8733".to_owned()),
-    }
 }
 
 pub fn router(service: SharedBookmarkStore) -> Router {
@@ -77,56 +62,6 @@ pub fn router_with_translation(
             translation,
         })
         .layer(middleware::from_fn(log_http_request))
-}
-
-pub async fn start_server(
-    service: SharedBookmarkStore,
-    translation: TranslationService,
-    shutdown_rx: tokio::sync::oneshot::Receiver<()>,
-) {
-    let operation = Operation::start();
-    log::info!(
-        "http_server_start_started operation_id={} address=127.0.0.1:8733",
-        operation.id()
-    );
-    let listener = match tokio::net::TcpListener::bind(std::net::SocketAddr::from((
-        [127, 0, 0, 1],
-        8733,
-    )))
-    .await
-    {
-        Ok(listener) => listener,
-        Err(error) => {
-            log::error!(
-                    "http_server_start_failed operation_id={} address=127.0.0.1:8733 elapsed_ms={} error={:?}",
-                    operation.id(),
-                    operation.elapsed_ms(),
-                    sanitize_error(&error.to_string())
-                );
-            return;
-        }
-    };
-
-    let _ = SERVER_URL.set("http://127.0.0.1:8733".to_owned());
-    SERVER_RUNNING.store(true, Ordering::SeqCst);
-    log::info!(
-        "http_server_started operation_id={} address=127.0.0.1:8733 elapsed_ms={}",
-        operation.id(),
-        operation.elapsed_ms()
-    );
-    if let Err(error) = axum::serve(listener, router_with_translation(service, translation))
-        .with_graceful_shutdown(async {
-            let _ = shutdown_rx.await;
-        })
-        .await
-    {
-        log::error!(
-            "http_server_failed error={:?}",
-            sanitize_error(&error.to_string())
-        );
-    }
-    SERVER_RUNNING.store(false, Ordering::SeqCst);
-    log::info!("http_server_stopped");
 }
 
 async fn log_http_request(request: axum::http::Request<Body>, next: Next) -> Response {

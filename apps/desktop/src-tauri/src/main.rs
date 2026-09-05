@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use bkmrx_lib::{
     bookmarks::{Bookmark, BookmarkEvents, BookmarkStore},
@@ -43,9 +43,6 @@ fn is_allowed_app_navigation(url: &tauri::Url) -> bool {
 }
 
 fn main() {
-    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-    let shutdown_tx = Mutex::new(Some(shutdown_tx));
-
     tauri::Builder::default()
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("navigation-guard")
@@ -152,11 +149,21 @@ fn main() {
                 },
             )));
             app.manage(Arc::clone(&note_service));
-            tauri::async_runtime::spawn(bkmrx_lib::http_server::start_server(
-                service,
-                translation_service,
-                shutdown_rx,
-            ));
+            let http_launch =
+                tauri::async_runtime::block_on(bkmrx_lib::http_server::LocalHttpServer::launch(
+                    bkmrx_lib::http_server::HttpServerOptions::default(),
+                    bkmrx_lib::http_server::router_with_translation(service, translation_service),
+                ));
+            if let Some(warning) = http_launch.warning {
+                log::error!("http_server_unavailable error_code={}", warning.code);
+                handle
+                    .dialog()
+                    .message(warning.message)
+                    .title("本地连接不可用")
+                    .kind(MessageDialogKind::Warning)
+                    .show(|_| {});
+            }
+            app.manage(http_launch.server);
             log::info!("application_initialized");
             Ok(())
         })
@@ -213,16 +220,12 @@ fn main() {
                 if let Some(service) = _window.try_state::<bkmrx_lib::notes::SharedNoteService>() {
                     service.stop();
                 }
-                if let Some(tx) = shutdown_tx
-                    .lock()
-                    .unwrap_or_else(|error| error.into_inner())
-                    .take()
+                if let Some(server) =
+                    _window.try_state::<bkmrx_lib::http_server::SharedLocalHttpServer>()
                 {
-                    if tx.send(()).is_err() {
-                        log::warn!("http_server_shutdown_signal_failed");
-                    }
+                    tauri::async_runtime::block_on(server.shutdown());
                 }
-                log::info!("application_stopped");
+                log::info!("application_shutdown_requested");
             }
         })
         .run(tauri::generate_context!())
