@@ -1,4 +1,5 @@
 mod error;
+mod manager;
 mod model;
 mod provider;
 mod registry;
@@ -8,6 +9,9 @@ mod service;
 pub mod providers;
 
 pub use error::TranslationError;
+pub use manager::{
+    PreparedTranslationRoute, ProviderActivation, ProviderStatusView, TranslationProviderManager,
+};
 pub use model::{Translation, TranslationRequest};
 pub use provider::TranslationProvider;
 pub use registry::{ProviderError, TranslationProviderFactory, TranslationRegistry};

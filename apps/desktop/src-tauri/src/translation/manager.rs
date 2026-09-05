@@ -3,22 +3,22 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use crate::{
+    providers::{ProviderContext, ProviderDescriptor, ProviderId},
     settings::Settings,
-    translation::{
-        ActiveTranslationProvider, ProviderError, TranslationRegistry, TranslationRoute,
-        TranslationRuntime,
-    },
 };
 
-use super::{ProviderContext, ProviderDescriptor, ProviderId};
+use super::{
+    ActiveTranslationProvider, ProviderError, TranslationRegistry, TranslationRoute,
+    TranslationRuntime,
+};
 
-pub struct PreparedProviderRoutes {
-    pub(crate) translation: Option<TranslationRoute>,
+pub struct PreparedTranslationRoute {
+    route: Option<TranslationRoute>,
 }
 
-impl PreparedProviderRoutes {
+impl PreparedTranslationRoute {
     pub(crate) fn disabled() -> Self {
-        Self { translation: None }
+        Self { route: None }
     }
 }
 
@@ -34,32 +34,32 @@ pub struct ProviderStatusView {
 pub enum ProviderActivation {
     Inactive,
     Primary,
-    Fallback { priority: usize },
+    Fallback { position: usize },
 }
 
-pub struct ProviderManager {
-    translation_registry: TranslationRegistry,
-    translation_runtime: Arc<TranslationRuntime>,
+pub struct TranslationProviderManager {
+    registry: TranslationRegistry,
+    runtime: Arc<TranslationRuntime>,
     context: ProviderContext,
 }
 
-impl ProviderManager {
+impl TranslationProviderManager {
     pub fn new(
-        translation_registry: TranslationRegistry,
-        translation_runtime: Arc<TranslationRuntime>,
+        registry: TranslationRegistry,
+        runtime: Arc<TranslationRuntime>,
         context: ProviderContext,
     ) -> Self {
         Self {
-            translation_registry,
-            translation_runtime,
+            registry,
+            runtime,
             context,
         }
     }
 
-    pub fn prepare(&self, settings: &Settings) -> Result<PreparedProviderRoutes, ProviderError> {
+    pub fn prepare(&self, settings: &Settings) -> Result<PreparedTranslationRoute, ProviderError> {
         let route = &settings.capabilities.translation;
         let Some(primary_id) = &route.primary_provider else {
-            return Ok(PreparedProviderRoutes { translation: None });
+            return Ok(PreparedTranslationRoute { route: None });
         };
         let primary = self.active_provider(primary_id, settings)?;
         let fallbacks = route
@@ -67,33 +67,43 @@ impl ProviderManager {
             .iter()
             .map(|id| self.active_provider(id, settings))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(PreparedProviderRoutes {
-            translation: Some(TranslationRoute { primary, fallbacks }),
+        Ok(PreparedTranslationRoute {
+            route: Some(TranslationRoute { primary, fallbacks }),
         })
     }
 
-    pub fn commit(&self, prepared: PreparedProviderRoutes) {
-        match prepared.translation {
-            Some(route) => self.translation_runtime.publish(route),
-            None => self.translation_runtime.disable(),
+    pub fn commit(&self, prepared: PreparedTranslationRoute) {
+        match prepared.route {
+            Some(route) => {
+                log::info!(
+                    "translation_route_published primary_provider={} fallback_count={}",
+                    route.primary.id,
+                    route.fallbacks.len()
+                );
+                self.runtime.publish(route);
+            }
+            None => {
+                log::info!("translation_route_disabled");
+                self.runtime.disable();
+            }
         }
     }
 
     pub fn statuses(&self, settings: &Settings) -> Vec<ProviderStatusView> {
         let route = &settings.capabilities.translation;
-        self.translation_registry
+        self.registry
             .statuses(&settings.providers)
             .into_iter()
             .map(|(descriptor, configured)| {
                 let id = &descriptor.id;
                 let activation = if route.primary_provider.as_ref() == Some(id) {
                     ProviderActivation::Primary
-                } else if let Some(priority) = route
+                } else if let Some(position) = route
                     .fallback_providers
                     .iter()
                     .position(|fallback| fallback == id)
                 {
-                    ProviderActivation::Fallback { priority }
+                    ProviderActivation::Fallback { position }
                 } else {
                     ProviderActivation::Inactive
                 };
@@ -112,7 +122,7 @@ impl ProviderManager {
         settings: &Settings,
     ) -> Result<ActiveTranslationProvider, ProviderError> {
         let provider = self
-            .translation_registry
+            .registry
             .build(id, &settings.providers, &self.context)?;
         Ok(ActiveTranslationProvider {
             id: id.clone(),
@@ -126,10 +136,10 @@ mod tests {
     use super::ProviderActivation;
 
     #[test]
-    fn activation_keeps_fallback_priority_in_the_wire_format() {
+    fn activation_exposes_the_zero_based_fallback_position() {
         assert_eq!(
-            serde_json::to_value(ProviderActivation::Fallback { priority: 2 }).unwrap(),
-            serde_json::json!({ "fallback": { "priority": 2 } })
+            serde_json::to_value(ProviderActivation::Fallback { position: 2 }).unwrap(),
+            serde_json::json!({ "fallback": { "position": 2 } })
         );
     }
 }

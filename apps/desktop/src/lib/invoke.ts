@@ -191,7 +191,7 @@ export interface ProviderStatus {
     description: string;
   };
   configured: boolean;
-  activation: 'inactive' | 'primary' | { fallback: { priority: number } };
+  activation: 'inactive' | 'primary' | { fallback: { position: number } };
 }
 
 export interface SettingsSnapshot {

@@ -105,11 +105,12 @@ fn main() {
                     bkmrx_lib::translation::providers::NiuTransProviderFactory,
                 ))
                 .map_err(std::io::Error::other)?;
-            let provider_manager = Arc::new(bkmrx_lib::providers::ProviderManager::new(
-                translation_registry,
-                Arc::clone(&translation_runtime),
-                provider_context,
-            ));
+            let provider_manager =
+                Arc::new(bkmrx_lib::translation::TranslationProviderManager::new(
+                    translation_registry,
+                    Arc::clone(&translation_runtime),
+                    provider_context,
+                ));
             let opened = bkmrx_lib::settings::SettingsStore::open(settings_path, provider_manager);
             if let Some(warning) = opened.warning {
                 log::error!("settings_recovery_started error_code={}", warning.code,);

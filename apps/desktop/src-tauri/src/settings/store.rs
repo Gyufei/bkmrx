@@ -7,8 +7,10 @@ use serde::Serialize;
 
 use crate::{
     error::{AppError, AppResult},
-    providers::{Capability, ProviderId, ProviderManager, ProviderStatusView},
-    translation::ProviderError,
+    providers::{Capability, ProviderId},
+    translation::{
+        PreparedTranslationRoute, ProviderError, ProviderStatusView, TranslationProviderManager,
+    },
 };
 
 use super::{persistence, RssHubSettings, Settings};
@@ -41,12 +43,12 @@ struct SettingsState {
 
 pub struct SettingsStore {
     path: PathBuf,
-    providers: Arc<ProviderManager>,
+    providers: Arc<TranslationProviderManager>,
     state: Mutex<SettingsState>,
 }
 
 impl SettingsStore {
-    pub fn open(path: PathBuf, providers: Arc<ProviderManager>) -> SettingsOpen {
+    pub fn open(path: PathBuf, providers: Arc<TranslationProviderManager>) -> SettingsOpen {
         let (settings, warning, recovery) = match persistence::load(&path) {
             Ok(settings) => match providers.prepare(&settings) {
                 Ok(prepared) => {
@@ -62,7 +64,7 @@ impl SettingsStore {
             Err(error) => (Settings::default(), Some(startup_warning(&error)), true),
         };
         if recovery {
-            providers.commit(crate::providers::PreparedProviderRoutes::disabled());
+            providers.commit(PreparedTranslationRoute::disabled());
         }
         SettingsOpen {
             store: Self {
@@ -223,13 +225,13 @@ mod tests {
 
     use super::SettingsStore;
     use crate::{
-        providers::{ProviderContext, ProviderManager},
+        providers::ProviderContext,
         settings::{CommonSettings, PathSettings, Settings},
-        translation::{TranslationRegistry, TranslationRuntime},
+        translation::{TranslationProviderManager, TranslationRegistry, TranslationRuntime},
     };
 
-    fn provider_manager() -> Arc<ProviderManager> {
-        Arc::new(ProviderManager::new(
+    fn provider_manager() -> Arc<TranslationProviderManager> {
+        Arc::new(TranslationProviderManager::new(
             TranslationRegistry::default(),
             Arc::new(TranslationRuntime::default()),
             ProviderContext::new(reqwest::Client::new()),
@@ -312,5 +314,39 @@ mod tests {
             crate::settings::persistence::load(&path).unwrap(),
             Settings::default()
         );
+    }
+
+    #[test]
+    fn unregistered_provider_starts_in_recovery_without_changing_the_file() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("settings.json");
+        let missing = crate::providers::ProviderId::new("missing-provider").unwrap();
+        let settings = Settings {
+            capabilities: crate::settings::CapabilitySettings {
+                translation: crate::settings::ProviderRouteSettings {
+                    primary_provider: Some(missing),
+                    fallback_providers: Vec::new(),
+                },
+            },
+            ..Settings::default()
+        };
+        let original = serde_json::to_vec_pretty(&settings).unwrap();
+        std::fs::write(&path, &original).unwrap();
+        let runtime = Arc::new(TranslationRuntime::default());
+        let manager = Arc::new(TranslationProviderManager::new(
+            TranslationRegistry::default(),
+            Arc::clone(&runtime),
+            ProviderContext::new(reqwest::Client::new()),
+        ));
+
+        let opened = SettingsStore::open(path.clone(), manager);
+
+        assert_eq!(
+            opened.warning.as_ref().map(|warning| warning.code.as_str()),
+            Some("settings_provider_not_registered")
+        );
+        assert_eq!(opened.store.snapshot().settings, settings);
+        assert!(runtime.current().is_none());
+        assert_eq!(std::fs::read(path).unwrap(), original);
     }
 }

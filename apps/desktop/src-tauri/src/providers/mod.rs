@@ -1,11 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-mod manager;
-
-pub use manager::{
-    PreparedProviderRoutes, ProviderActivation, ProviderManager, ProviderStatusView,
-};
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
 pub struct ProviderId(String);

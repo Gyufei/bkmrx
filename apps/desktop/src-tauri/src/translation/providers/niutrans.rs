@@ -180,6 +180,43 @@ struct NiuTransResponse {
     error_code: Option<String>,
 }
 
+#[cfg(test)]
+mod configuration_tests {
+    use crate::{
+        settings::{NiuTransSettings, ProviderSettings},
+        translation::{providers::NiuTransProviderFactory, TranslationProviderFactory},
+    };
+
+    #[test]
+    fn configuration_requires_non_blank_app_id_and_api_key() {
+        let factory = NiuTransProviderFactory;
+        for niutrans in [
+            NiuTransSettings::default(),
+            NiuTransSettings {
+                app_id: Some("app".into()),
+                api_key: None,
+            },
+            NiuTransSettings {
+                app_id: Some("  ".into()),
+                api_key: Some("key".into()),
+            },
+            NiuTransSettings {
+                app_id: Some("app".into()),
+                api_key: Some("\t".into()),
+            },
+        ] {
+            assert!(!factory.is_configured(&ProviderSettings { niutrans }));
+        }
+
+        assert!(factory.is_configured(&ProviderSettings {
+            niutrans: NiuTransSettings {
+                app_id: Some(" app ".into()),
+                api_key: Some(" key ".into()),
+            },
+        }));
+    }
+}
+
 fn sign(api_key: &str, app_id: &str, text: &str, timestamp: &str, from: &str, to: &str) -> String {
     let params = BTreeMap::from([
         ("apikey", api_key),
