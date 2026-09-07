@@ -1,4 +1,4 @@
-import { Circle, CircleCheck, CirclePause, CircleX, Pencil, Play, Trash2 } from 'lucide-react';
+import { BookAlert, Circle, CircleCheck, CirclePause, CircleX, Pencil, Play, Trash2 } from 'lucide-react';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -12,6 +12,7 @@ import type { Todo, TodoStatus, TodoTag } from '@/types';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { useState } from 'react';
 import { Badge, badgeVariants } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface TodoListItemProps {
   todo: Todo;
@@ -76,16 +77,31 @@ export default function TodoListItem({
             <StatusToggle todo={todo} disabled={statusPending} onToggle={toggleStatus} />
           </span>
           <div className="min-w-0 flex-1 text-left">
-            <button className="block w-full text-left" onClick={() => onEdit(todo)}>
-              <div
+            <div>
+              <button
+                type="button"
                 className={cn(
-                  'font-medium',
+                  'text-left font-medium',
                   todo.status === 'completed' && 'text-muted-foreground line-through',
                 )}
+                onClick={() => onEdit(todo)}
               >
                 {todo.title}
-              </div>
-            </button>
+              </button>
+              {todo.description.trim() && (
+                <Tooltip>
+                  <TooltipTrigger
+                    aria-label="查看任务描述"
+                    className="ml-1.5 inline-flex cursor-help align-middle text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <BookAlert className="size-4" aria-hidden="true" />
+                  </TooltipTrigger>
+                  <TooltipContent className="whitespace-pre-wrap break-words">
+                    {todo.description}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               {todo.tags.map((name) => {
                 const tag = tags.find((item) => item.name.toLowerCase() === name.toLowerCase());
