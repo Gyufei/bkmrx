@@ -245,6 +245,40 @@ describe('useNoteDocument saves', () => {
     expect(receiptApi.save).not.toHaveBeenCalled();
   });
 
+  it('resumes autosave when a dirty rename fails', async () => {
+    receiptApi.open.mockResolvedValue({ content: 'start', receipt: 'receipt-1' });
+    receiptApi.rename.mockRejectedValueOnce(new Error('target exists'));
+    receiptApi.save.mockResolvedValueOnce({ receipt: 'receipt-2' });
+    const { result } = renderHook(() => useNoteDocument('note.md', 7));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+    act(() => result.current.setContent('draft'));
+
+    await expect(result.current.rename('renamed.md')).rejects.toThrow('target exists');
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+      await Promise.resolve();
+    });
+
+    expect(receiptApi.save).toHaveBeenCalledWith('receipt-1', 'draft');
+  });
+
+  it('resumes autosave when deleting a dirty document fails', async () => {
+    receiptApi.open.mockResolvedValue({ content: 'start', receipt: 'receipt-1' });
+    receiptApi.delete.mockRejectedValueOnce(new Error('delete failed'));
+    receiptApi.save.mockResolvedValueOnce({ receipt: 'receipt-2' });
+    const { result } = renderHook(() => useNoteDocument('note.md', 7));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+    act(() => result.current.setContent('draft'));
+
+    await expect(result.current.delete()).rejects.toThrow('delete failed');
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+      await Promise.resolve();
+    });
+
+    expect(receiptApi.save).toHaveBeenCalledWith('receipt-1', 'draft');
+  });
+
   it('debounces changes and saves only the latest captured content', async () => {
     const read = vi.fn().mockResolvedValue('start');
     const save = vi.fn().mockResolvedValue(undefined);

@@ -269,6 +269,19 @@ export function useNoteDocument(
     [submitSave],
   );
 
+  const scheduleAutosave = useCallback(() => {
+    if (currentVersionRef.current === latestSavedVersionRef.current || retiredRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    const path = currentPathRef.current;
+    const sessionId = currentSessionIdRef.current;
+    const version = currentVersionRef.current;
+    const contentToSave = contentRef.current;
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = undefined;
+      void submitSave(path, contentToSave, sessionId, version).catch(() => undefined);
+    }, dependencyRef.current.debounceMs);
+  }, [submitSave]);
+
   const readCurrent = useCallback(async () => {
     const path = currentPathRef.current;
     const sessionId = ++currentSessionIdRef.current;
@@ -366,16 +379,9 @@ export function useNoteDocument(
       setDirty(currentVersionRef.current !== latestSavedVersionRef.current);
       setSaveState('idle');
 
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      const path = currentPathRef.current;
-      const sessionId = currentSessionIdRef.current;
-      const version = currentVersionRef.current;
-      saveTimerRef.current = setTimeout(() => {
-        saveTimerRef.current = undefined;
-        void submitSave(path, next, sessionId, version).catch(() => undefined);
-      }, dependencyRef.current.debounceMs);
+      scheduleAutosave();
     },
-    [submitSave],
+    [scheduleAutosave],
   );
 
   const flush = useCallback(async () => {
@@ -407,19 +413,25 @@ export function useNoteDocument(
       const path = currentPathRef.current;
       const receipt = receiptByPathRef.current.get(path);
       if (!receipt) throw new Error('Note document has not been opened');
-      const renamed = await renameNoteDocumentApi(
-        receipt,
-        name,
-        currentVersionRef.current === latestSavedVersionRef.current
-          ? undefined
-          : contentRef.current,
-      );
+      let renamed;
+      try {
+        renamed = await renameNoteDocumentApi(
+          receipt,
+          name,
+          currentVersionRef.current === latestSavedVersionRef.current
+            ? undefined
+            : contentRef.current,
+        );
+      } catch (error) {
+        scheduleAutosave();
+        throw error;
+      }
       receiptByPathRef.current.delete(path);
       receiptByPathRef.current.set(renamed.relative_path, renamed.receipt);
       retiredRef.current = true;
       return renamed.relative_path;
     },
-    [waitForInFlight],
+    [scheduleAutosave, waitForInFlight],
   );
 
   const deleteDocument = useCallback(async () => {
@@ -430,9 +442,14 @@ export function useNoteDocument(
     await waitForInFlight();
     const receipt = receiptByPathRef.current.get(currentPathRef.current);
     if (!receipt) throw new Error('Note document has not been opened');
-    await deleteNoteDocumentApi(receipt);
+    try {
+      await deleteNoteDocumentApi(receipt);
+    } catch (error) {
+      scheduleAutosave();
+      throw error;
+    }
     retiredRef.current = true;
-  }, [waitForInFlight]);
+  }, [scheduleAutosave, waitForInFlight]);
 
   const retrySave = useCallback(() => {
     const failure = saveFailureRef.current;

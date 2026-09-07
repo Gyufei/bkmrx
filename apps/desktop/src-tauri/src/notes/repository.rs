@@ -58,8 +58,12 @@ pub fn delete_folder(path: &str) -> io::Result<()> {
 }
 
 pub fn rename(old_path: &str, new_path: &str) -> io::Result<()> {
-    ensure_rename_target_available(new_path)?;
-    fs::rename(old_path, new_path)
+    fs::hard_link(old_path, new_path)?;
+    if let Err(error) = fs::remove_file(old_path) {
+        let _ = fs::remove_file(new_path);
+        return Err(error);
+    }
+    Ok(())
 }
 
 pub fn ensure_rename_target_available(new_path: &str) -> io::Result<()> {

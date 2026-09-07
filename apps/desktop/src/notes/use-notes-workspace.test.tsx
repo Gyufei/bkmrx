@@ -119,3 +119,23 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
   act(() => result.current.deleteFolder.mutate('folder'));
   await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledWith(1, 'folder'));
 });
+
+it('does not turn successful mutations into failures when cache invalidation fails', async () => {
+  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote] });
+  renameNoteFileApi.mockResolvedValue('renamed.md');
+  deleteNoteFileApi.mockResolvedValue(undefined);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  vi.spyOn(queryClient, 'invalidateQueries').mockRejectedValue(new Error('refresh failed'));
+  const { result } = renderHook(() => useNotesWorkspace(), {
+    wrapper: createWrapper(queryClient),
+  });
+  await waitFor(() => expect(result.current.notes).toEqual([firstNote]));
+
+  await expect(
+    result.current.renameNote.mutateAsync({
+      relativePath: 'first.md',
+      name: 'renamed.md',
+    }),
+  ).resolves.toBe('renamed.md');
+  await expect(result.current.deleteNote.mutateAsync('first.md')).resolves.toBeUndefined();
+});

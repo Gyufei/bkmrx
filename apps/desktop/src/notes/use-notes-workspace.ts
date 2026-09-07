@@ -62,23 +62,26 @@ export function useNotesWorkspace() {
   );
 
   const invalidateNotes = () => queryClient.invalidateQueries({ queryKey: notesQueryKey });
+  const invalidateNotesAfterMutation = () => {
+    void invalidateNotes().catch(() => undefined);
+  };
   const createNote = useMutation({
     mutationFn: (input: { directory: string; name: string }) =>
       createNoteApi({ revision: workspaceRevision!, ...input }),
-    onSuccess: invalidateNotes,
+    onSuccess: invalidateNotesAfterMutation,
   });
   const deleteNote = useMutation({
     mutationFn: (relativePath: string) => deleteNoteFileApi(workspaceRevision!, relativePath),
-    onSuccess: invalidateNotes,
+    onSuccess: invalidateNotesAfterMutation,
   });
   const deleteFolder = useMutation({
     mutationFn: (relativePath: string) => deleteNoteFolderApi(workspaceRevision!, relativePath),
-    onSuccess: invalidateNotes,
+    onSuccess: invalidateNotesAfterMutation,
   });
   const renameNote = useMutation({
     mutationFn: (input: { relativePath: string; name: string }) =>
       renameNoteFileApi({ revision: workspaceRevision!, ...input }),
-    onSuccess: invalidateNotes,
+    onSuccess: invalidateNotesAfterMutation,
   });
 
   return {
