@@ -3,7 +3,14 @@ use std::{
     sync::Arc,
 };
 
-use super::{repository, watcher::NoteWatcher, NoteEvent, NotesWorkspaceListing};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+use super::{
+    repository, watcher::NoteWatcher, NoteEvent, NotesWorkspaceListing, OpenedDocument,
+    RenamedDocument, SavedDocument,
+};
 use crate::{
     error::{AppError, AppResult},
     settings::SharedSettingsStore,
@@ -31,14 +38,74 @@ impl NotesWorkspace {
         Ok(NotesWorkspaceListing { revision, notes })
     }
 
-    pub fn read(&self, revision: u64, relative_path: &str) -> AppResult<String> {
+    pub fn open_document(&self, revision: u64, relative_path: &str) -> AppResult<OpenedDocument> {
         let path = self.authorize_existing(revision, relative_path)?;
-        repository::read(&path.to_string_lossy()).map_err(note_io_error)
+        let content = repository::read(&path.to_string_lossy()).map_err(note_io_error)?;
+        Ok(OpenedDocument {
+            receipt: encode_receipt(&ReceiptPayload {
+                format: 1,
+                workspace_revision: revision,
+                relative_path: relative_path.to_owned(),
+                fingerprint: fingerprint(&content),
+            })?,
+            content,
+        })
     }
 
-    pub fn write(&self, revision: u64, relative_path: &str, content: &str) -> AppResult<()> {
-        let path = self.authorize_existing(revision, relative_path)?;
-        repository::write(&path.to_string_lossy(), content).map_err(note_io_error)
+    pub fn save_document(&self, receipt: &str, content: &str) -> AppResult<SavedDocument> {
+        let receipt = decode_receipt(receipt)?;
+        let (path, current) = self.authorize_receipt(&receipt)?;
+        if !repository::write_if_unchanged(&path.to_string_lossy(), current.as_bytes(), content)
+            .map_err(note_io_error)?
+        {
+            return Err(document_conflict());
+        }
+        Ok(SavedDocument {
+            receipt: encode_receipt(&ReceiptPayload {
+                fingerprint: fingerprint(content),
+                ..receipt
+            })?,
+        })
+    }
+
+    pub fn rename_document(
+        &self,
+        receipt: &str,
+        name: &str,
+        pending_content: Option<&str>,
+    ) -> AppResult<RenamedDocument> {
+        validate_note_name(name)?;
+        let mut receipt = decode_receipt(receipt)?;
+        let (old_path, current) = self.authorize_receipt(&receipt)?;
+        let new_path = old_path.parent().ok_or_else(path_outside_root)?.join(name);
+        repository::ensure_rename_target_available(&new_path.to_string_lossy())
+            .map_err(note_io_error)?;
+        let content = pending_content.unwrap_or(&current);
+        if pending_content.is_some()
+            && !repository::write_if_unchanged(
+                &old_path.to_string_lossy(),
+                current.as_bytes(),
+                content,
+            )
+            .map_err(note_io_error)?
+        {
+            return Err(document_conflict());
+        }
+        repository::rename(&old_path.to_string_lossy(), &new_path.to_string_lossy())
+            .map_err(note_io_error)?;
+        let (_, root) = self.root_at(receipt.workspace_revision)?;
+        receipt.relative_path = relative_identity(&root, &new_path)?;
+        receipt.fingerprint = fingerprint(content);
+        Ok(RenamedDocument {
+            relative_path: receipt.relative_path.clone(),
+            receipt: encode_receipt(&receipt)?,
+        })
+    }
+
+    pub fn delete_document(&self, receipt: &str) -> AppResult<()> {
+        let receipt = decode_receipt(receipt)?;
+        let (path, _) = self.authorize_receipt(&receipt)?;
+        repository::delete(&path.to_string_lossy()).map_err(note_io_error)
     }
 
     pub fn create(&self, revision: u64, directory: &str, name: &str) -> AppResult<String> {
@@ -52,11 +119,6 @@ impl NotesWorkspace {
         relative_identity(&root, Path::new(&created))
     }
 
-    pub fn delete(&self, revision: u64, relative_path: &str) -> AppResult<()> {
-        let path = self.authorize_existing(revision, relative_path)?;
-        repository::delete(&path.to_string_lossy()).map_err(note_io_error)
-    }
-
     pub fn delete_folder(&self, revision: u64, relative_path: &str) -> AppResult<()> {
         if relative_path.is_empty() {
             return Err(path_outside_root());
@@ -66,16 +128,6 @@ impl NotesWorkspace {
             return Err(path_outside_root());
         }
         repository::delete_folder(&path.to_string_lossy()).map_err(note_io_error)
-    }
-
-    pub fn rename(&self, revision: u64, relative_path: &str, name: &str) -> AppResult<String> {
-        validate_note_name(name)?;
-        let old_path = self.authorize_existing(revision, relative_path)?;
-        let new_path = old_path.parent().ok_or_else(path_outside_root)?.join(name);
-        repository::rename(&old_path.to_string_lossy(), &new_path.to_string_lossy())
-            .map_err(note_io_error)?;
-        let (_, root) = self.root_at(revision)?;
-        relative_identity(&root, &new_path)
     }
 
     pub fn stop(&self) {
@@ -126,6 +178,59 @@ impl NotesWorkspace {
         }
         Ok(path)
     }
+
+    fn authorize_receipt(&self, receipt: &ReceiptPayload) -> AppResult<(PathBuf, String)> {
+        let path = self.authorize_existing(receipt.workspace_revision, &receipt.relative_path)?;
+        let current = repository::read(&path.to_string_lossy()).map_err(note_io_error)?;
+        if fingerprint(&current) != receipt.fingerprint {
+            return Err(document_conflict());
+        }
+        Ok((path, current))
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ReceiptPayload {
+    format: u8,
+    workspace_revision: u64,
+    relative_path: String,
+    fingerprint: String,
+}
+
+fn fingerprint(content: &str) -> String {
+    format!("{:x}", Sha256::digest(content.as_bytes()))
+}
+
+fn encode_receipt(receipt: &ReceiptPayload) -> AppResult<String> {
+    let serialized = serde_json::to_vec(receipt).map_err(|error| {
+        AppError::internal_error(format!("failed to encode note receipt: {error}"))
+    })?;
+    Ok(URL_SAFE_NO_PAD.encode(serialized))
+}
+
+fn decode_receipt(receipt: &str) -> AppResult<ReceiptPayload> {
+    let bytes = URL_SAFE_NO_PAD
+        .decode(receipt)
+        .map_err(|_| invalid_receipt())?;
+    let decoded: ReceiptPayload = serde_json::from_slice(&bytes).map_err(|_| invalid_receipt())?;
+    if decoded.format != 1 {
+        return Err(invalid_receipt());
+    }
+    Ok(decoded)
+}
+
+fn invalid_receipt() -> AppError {
+    AppError::note_error(
+        "invalid_note_document_receipt",
+        "The note document receipt is invalid",
+    )
+}
+
+fn document_conflict() -> AppError {
+    AppError::note_error(
+        "note_document_conflict",
+        "The note was changed outside this document session",
+    )
 }
 
 pub type SharedNotesWorkspace = Arc<NotesWorkspace>;

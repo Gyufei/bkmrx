@@ -9,6 +9,11 @@ import NotesPanel from './NotesPanel';
 const renameNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFolderApi = vi.hoisted(() => vi.fn());
+const activeDocumentSession = vi.hoisted(() => ({
+  flush: vi.fn().mockResolvedValue(undefined),
+  rename: vi.fn(),
+  delete: vi.fn(),
+}));
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn().mockResolvedValue(() => undefined),
@@ -60,11 +65,35 @@ vi.mock('./notes.api', () => ({
   renameNoteFileApi,
 }));
 
-vi.mock('./NoteEditor', () => ({ default: () => <div>笔记内容</div> }));
+vi.mock('./NoteEditor', async () => {
+  const { useEffect } = await import('react');
+  return {
+    default: ({
+      filePath,
+      onSessionChange,
+    }: {
+      filePath: string;
+      onSessionChange?: (session: unknown) => void;
+    }) => {
+      useEffect(() => {
+        onSessionChange?.(activeDocumentSession);
+        return () => onSessionChange?.(null);
+      }, [onSessionChange]);
+      return (
+        <div data-testid="note-editor" data-file-path={filePath}>
+          笔记内容
+        </div>
+      );
+    },
+  };
+});
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  activeDocumentSession.flush.mockClear();
+  activeDocumentSession.rename.mockReset();
+  activeDocumentSession.delete.mockReset();
 });
 
 it('uses sidebar backgrounds for both navigation columns and the content background for the editor', async () => {
@@ -240,4 +269,82 @@ it('clears a previous deletion error before opening another note', async () => {
 
   expect(screen.queryByText('删除失败：文件被占用')).toBeNull();
   expect(screen.getByText('删除笔记“第二篇笔记”？')).toBeTruthy();
+});
+
+it('shows an active document rename failure in the name dialog', async () => {
+  activeDocumentSession.rename.mockRejectedValueOnce(new Error('笔记已在外部修改'));
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  fireEvent.click(firstNote);
+  fireEvent.contextMenu(firstNote);
+  fireEvent.click(await screen.findByText('重命名'));
+  fireEvent.change(screen.getByLabelText('文件名'), { target: { value: '新名字' } });
+  fireEvent.click(screen.getByRole('button', { name: '确定' }));
+
+  expect(await screen.findByText('笔记已在外部修改')).toBeTruthy();
+});
+
+it('shows an active document deletion failure in the confirmation dialog', async () => {
+  activeDocumentSession.delete.mockRejectedValueOnce(new Error('笔记已在外部修改'));
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  fireEvent.click(firstNote);
+  fireEvent.contextMenu(firstNote);
+  fireEvent.click(await screen.findByText('删除笔记'));
+  fireEvent.click(screen.getByRole('button', { name: '删除' }));
+
+  expect(await screen.findByText('删除失败：笔记已在外部修改')).toBeTruthy();
+});
+
+it('keeps a successful active rename when refreshing the note list fails', async () => {
+  activeDocumentSession.rename.mockResolvedValueOnce('renamed.md');
+  const queryClient = new QueryClient();
+  vi.spyOn(queryClient, 'invalidateQueries').mockRejectedValueOnce(new Error('refresh failed'));
+  render(
+    <QueryClientProvider client={queryClient}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  fireEvent.click(firstNote);
+  fireEvent.contextMenu(firstNote);
+  fireEvent.click(await screen.findByText('重命名'));
+  fireEvent.change(screen.getByLabelText('文件名'), { target: { value: '新名字' } });
+  fireEvent.click(screen.getByRole('button', { name: '确定' }));
+
+  await waitFor(() =>
+    expect(screen.getByTestId('note-editor').getAttribute('data-file-path')).toBe('renamed.md'),
+  );
+  expect(screen.queryByText('重命名笔记')).toBeNull();
+});
+
+it('closes a successfully deleted active document when refreshing the note list fails', async () => {
+  activeDocumentSession.delete.mockResolvedValueOnce(undefined);
+  const queryClient = new QueryClient();
+  vi.spyOn(queryClient, 'invalidateQueries').mockRejectedValueOnce(new Error('refresh failed'));
+  render(
+    <QueryClientProvider client={queryClient}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  fireEvent.click(firstNote);
+  fireEvent.contextMenu(firstNote);
+  fireEvent.click(await screen.findByText('删除笔记'));
+  fireEvent.click(screen.getByRole('button', { name: '删除' }));
+
+  await waitFor(() => expect(screen.queryByTestId('note-editor')).toBeNull());
+  expect(screen.queryByText('删除笔记“第一篇笔记”？')).toBeNull();
 });

@@ -1,4 +1,6 @@
-use std::{fs, io, path::Path, time::UNIX_EPOCH};
+use std::{fs, io, io::Write, path::Path, time::UNIX_EPOCH};
+
+use atomic_write_file::AtomicWriteFile;
 
 use super::NoteFile;
 
@@ -56,18 +58,32 @@ pub fn delete_folder(path: &str) -> io::Result<()> {
 }
 
 pub fn rename(old_path: &str, new_path: &str) -> io::Result<()> {
+    ensure_rename_target_available(new_path)?;
+    fs::rename(old_path, new_path)
+}
+
+pub fn ensure_rename_target_available(new_path: &str) -> io::Result<()> {
     if Path::new(new_path).exists() {
         return Err(io::Error::new(io::ErrorKind::AlreadyExists, "文件已存在"));
     }
-    fs::rename(old_path, new_path)
+    Ok(())
 }
 
 pub fn read(path: &str) -> io::Result<String> {
     fs::read_to_string(path)
 }
 
-pub fn write(path: &str, content: &str) -> io::Result<()> {
-    fs::write(path, content)
+pub fn write_if_unchanged(path: &str, expected: &[u8], content: &str) -> io::Result<bool> {
+    if fs::read(path)? != expected {
+        return Ok(false);
+    }
+    let mut file = AtomicWriteFile::open(path)?;
+    file.write_all(content.as_bytes())?;
+    if fs::read(path)? != expected {
+        return Ok(false);
+    }
+    file.commit()?;
+    Ok(true)
 }
 
 pub fn create(dir: &str, name: &str) -> io::Result<String> {

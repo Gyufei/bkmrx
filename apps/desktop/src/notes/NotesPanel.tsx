@@ -45,6 +45,8 @@ export default function NotesPanel() {
   const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
   const [deletingNote, setDeletingNote] = useState<NoteFile | null>(null);
   const [deletingFolder, setDeletingFolder] = useState<DeletingFolder | null>(null);
+  const [documentActionError, setDocumentActionError] = useState<Error | null>(null);
+  const [documentActionPending, setDocumentActionPending] = useState(false);
   const documentSessionRef = useRef<NoteDocumentSession | null>(null);
   const {
     notesDir,
@@ -56,6 +58,7 @@ export default function NotesPanel() {
     deleteNote,
     deleteFolder,
     renameNote,
+    refreshNotes,
   } = useNotesWorkspace();
 
   useEffect(() => {
@@ -92,13 +95,29 @@ export default function NotesPanel() {
         setNameDialog(null);
         return;
       }
-      if (selectedFilePath === note.relative_path) await documentSessionRef.current?.flush();
-      const renamedPath = await renameNote.mutateAsync({
-        relativePath: note.relative_path,
-        name: fileName,
-      });
+      const activeSession =
+        selectedFilePath === note.relative_path ? documentSessionRef.current : null;
+      let renamedPath: string;
+      if (activeSession) {
+        setDocumentActionPending(true);
+        setDocumentActionError(null);
+        try {
+          renamedPath = await activeSession.rename(fileName);
+        } catch (error) {
+          setDocumentActionError(error instanceof Error ? error : new Error(String(error)));
+          return;
+        } finally {
+          setDocumentActionPending(false);
+        }
+      } else {
+        renamedPath = await renameNote.mutateAsync({
+          relativePath: note.relative_path,
+          name: fileName,
+        });
+      }
       setSelectedFilePath((current) => (current === note.relative_path ? renamedPath : current));
       setNameDialog(null);
+      if (activeSession) void refreshNotes().catch(() => undefined);
       return;
     }
 
@@ -158,10 +177,12 @@ export default function NotesPanel() {
           }}
           onRenameNote={(note) => {
             renameNote.reset();
+            setDocumentActionError(null);
             setNameDialog({ mode: 'rename', note });
           }}
           onDeleteNote={(note) => {
             deleteNote.reset();
+            setDocumentActionError(null);
             setDeletingNote(note);
           }}
         />
@@ -187,8 +208,12 @@ export default function NotesPanel() {
       <NoteNameDialog
         open={nameDialog !== null}
         note={nameDialog?.mode === 'rename' ? nameDialog.note : null}
-        pending={createNote.isPending || renameNote.isPending}
-        error={nameDialog?.mode === 'rename' ? renameNote.error : createNote.error}
+        pending={createNote.isPending || renameNote.isPending || documentActionPending}
+        error={
+          nameDialog?.mode === 'rename'
+            ? (documentActionError ?? renameNote.error)
+            : createNote.error
+        }
         onOpenChange={(open) => !open && setNameDialog(null)}
         onSubmit={(name) => void submitName(name).catch(() => undefined)}
       />
@@ -197,25 +222,33 @@ export default function NotesPanel() {
         open={deletingNote !== null}
         title={`删除笔记“${deletingNote?.title}”？`}
         description="此操作不可撤销。"
-        pending={deleteNote.isPending}
-        error={deleteNote.error}
+        pending={deleteNote.isPending || documentActionPending}
+        error={documentActionError ?? deleteNote.error}
         onOpenChange={(open) => !open && setDeletingNote(null)}
         onConfirm={() =>
           void (async () => {
             if (!deletingNote) return;
             const activeSession =
               selectedFilePath === deletingNote.relative_path ? documentSessionRef.current : null;
-            await activeSession?.discardPending();
-            try {
+            if (activeSession) {
+              setDocumentActionPending(true);
+              setDocumentActionError(null);
+              try {
+                await activeSession.delete();
+              } catch (error) {
+                setDocumentActionError(error instanceof Error ? error : new Error(String(error)));
+                return;
+              } finally {
+                setDocumentActionPending(false);
+              }
+            } else {
               await deleteNote.mutateAsync(deletingNote.relative_path);
-            } catch (error) {
-              activeSession?.resumePending();
-              throw error;
             }
             setSelectedFilePath((current) =>
               current === deletingNote.relative_path ? null : current,
             );
             setDeletingNote(null);
+            if (activeSession) void refreshNotes().catch(() => undefined);
           })().catch(() => undefined)
         }
       />

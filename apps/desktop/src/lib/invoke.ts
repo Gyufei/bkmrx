@@ -249,16 +249,30 @@ export function invokeScanNotes(): Promise<import('../types').NotesWorkspaceList
   return invoke('scan_notes');
 }
 
-export function invokeReadNoteFile(revision: number, relativePath: string): Promise<string> {
-  return invoke<string>('read_note_file', { revision, relativePath });
-}
-
-export function invokeWriteNoteFile(
+export function invokeOpenNoteDocument(
   revision: number,
   relativePath: string,
+): Promise<import('../types').OpenedNoteDocument> {
+  return invoke('open_note_document', { revision, relativePath });
+}
+
+export function invokeSaveNoteDocument(
+  receipt: string,
   content: string,
-): Promise<void> {
-  return invoke('write_note_file', { revision, relativePath, content });
+): Promise<import('../types').SavedNoteDocument> {
+  return invoke('save_note_document', { receipt, content });
+}
+
+export function invokeRenameNoteDocument(
+  receipt: string,
+  name: string,
+  pendingContent?: string,
+): Promise<import('../types').RenamedNoteDocument> {
+  return invoke('rename_note_document', { receipt, name, pendingContent });
+}
+
+export function invokeDeleteNoteDocument(receipt: string): Promise<void> {
+  return invoke('delete_note_document', { receipt });
 }
 
 export function invokeCreateNoteFile(
@@ -269,18 +283,6 @@ export function invokeCreateNoteFile(
   return invoke<string>('create_note_file', { revision, directory, name });
 }
 
-export function invokeDeleteNote(revision: number, relativePath: string): Promise<void> {
-  return invoke('delete_note', { revision, relativePath });
-}
-
 export function invokeDeleteNoteFolder(revision: number, relativePath: string): Promise<void> {
   return invoke('delete_note_folder', { revision, relativePath });
-}
-
-export function invokeRenameNote(
-  revision: number,
-  relativePath: string,
-  name: string,
-): Promise<string> {
-  return invoke<string>('rename_note', { revision, relativePath, name });
 }

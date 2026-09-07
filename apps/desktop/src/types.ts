@@ -201,6 +201,19 @@ export interface NoteRemovedEvent {
   relative_path: string;
 }
 
+export interface OpenedNoteDocument {
+  content: string;
+  receipt: string;
+}
+
+export interface SavedNoteDocument {
+  receipt: string;
+}
+
+export interface RenamedNoteDocument extends SavedNoteDocument {
+  relative_path: string;
+}
+
 export type TodoStatus = 'in_progress' | 'completed' | 'suspended' | 'canceled';
 
 export interface Todo {

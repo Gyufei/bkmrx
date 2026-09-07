@@ -4,8 +4,40 @@ import { act, render, renderHook, screen } from '@testing-library/react';
 import { Activity, StrictMode, type PropsWithChildren } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { NoteSaveQueue } from './note-save-queue';
 import { useNoteDocument } from './use-note-document';
+
+class NoteSaveQueue {
+  private readonly tails = new Map<string, Promise<void>>();
+  constructor(private readonly write: (path: string, content: string) => Promise<void>) {}
+  enqueue(path: string, content: string) {
+    const previous = this.tails.get(path);
+    const operation = previous
+      ? previous.catch(() => undefined).then(() => this.write(path, content))
+      : this.write(path, content);
+    this.tails.set(
+      path,
+      operation.catch(() => undefined),
+    );
+    return operation;
+  }
+  pending(path: string) {
+    return this.tails.get(path) ?? Promise.resolve();
+  }
+}
+
+const receiptApi = vi.hoisted(() => ({
+  open: vi.fn(),
+  save: vi.fn(),
+  rename: vi.fn(),
+  delete: vi.fn(),
+}));
+
+vi.mock('./notes.api', () => ({
+  openNoteDocumentApi: receiptApi.open,
+  saveNoteDocumentApi: receiptApi.save,
+  renameNoteDocumentApi: receiptApi.rename,
+  deleteNoteDocumentApi: receiptApi.delete,
+}));
 
 function ActivityNoteDocument({
   mode,
@@ -157,8 +189,61 @@ describe('useNoteDocument reads', () => {
 });
 
 describe('useNoteDocument saves', () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
   afterEach(() => vi.useRealTimers());
+
+  it('uses the receipt returned by each successful save for the next save', async () => {
+    receiptApi.open.mockResolvedValue({ content: 'start', receipt: 'receipt-1' });
+    receiptApi.save
+      .mockResolvedValueOnce({ receipt: 'receipt-2' })
+      .mockResolvedValueOnce({ receipt: 'receipt-3' });
+    const { result } = renderHook(() => useNoteDocument('note.md', 7));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    act(() => result.current.setContent('first'));
+    await act(async () => result.current.flush());
+    act(() => result.current.setContent('second'));
+    await act(async () => result.current.flush());
+
+    expect(receiptApi.open).toHaveBeenCalledWith(7, 'note.md');
+    expect(receiptApi.save).toHaveBeenNthCalledWith(1, 'receipt-1', 'first');
+    expect(receiptApi.save).toHaveBeenNthCalledWith(2, 'receipt-2', 'second');
+  });
+
+  it('renames a dirty document with its pending content through the receipt', async () => {
+    receiptApi.open.mockResolvedValue({ content: 'start', receipt: 'receipt-1' });
+    receiptApi.rename.mockResolvedValue({ relative_path: 'renamed.md', receipt: 'receipt-2' });
+    const { result, unmount } = renderHook(() => useNoteDocument('note.md', 7));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+    act(() => result.current.setContent('draft'));
+
+    await expect(result.current.rename('renamed.md')).resolves.toBe('renamed.md');
+
+    expect(receiptApi.rename).toHaveBeenCalledWith('receipt-1', 'renamed.md', 'draft');
+    expect(receiptApi.save).not.toHaveBeenCalled();
+    unmount();
+    await act(async () => Promise.resolve());
+    expect(receiptApi.save).not.toHaveBeenCalled();
+  });
+
+  it('deletes through the receipt without saving an unsent draft', async () => {
+    receiptApi.open.mockResolvedValue({ content: 'start', receipt: 'receipt-1' });
+    receiptApi.delete.mockResolvedValue(undefined);
+    const { result, unmount } = renderHook(() => useNoteDocument('note.md', 7));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+    act(() => result.current.setContent('discard me'));
+
+    await result.current.delete();
+
+    expect(receiptApi.delete).toHaveBeenCalledWith('receipt-1');
+    expect(receiptApi.save).not.toHaveBeenCalled();
+    unmount();
+    await act(async () => Promise.resolve());
+    expect(receiptApi.save).not.toHaveBeenCalled();
+  });
 
   it('debounces changes and saves only the latest captured content', async () => {
     const read = vi.fn().mockResolvedValue('start');
@@ -237,6 +322,28 @@ describe('useNoteDocument saves', () => {
 
     expect(result.current.dirty).toBe(true);
     expect(result.current.saveState).not.toBe('saved');
+  });
+
+  it('coalesces edits made during an in-flight save into one latest follow-up save', async () => {
+    const first = deferred<void>();
+    const read = vi.fn().mockResolvedValue('start');
+    const save = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useNoteDocument('/a.md', { read, save, debounceMs: 400 }));
+    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    act(() => {
+      result.current.setContent('first');
+      vi.advanceTimersByTime(400);
+      result.current.setContent('second');
+      vi.advanceTimersByTime(400);
+      result.current.setContent('latest');
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(save).toHaveBeenCalledTimes(1);
+    first.resolve();
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save).toHaveBeenLastCalledWith('/a.md', 'latest');
   });
 });
 
@@ -778,70 +885,6 @@ describe('useNoteDocument save races', () => {
     write.reject(new Error('debounced write failed'));
     await expect(flush).rejects.toThrow('debounced write failed');
     expect(save).toHaveBeenCalledTimes(1);
-  });
-
-  it('suppresses an old-path failure after a newer version succeeds', async () => {
-    const firstWrite = deferred<void>();
-    const secondWrite = deferred<void>();
-    const b = deferred<string>();
-    const read = vi.fn((path: string) => (path === '/a.md' ? Promise.resolve('start') : b.promise));
-    const save = vi
-      .fn<(path: string, content: string) => Promise<void>>()
-      .mockReturnValueOnce(firstWrite.promise)
-      .mockReturnValueOnce(secondWrite.promise)
-      .mockResolvedValue(undefined);
-    const { result, rerender } = renderHook(
-      ({ path }) => useNoteDocument(path, { read, save, debounceMs: 400 }),
-      { initialProps: { path: '/a.md' } },
-    );
-    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
-
-    act(() => result.current.setContent('v1'));
-    const first = result.current.flush();
-    act(() => result.current.setContent('v2'));
-    const second = result.current.flush();
-    rerender({ path: '/b.md' });
-
-    secondWrite.resolve();
-    await expect(second).resolves.toBeUndefined();
-    firstWrite.reject(new Error('v1 failed late'));
-    await expect(first).rejects.toThrow('v1 failed late');
-
-    expect(result.current.saveError).toBe(null);
-    await expect(result.current.retrySave()).resolves.toBeUndefined();
-    expect(save).toHaveBeenCalledTimes(2);
-  });
-
-  it('ignores a late failed first save after the second version succeeds', async () => {
-    const firstWrite = deferred<void>();
-    const secondWrite = deferred<void>();
-    const read = vi.fn().mockResolvedValue('start');
-    const save = vi
-      .fn<(path: string, content: string) => Promise<void>>()
-      .mockReturnValueOnce(firstWrite.promise)
-      .mockReturnValueOnce(secondWrite.promise);
-    const { result } = renderHook(() => useNoteDocument('/a.md', { read, save, debounceMs: 400 }));
-    await vi.waitFor(() => expect(result.current.loadState).toBe('ready'));
-
-    act(() => result.current.setContent('v1'));
-    const first = result.current.flush();
-    act(() => result.current.setContent('v2'));
-    const second = result.current.flush();
-    expect(save).toHaveBeenNthCalledWith(1, '/a.md', 'v1');
-    expect(save).toHaveBeenNthCalledWith(2, '/a.md', 'v2');
-
-    await act(async () => {
-      secondWrite.resolve();
-      await expect(second).resolves.toBeUndefined();
-    });
-    await act(async () => {
-      firstWrite.reject(new Error('v1 failed late'));
-      await expect(first).rejects.toThrow('v1 failed late');
-    });
-
-    expect(result.current.dirty).toBe(false);
-    expect(result.current.saveState).toBe('saved');
-    expect(result.current.saveError).toBe(null);
   });
 
   it('reports a failed in-flight save once after unmount without an unhandled rejection', async () => {

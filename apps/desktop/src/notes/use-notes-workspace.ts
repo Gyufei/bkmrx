@@ -91,5 +91,6 @@ export function useNotesWorkspace() {
     deleteNote,
     deleteFolder,
     renameNote,
+    refreshNotes: invalidateNotes,
   };
 }

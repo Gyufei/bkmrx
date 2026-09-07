@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { noteSaveKey, sharedNoteSaveQueue } from './note-save';
-import { readNoteContentApi } from './notes.api';
+import {
+  deleteNoteDocumentApi,
+  openNoteDocumentApi,
+  renameNoteDocumentApi,
+  saveNoteDocumentApi,
+} from './notes.api';
 
 export interface NoteDocumentDependencies {
   read(path: string): Promise<string>;
@@ -28,8 +32,8 @@ export interface NoteDocumentSession {
   flush(): Promise<void>;
   retrySave(): Promise<void>;
   dismissSaveError(): void;
-  discardPending(): Promise<void>;
-  resumePending(): void;
+  rename(name: string): Promise<string>;
+  delete(): Promise<void>;
 }
 
 interface CapturedSaveFailure extends NoteSaveFailure {
@@ -43,6 +47,7 @@ interface PathSaveWatermark {
   latestSubmittedPromise: Promise<void> | null;
   unsettledSubmissions: number;
   pendingReads: number;
+  coalescedPromise: Promise<void> | null;
 }
 
 export function stripFrontmatter(content: string): string {
@@ -61,11 +66,20 @@ export function useNoteDocument(
   const revision = typeof revisionOrDependencies === 'number' ? revisionOrDependencies : 1;
   const resolvedDependencies =
     typeof revisionOrDependencies === 'number' ? dependencies : revisionOrDependencies;
-  const keyFor = (path: string) => noteSaveKey(revision, path);
+  const receiptByPathRef = useRef(new Map<string, string>());
   const productionDefaults: NoteDocumentDependencies = {
-    read: (path) => readNoteContentApi(revision, path),
-    save: (path, content) => sharedNoteSaveQueue.enqueue(keyFor(path), content),
-    pending: (path) => sharedNoteSaveQueue.pending(keyFor(path)),
+    read: async (path) => {
+      const opened = await openNoteDocumentApi(revision, path);
+      receiptByPathRef.current.set(path, opened.receipt);
+      return opened.content;
+    },
+    save: async (path, content) => {
+      const receipt = receiptByPathRef.current.get(path);
+      if (!receipt) throw new Error('Note document has not been opened');
+      const saved = await saveNoteDocumentApi(receipt, content);
+      receiptByPathRef.current.set(path, saved.receipt);
+    },
+    pending: () => Promise.resolve(),
     debounceMs: 400,
   };
   const dependencyRef = useRef<NoteDocumentDependencies>(productionDefaults);
@@ -81,7 +95,7 @@ export function useNoteDocument(
   const latestSubmittedPromiseRef = useRef<Promise<void> | null>(null);
   const latestSavedVersionRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const suppressNextCleanupRef = useRef(false);
+  const retiredRef = useRef(false);
   const mountedRef = useRef(false);
   const saveFailureRef = useRef<CapturedSaveFailure | null>(null);
   const retryPromiseRef = useRef<{
@@ -105,6 +119,7 @@ export function useNoteDocument(
       latestSubmittedPromise: null,
       unsettledSubmissions: 0,
       pendingReads: 0,
+      coalescedPromise: null,
     };
     pathSaveWatermarksRef.current.set(path, created);
     return created;
@@ -114,6 +129,7 @@ export function useNoteDocument(
     if (
       watermark.unsettledSubmissions === 0 &&
       watermark.pendingReads === 0 &&
+      watermark.coalescedPromise === null &&
       saveFailureRef.current?.path !== path &&
       retryPromiseRef.current?.failure.path !== path &&
       pathSaveWatermarksRef.current.get(path) === watermark
@@ -137,9 +153,21 @@ export function useNoteDocument(
   );
 
   const submitSave = useCallback(
-    (path: string, contentToSave: string, sessionId: number, version: number) => {
+    (path: string, contentToSave: string, sessionId: number, version: number): Promise<void> => {
       const isCurrent = isCurrentSnapshot(path, sessionId, version);
       const watermark = getPathSaveWatermark(path);
+      if (watermark.unsettledSubmissions > 0) {
+        if (watermark.coalescedPromise) return watermark.coalescedPromise;
+        const coalesced: Promise<void> = (watermark.latestSubmittedPromise ?? Promise.resolve())
+          .catch(() => undefined)
+          .then(() => {
+            watermark.coalescedPromise = null;
+            if (!isCurrentSession(path, sessionId)) return;
+            return submitSave(path, contentRef.current, sessionId, currentVersionRef.current);
+          });
+        watermark.coalescedPromise = coalesced;
+        return coalesced;
+      }
       const generation = watermark.latestSubmittedGeneration + 1;
       watermark.latestSubmittedGeneration = generation;
       watermark.unsettledSubmissions += 1;
@@ -223,6 +251,7 @@ export function useNoteDocument(
 
   const flushCurrentSnapshot = useCallback(
     (path: string, sessionId: number) => {
+      if (retiredRef.current) return Promise.resolve();
       if (currentPathRef.current !== path || currentSessionIdRef.current !== sessionId) {
         return Promise.resolve();
       }
@@ -307,6 +336,7 @@ export function useNoteDocument(
       initializedPathRef.current = filePath;
       loadedPathRef.current = null;
       currentPathRef.current = filePath;
+      retiredRef.current = false;
       contentRef.current = '';
       currentVersionRef.current = 0;
       latestSubmittedVersionRef.current = 0;
@@ -323,11 +353,7 @@ export function useNoteDocument(
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = undefined;
       }
-      if (suppressNextCleanupRef.current) {
-        suppressNextCleanupRef.current = false;
-      } else {
-        void flushCurrentSnapshot(filePath, currentSessionIdRef.current).catch(() => undefined);
-      }
+      void flushCurrentSnapshot(filePath, currentSessionIdRef.current).catch(() => undefined);
     };
   }, [filePath, flushCurrentSnapshot, readCurrent]);
 
@@ -363,18 +389,50 @@ export function useNoteDocument(
     }
   }, [flushCurrentSnapshot, isCurrentSession]);
 
-  const discardPending = useCallback(async () => {
-    suppressNextCleanupRef.current = true;
+  const waitForInFlight = useCallback(async () => {
+    while (latestSubmittedPromiseRef.current) {
+      const pending = latestSubmittedPromiseRef.current;
+      await pending.catch(() => undefined);
+      if (latestSubmittedPromiseRef.current === pending) return;
+    }
+  }, []);
+
+  const rename = useCallback(
+    async (name: string) => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = undefined;
+      }
+      await waitForInFlight();
+      const path = currentPathRef.current;
+      const receipt = receiptByPathRef.current.get(path);
+      if (!receipt) throw new Error('Note document has not been opened');
+      const renamed = await renameNoteDocumentApi(
+        receipt,
+        name,
+        currentVersionRef.current === latestSavedVersionRef.current
+          ? undefined
+          : contentRef.current,
+      );
+      receiptByPathRef.current.delete(path);
+      receiptByPathRef.current.set(renamed.relative_path, renamed.receipt);
+      retiredRef.current = true;
+      return renamed.relative_path;
+    },
+    [waitForInFlight],
+  );
+
+  const deleteDocument = useCallback(async () => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = undefined;
     }
-    await dependencyRef.current.pending(currentPathRef.current);
-  }, []);
-
-  const resumePending = useCallback(() => {
-    suppressNextCleanupRef.current = false;
-  }, []);
+    await waitForInFlight();
+    const receipt = receiptByPathRef.current.get(currentPathRef.current);
+    if (!receipt) throw new Error('Note document has not been opened');
+    await deleteNoteDocumentApi(receipt);
+    retiredRef.current = true;
+  }, [waitForInFlight]);
 
   const retrySave = useCallback(() => {
     const failure = saveFailureRef.current;
@@ -449,7 +507,7 @@ export function useNoteDocument(
     flush,
     retrySave,
     dismissSaveError,
-    discardPending,
-    resumePending,
+    rename,
+    delete: deleteDocument,
   };
 }

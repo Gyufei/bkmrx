@@ -267,22 +267,39 @@ pub async fn scan_notes(
 }
 
 #[tauri::command]
-pub async fn read_note_file(
+pub async fn open_note_document(
     workspace: State<'_, SharedNotesWorkspace>,
     revision: u64,
     relative_path: String,
-) -> crate::error::AppResult<String> {
-    workspace.read(revision, &relative_path)
+) -> crate::error::AppResult<crate::notes::OpenedDocument> {
+    workspace.open_document(revision, &relative_path)
 }
 
 #[tauri::command]
-pub async fn write_note_file(
+pub async fn save_note_document(
     workspace: State<'_, SharedNotesWorkspace>,
-    revision: u64,
-    relative_path: String,
+    receipt: String,
     content: String,
+) -> crate::error::AppResult<crate::notes::SavedDocument> {
+    workspace.save_document(&receipt, &content)
+}
+
+#[tauri::command]
+pub async fn rename_note_document(
+    workspace: State<'_, SharedNotesWorkspace>,
+    receipt: String,
+    name: String,
+    pending_content: Option<String>,
+) -> crate::error::AppResult<crate::notes::RenamedDocument> {
+    workspace.rename_document(&receipt, &name, pending_content.as_deref())
+}
+
+#[tauri::command]
+pub async fn delete_note_document(
+    workspace: State<'_, SharedNotesWorkspace>,
+    receipt: String,
 ) -> crate::error::AppResult<()> {
-    workspace.write(revision, &relative_path, &content)
+    workspace.delete_document(&receipt)
 }
 
 #[tauri::command]
@@ -338,31 +355,12 @@ pub fn get_server_status(
 }
 
 #[tauri::command]
-pub async fn delete_note(
-    workspace: State<'_, SharedNotesWorkspace>,
-    revision: u64,
-    relative_path: String,
-) -> crate::error::AppResult<()> {
-    workspace.delete(revision, &relative_path)
-}
-
-#[tauri::command]
 pub async fn delete_note_folder(
     workspace: State<'_, SharedNotesWorkspace>,
     revision: u64,
     relative_path: String,
 ) -> crate::error::AppResult<()> {
     workspace.delete_folder(revision, &relative_path)
-}
-
-#[tauri::command]
-pub async fn rename_note(
-    workspace: State<'_, SharedNotesWorkspace>,
-    revision: u64,
-    relative_path: String,
-    name: String,
-) -> crate::error::AppResult<String> {
-    workspace.rename(revision, &relative_path, &name)
 }
 
 #[tauri::command]
