@@ -2,25 +2,29 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::{
+    database::Database,
     error::{AppError, AppResult},
     logging::observe_database,
 };
 
 use super::{
-    CreateTodo, SqliteTodoRepository, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
+    repository::SqliteTodoRepository, CreateTodo, Todo, TodoList, TodoQuery, TodoStatus, TodoTag,
+    UpdateTodo,
 };
 
 type ChangeNotifier = Arc<dyn Fn() + Send + Sync>;
 
-pub struct TodoService {
+/// Owns Todo mutations, coherent query/export results and post-commit notifications.
+/// SQL and result hydration remain private to this module.
+pub struct TodoStore {
     repository: SqliteTodoRepository,
     notify_changed: ChangeNotifier,
 }
 
-impl TodoService {
-    pub fn new(repository: SqliteTodoRepository) -> Self {
+impl TodoStore {
+    pub fn new(database: Arc<Database>) -> Self {
         Self {
-            repository,
+            repository: SqliteTodoRepository::new(database),
             notify_changed: Arc::new(|| {}),
         }
     }
@@ -98,4 +102,4 @@ impl TodoService {
     }
 }
 
-pub type SharedTodoService = Arc<TodoService>;
+pub type SharedTodoStore = Arc<TodoStore>;

@@ -7,48 +7,60 @@ import {
   invokeDeleteNoteFolder,
   invokeRenameNote,
 } from '../lib/invoke';
-import type { NoteFile } from '../types';
+import type { NotesWorkspaceListing } from '../types';
 
 export const NotesQueryApiKey = {
   NOTES: 'notes',
 };
 
-export async function scanNotesDirectoryApi(dir: string): Promise<NoteFile[]> {
-  return await invokeScanNotes(dir);
+export async function scanNotesDirectoryApi(): Promise<NotesWorkspaceListing> {
+  return await invokeScanNotes();
 }
 
-export async function readNoteContentApi(path: string): Promise<string> {
-  return await invokeReadNoteFile(path);
+export async function readNoteContentApi(revision: number, relativePath: string): Promise<string> {
+  return await invokeReadNoteFile(revision, relativePath);
 }
 
 export async function writeNoteContentApi({
-  path,
+  revision,
+  relativePath,
   content,
 }: {
-  path: string;
+  revision: number;
+  relativePath: string;
   content: string;
 }): Promise<void> {
-  await invokeWriteNoteFile(path, content);
+  await invokeWriteNoteFile(revision, relativePath, content);
 }
 
-export async function createNoteApi({ dir, name }: { dir: string; name: string }): Promise<string> {
-  return await invokeCreateNoteFile(dir, name);
+export async function createNoteApi({
+  revision,
+  directory,
+  name,
+}: {
+  revision: number;
+  directory: string;
+  name: string;
+}): Promise<string> {
+  return await invokeCreateNoteFile(revision, directory, name);
 }
 
-export async function deleteNoteFileApi(path: string): Promise<void> {
-  await invokeDeleteNote(path);
+export async function deleteNoteFileApi(revision: number, relativePath: string): Promise<void> {
+  await invokeDeleteNote(revision, relativePath);
 }
 
-export async function deleteNoteFolderApi(path: string): Promise<void> {
-  await invokeDeleteNoteFolder(path);
+export async function deleteNoteFolderApi(revision: number, relativePath: string): Promise<void> {
+  await invokeDeleteNoteFolder(revision, relativePath);
 }
 
 export async function renameNoteFileApi({
-  oldPath,
-  newPath,
+  revision,
+  relativePath,
+  name,
 }: {
-  oldPath: string;
-  newPath: string;
-}): Promise<void> {
-  await invokeRenameNote(oldPath, newPath);
+  revision: number;
+  relativePath: string;
+  name: string;
+}): Promise<string> {
+  return await invokeRenameNote(revision, relativePath, name);
 }

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useTauriEvent } from '@/lib/use-tauri-event';
 import { getSettingsApi, SettingsQueryApiKey } from '@/settings/settings.api';
-import type { NoteFile } from '../types';
+import type { NoteChangedEvent, NoteRemovedEvent, NotesWorkspaceListing } from '../types';
 import {
   createNoteApi,
   deleteNoteFolderApi,
@@ -19,31 +19,43 @@ export function useNotesWorkspace() {
     queryFn: getSettingsApi,
   });
   const notesDir = settings?.settings.common.paths.notes_dir ?? null;
-  const notesQueryKey = [NotesQueryApiKey.NOTES, notesDir] as const;
+  const notesQueryKey = [NotesQueryApiKey.NOTES, notesDir, settings?.revision] as const;
   const notesQuery = useQuery({
     queryKey: notesQueryKey,
-    queryFn: () => scanNotesDirectoryApi(notesDir!),
+    queryFn: scanNotesDirectoryApi,
     enabled: !!notesDir,
   });
 
-  useTauriEvent<NoteFile>(
+  const workspaceRevision = notesQuery.data?.revision ?? null;
+
+  useTauriEvent<NoteChangedEvent>(
     'note-changed',
-    ({ payload: changed }) => {
-      queryClient.setQueryData(notesQueryKey, (old: NoteFile[] | undefined) => {
-        if (!old) return old;
-        const index = old.findIndex((note) => note.path === changed.path);
-        if (index < 0) return [changed, ...old];
-        return old.map((note, currentIndex) => (currentIndex === index ? changed : note));
+    ({ payload }) => {
+      queryClient.setQueryData(notesQueryKey, (old: NotesWorkspaceListing | undefined) => {
+        if (!old || old.revision !== payload.revision) return old;
+        const index = old.notes.findIndex(
+          (note) => note.relative_path === payload.note.relative_path,
+        );
+        const notes =
+          index < 0
+            ? [payload.note, ...old.notes]
+            : old.notes.map((note, i) => (i === index ? payload.note : note));
+        return { ...old, notes };
       });
     },
     !!notesDir,
   );
 
-  useTauriEvent<string>(
+  useTauriEvent<NoteRemovedEvent>(
     'note-removed',
-    ({ payload: removedPath }) => {
-      queryClient.setQueryData(notesQueryKey, (old: NoteFile[] | undefined) =>
-        old?.filter((note) => note.path !== removedPath),
+    ({ payload }) => {
+      queryClient.setQueryData(notesQueryKey, (old: NotesWorkspaceListing | undefined) =>
+        !old || old.revision !== payload.revision
+          ? old
+          : {
+              ...old,
+              notes: old.notes.filter((note) => note.relative_path !== payload.relative_path),
+            },
       );
     },
     !!notesDir,
@@ -51,25 +63,28 @@ export function useNotesWorkspace() {
 
   const invalidateNotes = () => queryClient.invalidateQueries({ queryKey: notesQueryKey });
   const createNote = useMutation({
-    mutationFn: (input: Parameters<typeof createNoteApi>[0]) => createNoteApi(input),
+    mutationFn: (input: { directory: string; name: string }) =>
+      createNoteApi({ revision: workspaceRevision!, ...input }),
     onSuccess: invalidateNotes,
   });
   const deleteNote = useMutation({
-    mutationFn: (path: string) => deleteNoteFileApi(path),
+    mutationFn: (relativePath: string) => deleteNoteFileApi(workspaceRevision!, relativePath),
     onSuccess: invalidateNotes,
   });
   const deleteFolder = useMutation({
-    mutationFn: (path: string) => deleteNoteFolderApi(path),
+    mutationFn: (relativePath: string) => deleteNoteFolderApi(workspaceRevision!, relativePath),
     onSuccess: invalidateNotes,
   });
   const renameNote = useMutation({
-    mutationFn: (input: Parameters<typeof renameNoteFileApi>[0]) => renameNoteFileApi(input),
+    mutationFn: (input: { relativePath: string; name: string }) =>
+      renameNoteFileApi({ revision: workspaceRevision!, ...input }),
     onSuccess: invalidateNotes,
   });
 
   return {
     notesDir,
-    notes: notesQuery.data ?? [],
+    workspaceRevision,
+    notes: notesQuery.data?.notes ?? [],
     loading: notesQuery.isLoading,
     error: notesQuery.error,
     createNote,

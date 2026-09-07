@@ -79,13 +79,15 @@ export default function NotesList({
         ) : (
           <div className="flex flex-col gap-1 px-2 pb-2">
             {filteredNotes.map((note) => (
-              <ContextMenu key={note.path}>
+              <ContextMenu key={note.relative_path}>
                 <ContextMenuTrigger>
                   <button
                     onClick={() => onSelectNote(note)}
                     className={cn(
                       'w-full rounded-md px-2.5 py-2 text-left transition-colors',
-                      selectedFilePath === note.path ? 'bg-primary/15' : 'hover:bg-accent/50',
+                      selectedFilePath === note.relative_path
+                        ? 'bg-primary/15'
+                        : 'hover:bg-accent/50',
                     )}
                   >
                     <span className="block truncate text-sm font-medium text-foreground">
@@ -99,7 +101,9 @@ export default function NotesList({
                     <span>重命名</span>
                   </ContextMenuItem>
                   <ContextMenuItem
-                    onClick={() => navigator.clipboard.writeText(note.path).catch(() => {})}
+                    onClick={() =>
+                      navigator.clipboard.writeText(note.relative_path).catch(() => {})
+                    }
                   >
                     <Copy className="h-4 w-4" />
                     <span>复制文件路径</span>

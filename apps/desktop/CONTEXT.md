@@ -27,3 +27,11 @@ _Avoid_: active provider, provider list
 **RSSHub Configuration**:
 The validated RSSHub origin and optional access key used for RSS requests.
 _Avoid_: RSSHub settings, RSS service config
+
+**Notes Workspace**:
+The notes directory selected by Application Settings, addressed through relative note identities at a specific Settings Revision.
+_Avoid_: scanned directory, notes root
+
+**Document Session**:
+The active note draft together with its load, autosave, retry, and transition coordination state.
+_Avoid_: editor state, note hook

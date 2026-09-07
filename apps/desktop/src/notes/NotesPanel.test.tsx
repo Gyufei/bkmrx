@@ -25,32 +25,35 @@ vi.mock('@/settings/settings.api', () => ({
 
 vi.mock('./notes.api', () => ({
   NotesQueryApiKey: { NOTES: 'notes' },
-  scanNotesDirectoryApi: vi.fn().mockResolvedValue([
-    {
-      path: '/notes/first.md',
-      relative_path: 'first.md',
-      title: '第一篇笔记',
-      tags: [],
-      modified: 0,
-      size: 0,
-    },
-    {
-      path: '/notes/second.md',
-      relative_path: 'second.md',
-      title: '第二篇笔记',
-      tags: [],
-      modified: 0,
-      size: 0,
-    },
-    {
-      path: '/notes/资料/nested.md',
-      relative_path: '资料/nested.md',
-      title: '资料笔记',
-      tags: [],
-      modified: 0,
-      size: 0,
-    },
-  ]),
+  scanNotesDirectoryApi: vi.fn().mockResolvedValue({
+    revision: 1,
+    notes: [
+      {
+        path: '/notes/first.md',
+        relative_path: 'first.md',
+        title: '第一篇笔记',
+        tags: [],
+        modified: 0,
+        size: 0,
+      },
+      {
+        path: '/notes/second.md',
+        relative_path: 'second.md',
+        title: '第二篇笔记',
+        tags: [],
+        modified: 0,
+        size: 0,
+      },
+      {
+        path: '/notes/资料/nested.md',
+        relative_path: '资料/nested.md',
+        title: '资料笔记',
+        tags: [],
+        modified: 0,
+        size: 0,
+      },
+    ],
+  }),
   createNoteApi: vi.fn(),
   deleteNoteFileApi,
   deleteNoteFolderApi,
@@ -96,7 +99,7 @@ it('restores the selected folder when returning to the notes page', async () => 
 
   const folder = await screen.findByRole('button', { name: '资料' });
   fireEvent.click(folder);
-  expect(folder.classList.contains('bg-primary/15')).toBe(true);
+  await waitFor(() => expect(folder.classList.contains('bg-primary/15')).toBe(true));
 
   firstRender.unmount();
   render(
@@ -123,7 +126,7 @@ it('uses the same primary-tinted selection background as the folder column', asy
 
   fireEvent.click(firstNote);
 
-  expect(firstNote.classList.contains('bg-primary/15')).toBe(true);
+  await waitFor(() => expect(firstNote.classList.contains('bg-primary/15')).toBe(true));
   expect(secondNote.classList.contains('bg-primary/15')).toBe(false);
 });
 
@@ -148,8 +151,9 @@ it('renames a note from its context menu using the file dialog', async () => {
 
   await waitFor(() => {
     expect(renameNoteFileApi.mock.calls[0]?.[0]).toEqual({
-      oldPath: '/notes/first.md',
-      newPath: '/notes/改名后的笔记.md',
+      revision: 1,
+      relativePath: 'first.md',
+      name: '改名后的笔记.md',
     });
   });
 });
@@ -180,7 +184,7 @@ it('requires confirmation before deleting a note', async () => {
   fireEvent.click(screen.getByRole('button', { name: '删除' }));
 
   await waitFor(() => expect(deleteNoteFileApi).toHaveBeenCalledOnce());
-  expect(deleteNoteFileApi).toHaveBeenCalledWith('/notes/first.md');
+  expect(deleteNoteFileApi).toHaveBeenCalledWith(1, 'first.md');
 });
 
 it('requires confirmation before deleting a folder', async () => {
@@ -209,7 +213,7 @@ it('requires confirmation before deleting a folder', async () => {
   fireEvent.click(screen.getByRole('button', { name: '删除' }));
 
   await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledOnce());
-  expect(deleteNoteFolderApi).toHaveBeenCalledWith('/notes/资料');
+  expect(deleteNoteFolderApi).toHaveBeenCalledWith(1, '资料');
 });
 
 it('clears a previous deletion error before opening another note', async () => {

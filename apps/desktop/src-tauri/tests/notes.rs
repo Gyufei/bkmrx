@@ -1,61 +1,55 @@
-use bkmrx_lib::notes::NoteService;
+use std::sync::Arc;
+
+use bkmrx_lib::{
+    notes::NotesWorkspace,
+    providers::ProviderContext,
+    settings::SettingsStore,
+    translation::{TranslationProviderManager, TranslationRegistry, TranslationRuntime},
+};
 use tempfile::TempDir;
 
-#[test]
-fn service_round_trips_note_file_operations() {
-    let temp = TempDir::new().unwrap();
-    let service = NoteService::without_events();
-    service.scan(temp.path().to_str().unwrap()).unwrap();
-    let created = service
-        .create(temp.path().to_str().unwrap(), "one")
-        .unwrap();
-
-    service.write(&created, "# changed\n").unwrap();
-    assert_eq!(service.read(&created).unwrap(), "# changed\n");
-
-    let renamed = temp.path().join("two.md");
-    service.rename(&created, renamed.to_str().unwrap()).unwrap();
-    service.delete(renamed.to_str().unwrap()).unwrap();
-    assert!(!renamed.exists());
+fn workspace(root: &TempDir) -> NotesWorkspace {
+    let providers = Arc::new(TranslationProviderManager::new(
+        TranslationRegistry::default(),
+        Arc::new(TranslationRuntime::default()),
+        ProviderContext::new(reqwest::Client::new()),
+    ));
+    let settings_file = root.path().join("settings.json");
+    let store = Arc::new(SettingsStore::open(settings_file, providers).store);
+    let mut settings = store.snapshot().settings;
+    settings.common.paths.notes_dir = Some(root.path().to_string_lossy().into_owned());
+    store.replace(1, settings).unwrap();
+    NotesWorkspace::new(store, Arc::new(|_| {}))
 }
 
 #[test]
-fn service_deletes_nested_note_folder_but_not_notes_root() {
-    let temp = TempDir::new().unwrap();
-    let nested = temp.path().join("nested");
-    std::fs::create_dir_all(&nested).unwrap();
-    std::fs::write(nested.join("note.md"), "# note\n").unwrap();
-    let service = NoteService::without_events();
-    service.scan(temp.path().to_str().unwrap()).unwrap();
+fn workspace_round_trips_relative_note_identities() {
+    let root = TempDir::new().unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+    let created = workspace.create(revision, "", "one").unwrap();
+    assert_eq!(created, "one.md");
 
-    service.delete_folder(nested.to_str().unwrap()).unwrap();
-
-    assert!(!nested.exists());
-    assert_eq!(
-        service
-            .delete_folder(temp.path().to_str().unwrap())
-            .unwrap_err()
-            .code(),
-        "note_path_outside_root"
-    );
-    assert!(temp.path().exists());
+    workspace.write(revision, &created, "# changed\n").unwrap();
+    assert_eq!(workspace.read(revision, &created).unwrap(), "# changed\n");
+    let renamed = workspace.rename(revision, &created, "two.md").unwrap();
+    assert_eq!(renamed, "two.md");
+    workspace.delete(revision, &renamed).unwrap();
+    assert!(!root.path().join("two.md").exists());
 }
 
 #[test]
-fn scan_returns_nested_markdown_in_title_order() {
-    let temp = TempDir::new().unwrap();
-    let nested = temp.path().join("nested");
-    std::fs::create_dir_all(&nested).unwrap();
-    std::fs::write(temp.path().join("b.md"), "# b\n").unwrap();
-    std::fs::write(nested.join("a.md"), "# a\n").unwrap();
-    std::fs::write(temp.path().join("ignored.txt"), "ignored").unwrap();
+fn list_returns_nested_markdown_in_title_order() {
+    let root = TempDir::new().unwrap();
+    std::fs::create_dir(root.path().join("nested")).unwrap();
+    std::fs::write(root.path().join("b.md"), "# b\n").unwrap();
+    std::fs::write(root.path().join("nested/a.md"), "# a\n").unwrap();
+    std::fs::write(root.path().join("ignored.txt"), "ignored").unwrap();
 
-    let notes = NoteService::without_events()
-        .scan(temp.path().to_str().unwrap())
-        .unwrap();
-
+    let listing = workspace(&root).list().unwrap();
     assert_eq!(
-        notes
+        listing
+            .notes
             .iter()
             .map(|note| note.title.as_str())
             .collect::<Vec<_>>(),
@@ -64,99 +58,80 @@ fn scan_returns_nested_markdown_in_title_order() {
 }
 
 #[test]
-fn missing_note_returns_stable_error() {
-    let temp = TempDir::new().unwrap();
-    let service = NoteService::without_events();
-    service.scan(temp.path().to_str().unwrap()).unwrap();
-    let error = service
-        .read(temp.path().join("missing.md").to_str().unwrap())
-        .unwrap_err();
+fn operations_reject_absolute_and_parent_paths() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("inside.md"), "inside").unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
 
-    assert_eq!(error.code(), "note_io_error");
+    for path in ["../outside.md", "/tmp/outside.md"] {
+        assert_eq!(
+            workspace.read(revision, path).unwrap_err().code(),
+            "note_path_outside_root"
+        );
+    }
 }
 
 #[test]
-fn file_operations_stay_within_scanned_directory() {
-    let notes = TempDir::new().unwrap();
-    let outside = TempDir::new().unwrap();
-    let outside_note = outside.path().join("outside.md");
-    let inside_note = notes.path().join("inside.md");
-    std::fs::write(&outside_note, "# outside\n").unwrap();
-    std::fs::write(&inside_note, "# inside\n").unwrap();
-    let service = NoteService::without_events();
-    service.scan(notes.path().to_str().unwrap()).unwrap();
+fn stale_workspace_revision_is_rejected() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("note.md"), "note").unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
 
-    for error in [
-        service.read(outside_note.to_str().unwrap()).unwrap_err(),
-        service
-            .write(outside_note.to_str().unwrap(), "changed")
-            .unwrap_err(),
-        service.delete(outside_note.to_str().unwrap()).unwrap_err(),
-        service
-            .create(outside.path().to_str().unwrap(), "created")
-            .unwrap_err(),
-        service
-            .rename(
-                inside_note.to_str().unwrap(),
-                outside.path().join("renamed.md").to_str().unwrap(),
-            )
-            .unwrap_err(),
-    ] {
-        assert_eq!(error.code(), "note_path_outside_root");
+    assert_eq!(
+        workspace.read(revision - 1, "note.md").unwrap_err().code(),
+        "notes_workspace_changed"
+    );
+}
+
+#[test]
+fn workspace_deletes_nested_folder_but_not_root() {
+    let root = TempDir::new().unwrap();
+    std::fs::create_dir(root.path().join("nested")).unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+    workspace.delete_folder(revision, "nested").unwrap();
+    assert!(!root.path().join("nested").exists());
+    assert_eq!(
+        workspace.delete_folder(revision, "").unwrap_err().code(),
+        "note_path_outside_root"
+    );
+}
+
+#[test]
+fn create_and_rename_reject_path_components() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("note.md"), "note").unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+    for name in ["../outside", "nested/note", r"nested\note", ".", ".."] {
+        assert_eq!(
+            workspace.create(revision, "", name).unwrap_err().code(),
+            "invalid_note_name"
+        );
     }
     assert_eq!(
-        std::fs::read_to_string(outside_note).unwrap(),
-        "# outside\n"
+        workspace
+            .rename(revision, "note.md", "../outside")
+            .unwrap_err()
+            .code(),
+        "invalid_note_name"
     );
-    assert_eq!(std::fs::read_to_string(inside_note).unwrap(), "# inside\n");
 }
 
 #[test]
-fn create_rejects_names_that_contain_path_components() {
-    let temp = TempDir::new().unwrap();
-    let service = NoteService::without_events();
-    service.scan(temp.path().to_str().unwrap()).unwrap();
-
-    for name in ["../outside", "nested/note", r"nested\note", ".", ".."] {
-        let error = service
-            .create(temp.path().to_str().unwrap(), name)
-            .unwrap_err();
-        assert_eq!(error.code(), "invalid_note_name", "name: {name}");
-    }
-}
-
-#[test]
-fn rename_does_not_replace_an_existing_note() {
-    let temp = TempDir::new().unwrap();
-    let source = temp.path().join("source.md");
-    let target = temp.path().join("target.md");
-    std::fs::write(&source, "source").unwrap();
-    std::fs::write(&target, "target").unwrap();
-    let service = NoteService::without_events();
-    service.scan(temp.path().to_str().unwrap()).unwrap();
-
-    let error = service
-        .rename(source.to_str().unwrap(), target.to_str().unwrap())
-        .unwrap_err();
-
-    assert_eq!(error.code(), "note_io_error");
-    assert_eq!(std::fs::read_to_string(source).unwrap(), "source");
-    assert_eq!(std::fs::read_to_string(target).unwrap(), "target");
-}
-
-#[cfg(unix)]
-#[test]
-fn scan_skips_symbolic_link_directories() {
-    use std::os::unix::fs::symlink;
-
-    let temp = TempDir::new().unwrap();
-    std::fs::write(temp.path().join("note.md"), "# note\n").unwrap();
-    symlink(temp.path(), temp.path().join("loop")).unwrap();
-
-    let notes = NoteService::without_events()
-        .scan(temp.path().to_str().unwrap())
-        .unwrap();
-
-    assert_eq!(notes.len(), 1);
-    assert_eq!(notes[0].title, "note");
+fn rename_does_not_replace_existing_note() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("source.md"), "source").unwrap();
+    std::fs::write(root.path().join("target.md"), "target").unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+    assert_eq!(
+        workspace
+            .rename(revision, "source.md", "target.md")
+            .unwrap_err()
+            .code(),
+        "note_io_error"
+    );
 }

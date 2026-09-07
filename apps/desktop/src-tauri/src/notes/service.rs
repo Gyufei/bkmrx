@@ -1,98 +1,81 @@
 use std::{
     path::{Component, Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
-use crate::error::{AppError, AppResult};
+use super::{repository, watcher::NoteWatcher, NoteEvent, NotesWorkspaceListing};
+use crate::{
+    error::{AppError, AppResult},
+    settings::SharedSettingsStore,
+};
 
-use super::{repository, watcher::NoteWatcher, NoteEvent, NoteFile};
-
-pub struct NoteService {
+pub struct NotesWorkspace {
+    settings: SharedSettingsStore,
     watcher: Option<NoteWatcher>,
-    root: Mutex<Option<PathBuf>>,
 }
 
-impl NoteService {
-    pub fn new(emit: Arc<dyn Fn(NoteEvent) + Send + Sync>) -> Self {
+impl NotesWorkspace {
+    pub fn new(settings: SharedSettingsStore, emit: Arc<dyn Fn(NoteEvent) + Send + Sync>) -> Self {
         Self {
+            settings,
             watcher: Some(NoteWatcher::new(emit)),
-            root: Mutex::new(None),
         }
     }
 
-    pub fn without_events() -> Self {
-        Self {
-            watcher: None,
-            root: Mutex::new(None),
-        }
-    }
-
-    pub fn scan(&self, dir: &str) -> AppResult<Vec<NoteFile>> {
-        let root = Path::new(dir).canonicalize().map_err(note_io_error)?;
-        if !root.is_dir() {
-            return Err(note_io_error(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "目录不存在",
-            )));
-        }
-        let root_str = root.to_string_lossy();
-        let notes = repository::scan_notes(&root_str).map_err(note_io_error)?;
+    pub fn list(&self) -> AppResult<NotesWorkspaceListing> {
+        let (revision, root) = self.configured_root()?;
+        let notes = repository::scan_notes(&root.to_string_lossy()).map_err(note_io_error)?;
         if let Some(watcher) = &self.watcher {
-            watcher.watch(&root_str)?;
+            watcher.watch(&root, revision)?;
         }
-        *self.root.lock().map_err(|_| root_lock_error())? = Some(root);
-        Ok(notes)
+        Ok(NotesWorkspaceListing { revision, notes })
     }
 
-    pub fn read(&self, path: &str) -> AppResult<String> {
-        let path = self.authorize_existing(path)?;
+    pub fn read(&self, revision: u64, relative_path: &str) -> AppResult<String> {
+        let path = self.authorize_existing(revision, relative_path)?;
         repository::read(&path.to_string_lossy()).map_err(note_io_error)
     }
 
-    pub fn write(&self, path: &str, content: &str) -> AppResult<()> {
-        let path = self.authorize_existing(path)?;
+    pub fn write(&self, revision: u64, relative_path: &str, content: &str) -> AppResult<()> {
+        let path = self.authorize_existing(revision, relative_path)?;
         repository::write(&path.to_string_lossy(), content).map_err(note_io_error)
     }
 
-    pub fn create(&self, dir: &str, name: &str) -> AppResult<String> {
+    pub fn create(&self, revision: u64, directory: &str, name: &str) -> AppResult<String> {
         validate_note_name(name)?;
-        let dir = self.authorize_existing(dir)?;
+        let dir = self.authorize_existing(revision, directory)?;
         if !dir.is_dir() {
             return Err(path_outside_root());
         }
-        repository::create(&dir.to_string_lossy(), name).map_err(note_io_error)
+        let created = repository::create(&dir.to_string_lossy(), name).map_err(note_io_error)?;
+        let (_, root) = self.root_at(revision)?;
+        relative_identity(&root, Path::new(&created))
     }
 
-    pub fn delete(&self, path: &str) -> AppResult<()> {
-        let path = self.authorize_existing(path)?;
+    pub fn delete(&self, revision: u64, relative_path: &str) -> AppResult<()> {
+        let path = self.authorize_existing(revision, relative_path)?;
         repository::delete(&path.to_string_lossy()).map_err(note_io_error)
     }
 
-    pub fn delete_folder(&self, path: &str) -> AppResult<()> {
-        let path = self.authorize_existing(path)?;
-        let root = self
-            .root
-            .lock()
-            .map_err(|_| root_lock_error())?
-            .clone()
-            .ok_or_else(|| {
-                AppError::note_error("notes_root_unset", "Scan a notes directory first")
-            })?;
-        if path == root || !path.is_dir() {
+    pub fn delete_folder(&self, revision: u64, relative_path: &str) -> AppResult<()> {
+        if relative_path.is_empty() {
+            return Err(path_outside_root());
+        }
+        let path = self.authorize_existing(revision, relative_path)?;
+        if !path.is_dir() {
             return Err(path_outside_root());
         }
         repository::delete_folder(&path.to_string_lossy()).map_err(note_io_error)
     }
 
-    pub fn rename(&self, old_path: &str, new_path: &str) -> AppResult<()> {
-        let old_path = self.authorize_existing(old_path)?;
-        let new_path = Path::new(new_path);
-        let parent = new_path.parent().ok_or_else(path_outside_root)?;
-        let parent = self.authorize_existing(&parent.to_string_lossy())?;
-        let file_name = new_path.file_name().ok_or_else(path_outside_root)?;
-        let new_path = parent.join(file_name);
+    pub fn rename(&self, revision: u64, relative_path: &str, name: &str) -> AppResult<String> {
+        validate_note_name(name)?;
+        let old_path = self.authorize_existing(revision, relative_path)?;
+        let new_path = old_path.parent().ok_or_else(path_outside_root)?.join(name);
         repository::rename(&old_path.to_string_lossy(), &new_path.to_string_lossy())
-            .map_err(note_io_error)
+            .map_err(note_io_error)?;
+        let (_, root) = self.root_at(revision)?;
+        relative_identity(&root, &new_path)
     }
 
     pub fn stop(&self) {
@@ -101,16 +84,43 @@ impl NoteService {
         }
     }
 
-    fn authorize_existing(&self, path: &str) -> AppResult<PathBuf> {
-        let root = self
-            .root
-            .lock()
-            .map_err(|_| root_lock_error())?
-            .clone()
+    fn configured_root(&self) -> AppResult<(u64, PathBuf)> {
+        let (revision, configured) = self.settings.notes_workspace_configuration();
+        let configured = configured
+            .filter(|value| !value.trim().is_empty())
             .ok_or_else(|| {
-                AppError::note_error("notes_root_unset", "Scan a notes directory first")
+                AppError::note_error(
+                    "notes_workspace_unconfigured",
+                    "Configure a notes directory first",
+                )
             })?;
-        let path = Path::new(path).canonicalize().map_err(note_io_error)?;
+        let root = Path::new(&configured)
+            .canonicalize()
+            .map_err(note_io_error)?;
+        if !root.is_dir() {
+            return Err(path_outside_root());
+        }
+        Ok((revision, root))
+    }
+
+    fn root_at(&self, expected: u64) -> AppResult<(u64, PathBuf)> {
+        let configured = self.configured_root()?;
+        if configured.0 != expected {
+            return Err(AppError::note_error(
+                "notes_workspace_changed",
+                "The notes workspace changed; refresh and try again",
+            ));
+        }
+        Ok(configured)
+    }
+
+    fn authorize_existing(&self, revision: u64, relative_path: &str) -> AppResult<PathBuf> {
+        validate_relative_path(relative_path)?;
+        let (_, root) = self.root_at(revision)?;
+        let path = root
+            .join(relative_path)
+            .canonicalize()
+            .map_err(note_io_error)?;
         if !path.starts_with(&root) {
             return Err(path_outside_root());
         }
@@ -118,7 +128,27 @@ impl NoteService {
     }
 }
 
-pub type SharedNoteService = Arc<NoteService>;
+pub type SharedNotesWorkspace = Arc<NotesWorkspace>;
+
+fn relative_identity(root: &Path, path: &Path) -> AppResult<String> {
+    path.strip_prefix(root)
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .map_err(|_| path_outside_root())
+}
+
+fn validate_relative_path(path: &str) -> AppResult<()> {
+    if Path::new(path).is_absolute()
+        || Path::new(path).components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(path_outside_root());
+    }
+    Ok(())
+}
 
 fn note_io_error(error: std::io::Error) -> AppError {
     AppError::note_error("note_io_error", error.to_string())
@@ -126,13 +156,9 @@ fn note_io_error(error: std::io::Error) -> AppError {
 
 fn validate_note_name(name: &str) -> AppResult<()> {
     let mut components = Path::new(name).components();
-    let is_single_component =
+    let single =
         matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none();
-    if name.is_empty()
-        || name == "."
-        || name == ".."
-        || name.contains(['/', '\\', '\0'])
-        || !is_single_component
+    if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\', '\0']) || !single
     {
         return Err(AppError::note_error(
             "invalid_note_name",
@@ -147,8 +173,4 @@ fn path_outside_root() -> AppError {
         "note_path_outside_root",
         "Note path must stay within the selected notes directory",
     )
-}
-
-fn root_lock_error() -> AppError {
-    AppError::internal_error("notes root lock is poisoned")
 }

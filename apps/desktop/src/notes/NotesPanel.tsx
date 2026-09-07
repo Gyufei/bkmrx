@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -10,7 +10,7 @@ import NoteNameDialog from './NoteNameDialog';
 import NotesList from './NotesList';
 import NotesSidebar from './NotesSidebar';
 import { useNotesWorkspace } from './use-notes-workspace';
-import { joinDirectoryAndFilename } from '@/lib/path';
+import type { NoteDocumentSession } from './use-note-document';
 
 type NameDialogState = { mode: 'create' } | { mode: 'rename'; note: NoteFile };
 type DeletingFolder = { path: string; name: string };
@@ -45,8 +45,18 @@ export default function NotesPanel() {
   const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
   const [deletingNote, setDeletingNote] = useState<NoteFile | null>(null);
   const [deletingFolder, setDeletingFolder] = useState<DeletingFolder | null>(null);
-  const { notesDir, notes, loading, error, createNote, deleteNote, deleteFolder, renameNote } =
-    useNotesWorkspace();
+  const documentSessionRef = useRef<NoteDocumentSession | null>(null);
+  const {
+    notesDir,
+    workspaceRevision,
+    notes,
+    loading,
+    error,
+    createNote,
+    deleteNote,
+    deleteFolder,
+    renameNote,
+  } = useNotesWorkspace();
 
   useEffect(() => {
     if (!notesDir) return;
@@ -73,31 +83,27 @@ export default function NotesPanel() {
     );
   }
 
-  const submitName = (name: string) => {
+  const submitName = async (name: string) => {
     if (nameDialog?.mode === 'rename') {
       const note = nameDialog.note;
-      const separatorIndex = Math.max(note.path.lastIndexOf('/'), note.path.lastIndexOf('\\'));
       const fileName = name.endsWith('.md') ? name : `${name}.md`;
-      const newPath = `${note.path.slice(0, separatorIndex + 1)}${fileName}`;
-      if (newPath === note.path) {
+      const currentName = note.relative_path.split('/').pop();
+      if (fileName === currentName) {
         setNameDialog(null);
         return;
       }
-      renameNote.mutate(
-        { oldPath: note.path, newPath },
-        {
-          onSuccess: (_, { oldPath }) => {
-            setSelectedFilePath((current) => (current === oldPath ? newPath : current));
-            setNameDialog(null);
-          },
-        },
-      );
+      if (selectedFilePath === note.relative_path) await documentSessionRef.current?.flush();
+      const renamedPath = await renameNote.mutateAsync({
+        relativePath: note.relative_path,
+        name: fileName,
+      });
+      setSelectedFilePath((current) => (current === note.relative_path ? renamedPath : current));
+      setNameDialog(null);
       return;
     }
 
-    const targetDir = selectedFolder ? `${notesDir}/${selectedFolder}` : notesDir;
     createNote.mutate(
-      { dir: targetDir, name },
+      { directory: selectedFolder ?? '', name },
       {
         onSuccess: (filePath) => {
           setSelectedFilePath(filePath);
@@ -122,11 +128,14 @@ export default function NotesPanel() {
         <NotesSidebar
           notes={notes}
           selectedFolder={selectedFolder}
-          onSelectFolder={(path) => {
-            setSelectedFolder(path);
-            writeSelectedFolder(notesDir, path);
-            setSelectedFilePath(null);
-          }}
+          onSelectFolder={(path) =>
+            void (async () => {
+              await documentSessionRef.current?.flush();
+              setSelectedFolder(path);
+              writeSelectedFolder(notesDir, path);
+              setSelectedFilePath(null);
+            })()
+          }
           onDeleteFolder={(folder) => {
             deleteFolder.reset();
             setDeletingFolder(folder);
@@ -137,7 +146,12 @@ export default function NotesPanel() {
           loading={loading}
           selectedFolder={selectedFolder}
           selectedFilePath={selectedFilePath}
-          onSelectNote={(note) => setSelectedFilePath(note.path)}
+          onSelectNote={(note) =>
+            void (async () => {
+              await documentSessionRef.current?.flush();
+              setSelectedFilePath(note.relative_path);
+            })()
+          }
           onCreateNote={() => {
             createNote.reset();
             setNameDialog({ mode: 'create' });
@@ -154,7 +168,14 @@ export default function NotesPanel() {
 
         <div className="flex flex-1 flex-col overflow-hidden bg-background">
           {selectedFilePath ? (
-            <NoteEditor filePath={selectedFilePath} />
+            <NoteEditor
+              key={`${workspaceRevision}:${selectedFilePath}`}
+              revision={workspaceRevision!}
+              filePath={selectedFilePath}
+              onSessionChange={(session) => {
+                documentSessionRef.current = session;
+              }}
+            />
           ) : (
             <Empty className="flex-1">
               <EmptyDescription>选择左侧笔记查看内容</EmptyDescription>
@@ -169,7 +190,7 @@ export default function NotesPanel() {
         pending={createNote.isPending || renameNote.isPending}
         error={nameDialog?.mode === 'rename' ? renameNote.error : createNote.error}
         onOpenChange={(open) => !open && setNameDialog(null)}
-        onSubmit={submitName}
+        onSubmit={(name) => void submitName(name).catch(() => undefined)}
       />
 
       <ConfirmDeleteDialog
@@ -179,15 +200,24 @@ export default function NotesPanel() {
         pending={deleteNote.isPending}
         error={deleteNote.error}
         onOpenChange={(open) => !open && setDeletingNote(null)}
-        onConfirm={() => {
-          if (!deletingNote) return;
-          deleteNote.mutate(deletingNote.path, {
-            onSuccess: (_, deletedPath) => {
-              setSelectedFilePath((current) => (current === deletedPath ? null : current));
-              setDeletingNote(null);
-            },
-          });
-        }}
+        onConfirm={() =>
+          void (async () => {
+            if (!deletingNote) return;
+            const activeSession =
+              selectedFilePath === deletingNote.relative_path ? documentSessionRef.current : null;
+            await activeSession?.discardPending();
+            try {
+              await deleteNote.mutateAsync(deletingNote.relative_path);
+            } catch (error) {
+              activeSession?.resumePending();
+              throw error;
+            }
+            setSelectedFilePath((current) =>
+              current === deletingNote.relative_path ? null : current,
+            );
+            setDeletingNote(null);
+          })().catch(() => undefined)
+        }
       />
 
       <ConfirmDeleteDialog
@@ -199,7 +229,7 @@ export default function NotesPanel() {
         onOpenChange={(open) => !open && setDeletingFolder(null)}
         onConfirm={() => {
           if (!deletingFolder) return;
-          deleteFolder.mutate(joinDirectoryAndFilename(notesDir, deletingFolder.path), {
+          deleteFolder.mutate(deletingFolder.path, {
             onSuccess: () => {
               setSelectedFolder(null);
               writeSelectedFolder(notesDir, null);

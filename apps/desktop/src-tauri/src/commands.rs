@@ -5,14 +5,14 @@ use crate::bookmarks::{
     SharedBookmarkStore, TagQueryRequest, TagSummary, UpdateBookmark,
 };
 use crate::error::AppResult;
-use crate::notes::SharedNoteService;
+use crate::notes::SharedNotesWorkspace;
 use crate::preview::{BookmarkPreview, PrepareBookmarkPreviewRequest, SharedPreviewService};
 use crate::rss::{
     CreateFeed, EntryPage, EntryPageRequest, FeedPreview, FeedRefreshResult, RefreshResult,
     RssEntry, RssFeed, SharedRssService,
 };
 use crate::todos::{
-    CreateTodo, SharedTodoService, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
+    CreateTodo, SharedTodoStore, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
 };
 
 #[tauri::command]
@@ -165,26 +165,23 @@ pub async fn download_rss_image(
 }
 
 #[tauri::command]
-pub fn query_todos(
-    service: State<'_, SharedTodoService>,
-    request: TodoQuery,
-) -> AppResult<TodoList> {
+pub fn query_todos(service: State<'_, SharedTodoStore>, request: TodoQuery) -> AppResult<TodoList> {
     service.query(request)
 }
 
 #[tauri::command]
-pub fn get_todo_tags(service: State<'_, SharedTodoService>) -> AppResult<Vec<TodoTag>> {
+pub fn get_todo_tags(service: State<'_, SharedTodoStore>) -> AppResult<Vec<TodoTag>> {
     service.tags()
 }
 
 #[tauri::command]
-pub fn create_todo(service: State<'_, SharedTodoService>, input: CreateTodo) -> AppResult<Todo> {
+pub fn create_todo(service: State<'_, SharedTodoStore>, input: CreateTodo) -> AppResult<Todo> {
     service.create(input)
 }
 
 #[tauri::command]
 pub fn update_todo(
-    service: State<'_, SharedTodoService>,
+    service: State<'_, SharedTodoStore>,
     id: i64,
     input: UpdateTodo,
 ) -> AppResult<Todo> {
@@ -193,7 +190,7 @@ pub fn update_todo(
 
 #[tauri::command]
 pub fn set_todo_status(
-    service: State<'_, SharedTodoService>,
+    service: State<'_, SharedTodoStore>,
     id: i64,
     status: TodoStatus,
 ) -> AppResult<Todo> {
@@ -201,13 +198,13 @@ pub fn set_todo_status(
 }
 
 #[tauri::command]
-pub fn delete_todo(service: State<'_, SharedTodoService>, id: i64) -> AppResult<()> {
+pub fn delete_todo(service: State<'_, SharedTodoStore>, id: i64) -> AppResult<()> {
     service.delete(id)
 }
 
 #[tauri::command]
 pub fn rename_todo_tag(
-    service: State<'_, SharedTodoService>,
+    service: State<'_, SharedTodoStore>,
     id: i64,
     name: String,
 ) -> AppResult<TodoTag> {
@@ -215,18 +212,18 @@ pub fn rename_todo_tag(
 }
 
 #[tauri::command]
-pub fn delete_todo_tag(service: State<'_, SharedTodoService>, id: i64) -> AppResult<()> {
+pub fn delete_todo_tag(service: State<'_, SharedTodoStore>, id: i64) -> AppResult<()> {
     service.delete_tag(id)
 }
 
 #[tauri::command]
-pub fn archive_delete_todo_tag(service: State<'_, SharedTodoService>, id: i64) -> AppResult<()> {
+pub fn archive_delete_todo_tag(service: State<'_, SharedTodoStore>, id: i64) -> AppResult<()> {
     service.archive_delete_tag(id)
 }
 
 #[tauri::command]
 pub fn export_todos(
-    service: State<'_, SharedTodoService>,
+    service: State<'_, SharedTodoStore>,
     path: String,
     tag_id: Option<i64>,
 ) -> AppResult<String> {
@@ -264,36 +261,38 @@ pub fn apply_bookmark_import(
 
 #[tauri::command]
 pub async fn scan_notes(
-    service: State<'_, SharedNoteService>,
-    dir: String,
-) -> crate::error::AppResult<Vec<crate::notes::NoteFile>> {
-    service.scan(&dir)
+    workspace: State<'_, SharedNotesWorkspace>,
+) -> crate::error::AppResult<crate::notes::NotesWorkspaceListing> {
+    workspace.list()
 }
 
 #[tauri::command]
 pub async fn read_note_file(
-    service: State<'_, SharedNoteService>,
-    path: String,
+    workspace: State<'_, SharedNotesWorkspace>,
+    revision: u64,
+    relative_path: String,
 ) -> crate::error::AppResult<String> {
-    service.read(&path)
+    workspace.read(revision, &relative_path)
 }
 
 #[tauri::command]
 pub async fn write_note_file(
-    service: State<'_, SharedNoteService>,
-    path: String,
+    workspace: State<'_, SharedNotesWorkspace>,
+    revision: u64,
+    relative_path: String,
     content: String,
 ) -> crate::error::AppResult<()> {
-    service.write(&path, &content)
+    workspace.write(revision, &relative_path, &content)
 }
 
 #[tauri::command]
 pub async fn create_note_file(
-    service: State<'_, SharedNoteService>,
-    dir: String,
+    workspace: State<'_, SharedNotesWorkspace>,
+    revision: u64,
+    directory: String,
     name: String,
 ) -> crate::error::AppResult<String> {
-    service.create(&dir, &name)
+    workspace.create(revision, &directory, &name)
 }
 
 #[tauri::command]
@@ -340,27 +339,30 @@ pub fn get_server_status(
 
 #[tauri::command]
 pub async fn delete_note(
-    service: State<'_, SharedNoteService>,
-    path: String,
+    workspace: State<'_, SharedNotesWorkspace>,
+    revision: u64,
+    relative_path: String,
 ) -> crate::error::AppResult<()> {
-    service.delete(&path)
+    workspace.delete(revision, &relative_path)
 }
 
 #[tauri::command]
 pub async fn delete_note_folder(
-    service: State<'_, SharedNoteService>,
-    path: String,
+    workspace: State<'_, SharedNotesWorkspace>,
+    revision: u64,
+    relative_path: String,
 ) -> crate::error::AppResult<()> {
-    service.delete_folder(&path)
+    workspace.delete_folder(revision, &relative_path)
 }
 
 #[tauri::command]
 pub async fn rename_note(
-    service: State<'_, SharedNoteService>,
-    old_path: String,
-    new_path: String,
-) -> crate::error::AppResult<()> {
-    service.rename(&old_path, &new_path)
+    workspace: State<'_, SharedNotesWorkspace>,
+    revision: u64,
+    relative_path: String,
+    name: String,
+) -> crate::error::AppResult<String> {
+    workspace.rename(revision, &relative_path, &name)
 }
 
 #[tauri::command]

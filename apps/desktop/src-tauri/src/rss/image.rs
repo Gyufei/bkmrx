@@ -4,16 +4,14 @@ use std::{
     time::Duration,
 };
 
-use futures_util::StreamExt;
-use reqwest::{header, redirect::Policy, StatusCode};
+use reqwest::{header, StatusCode};
 
 use crate::{
     error::{AppError, AppResult},
     logging::{sanitize_error, sanitize_url, Operation},
-    safe_http::{parse_http_url, resolve_public_target},
+    safe_http::{get, parse_http_url, RequestOptions, SafeHttpError, SafeResponse},
 };
 
-const MAX_REDIRECTS: usize = 5;
 const MAX_IMAGE_BYTES: usize = 25 * 1024 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const USER_AGENT: &str = concat!("bkmrx/", env!("CARGO_PKG_VERSION"), " RSS reader");
@@ -30,18 +28,7 @@ pub async fn download(url: &str, referer: Option<&str>, destination: &Path) -> A
     let referer = referer
         .and_then(|value| parse_http_url(value).ok())
         .filter(valid_public_url);
-    let result = match tokio::time::timeout(
-        REQUEST_TIMEOUT,
-        download_inner(url, referer.as_ref(), destination, operation),
-    )
-    .await
-    {
-        Ok(result) => result,
-        Err(_) => Err(image_error(
-            "rss_image_timeout",
-            "The image download timed out",
-        )),
-    };
+    let result = download_inner(url, referer.as_ref(), destination).await;
     match &result {
         Ok(bytes) => log::info!(
             "outbound_request_completed operation_id={} kind=rss_image bytes={} elapsed_ms={}",
@@ -64,130 +51,79 @@ async fn download_inner(
     raw_url: &str,
     referer: Option<&url::Url>,
     destination: &Path,
-    operation: Operation,
 ) -> AppResult<usize> {
-    let mut url = parse_http_url(raw_url).map_err(safe_http_error)?;
+    let url = parse_http_url(raw_url).map_err(safe_http_error)?;
     if !valid_image_url(&url) {
         return Err(image_error(
             "rss_image_invalid_url",
-            "Only public HTTPS image URLs without credentials are allowed",
+            "Only HTTPS image URLs without credentials are allowed",
         ));
     }
-
-    for redirect_count in 0..=MAX_REDIRECTS {
-        log::debug!(
-            "outbound_request_hop_started operation_id={} kind=rss_image redirect={} url={:?}",
-            operation.id(),
-            redirect_count,
-            sanitize_url(url.as_str())
-        );
-        let addresses = resolve_public_target(&url).await.map_err(safe_http_error)?;
-        let host = url
-            .host_str()
-            .ok_or_else(|| image_error("rss_image_invalid_url", "The image URL has no host"))?;
-        let client = reqwest::Client::builder()
-            .redirect(Policy::none())
-            .user_agent(USER_AGENT)
-            .resolve(host, addresses[0])
-            .build()
-            .map_err(request_error)?;
-        let mut request = client.get(url.clone()).header(
-            header::ACCEPT,
+    let mut headers = header::HeaderMap::new();
+    headers.insert(
+        header::USER_AGENT,
+        header::HeaderValue::from_static(USER_AGENT),
+    );
+    headers.insert(
+        header::ACCEPT,
+        header::HeaderValue::from_static(
             "image/avif,image/webp,image/png,image/jpeg,image/gif,image/svg+xml,image/*;q=0.8",
-        );
-        if let Some(referer) = referer {
-            request = request.header(header::REFERER, referer.as_str());
-        }
-        let response = request.send().await.map_err(request_error)?;
-        log::debug!(
-            "outbound_request_hop_completed operation_id={} kind=rss_image redirect={} status={}",
-            operation.id(),
-            redirect_count,
-            response.status().as_u16()
-        );
-
-        if response.status().is_redirection() {
-            if redirect_count == MAX_REDIRECTS {
-                return Err(image_error(
-                    "rss_image_too_many_redirects",
-                    "The image redirected too many times",
-                ));
-            }
-            let location = response
-                .headers()
-                .get(header::LOCATION)
-                .and_then(|value| value.to_str().ok())
-                .ok_or_else(|| {
-                    image_error(
-                        "rss_image_invalid_redirect",
-                        "The image returned an invalid redirect",
-                    )
-                })?;
-            url = url.join(location).map_err(|_| {
-                image_error(
-                    "rss_image_invalid_redirect",
-                    "The image returned an invalid redirect",
-                )
-            })?;
-            if !valid_image_url(&url) {
-                return Err(image_error(
-                    "rss_image_invalid_redirect",
-                    "The image redirected to an unsafe URL",
-                ));
-            }
-            continue;
-        }
-        if response.status() != StatusCode::OK {
-            return Err(image_error(
-                "rss_image_http_error",
-                format!("The image request returned HTTP {}", response.status()),
-            ));
-        }
-        let is_image = response
-            .headers()
-            .get(header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .is_some_and(|value| value.to_ascii_lowercase().starts_with("image/"));
-        if !is_image {
-            return Err(image_error(
-                "rss_image_invalid_content_type",
-                "The server response is not an image",
-            ));
-        }
-
-        let (file, temp_path) = create_temp_file(destination).await?;
-        match write_response(response, file).await {
-            Ok(written) => {
-                finalize_download(&temp_path, destination).await?;
-                return Ok(written);
-            }
-            Err(error) => {
-                let _ = tokio::fs::remove_file(&temp_path).await;
-                return Err(error);
-            }
+        ),
+    );
+    if let Some(referer) = referer {
+        if let Ok(value) = header::HeaderValue::from_str(referer.as_str()) {
+            headers.insert(header::REFERER, value);
         }
     }
-    unreachable!("redirect loop always returns")
+    let response = get(
+        raw_url,
+        RequestOptions {
+            timeout: REQUEST_TIMEOUT,
+            max_bytes: MAX_IMAGE_BYTES,
+            https_only: true,
+            headers,
+            credential: None,
+        },
+    )
+    .await
+    .map_err(safe_http_error)?;
+    if response.status() != StatusCode::OK {
+        return Err(image_error(
+            "rss_image_http_error",
+            format!("The image request returned HTTP {}", response.status()),
+        ));
+    }
+    let is_image = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.to_ascii_lowercase().starts_with("image/"));
+    if !is_image {
+        return Err(image_error(
+            "rss_image_invalid_content_type",
+            "The server response is not an image",
+        ));
+    }
+    let (file, temp_path) = create_temp_file(destination).await?;
+    let result = match write_response(response, file).await {
+        Ok(written) => finalize_download(&temp_path, destination)
+            .await
+            .map(|_| written),
+        Err(error) => Err(error),
+    };
+    if result.is_err() {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+    }
+    result
 }
 
-async fn write_response(
-    response: reqwest::Response,
-    mut file: tokio::fs::File,
-) -> AppResult<usize> {
-    let mut written = 0usize;
-    let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(request_error)?;
-        written = written.saturating_add(chunk.len());
-        if written > MAX_IMAGE_BYTES {
-            return Err(image_error(
-                "rss_image_too_large",
-                "The image exceeds 25 MB",
-            ));
-        }
+async fn write_response(mut response: SafeResponse, mut file: tokio::fs::File) -> AppResult<usize> {
+    let mut written = 0;
+    while let Some(chunk) = response.chunk().await.map_err(safe_http_error)? {
         tokio::io::AsyncWriteExt::write_all(&mut file, &chunk)
             .await
             .map_err(file_error)?;
+        written += chunk.len();
     }
     tokio::io::AsyncWriteExt::flush(&mut file)
         .await
@@ -254,12 +190,16 @@ fn valid_public_url(url: &url::Url) -> bool {
         && matches!(url.scheme(), "http" | "https")
 }
 
-fn safe_http_error(error: crate::safe_http::SafeHttpError) -> AppError {
-    image_error("rss_image_unsafe_url", error.to_string())
-}
-
-fn request_error(error: reqwest::Error) -> AppError {
-    image_error("rss_image_request_failed", error.to_string())
+fn safe_http_error(error: SafeHttpError) -> AppError {
+    let code = match error {
+        SafeHttpError::Timeout => "rss_image_timeout",
+        SafeHttpError::BodyTooLarge => "rss_image_too_large",
+        SafeHttpError::TooManyRedirects => "rss_image_too_many_redirects",
+        SafeHttpError::InvalidRedirect => "rss_image_invalid_redirect",
+        SafeHttpError::RequestFailed => "rss_image_request_failed",
+        _ => "rss_image_unsafe_url",
+    };
+    image_error(code, error.to_string())
 }
 
 fn file_error(error: std::io::Error) -> AppError {

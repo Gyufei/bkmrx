@@ -6,7 +6,7 @@ use crate::error::AppResult;
 
 use super::{Todo, TodoStatus};
 
-pub(crate) fn export_todos(items: Vec<Todo>, destination: &Path) -> AppResult<PathBuf> {
+pub(super) fn export_todos(items: Vec<Todo>, destination: &Path) -> AppResult<PathBuf> {
     let content = markdown_for_todos(items);
     crate::fsutil::write_atomically(destination, content.as_bytes())?;
     Ok(destination.to_owned())

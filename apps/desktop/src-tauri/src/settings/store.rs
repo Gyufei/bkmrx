@@ -149,6 +149,14 @@ impl SettingsStore {
             .clone()
     }
 
+    pub fn notes_workspace_configuration(&self) -> (u64, Option<String>) {
+        let state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        (
+            state.revision,
+            state.settings.common.paths.notes_dir.clone(),
+        )
+    }
+
     fn settings_at(&self, expected_revision: u64) -> AppResult<Settings> {
         let state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         ensure_revision(expected_revision, state.revision)?;

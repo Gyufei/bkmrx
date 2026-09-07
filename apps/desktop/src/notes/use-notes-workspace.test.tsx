@@ -5,11 +5,11 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import type { NoteFile } from '../types';
+import type { NoteChangedEvent, NoteFile, NoteRemovedEvent } from '../types';
 import { useNotesWorkspace } from './use-notes-workspace';
 
 const eventHandlers = vi.hoisted(
-  () => new Map<string, (event: { payload: NoteFile | string }) => void>(),
+  () => new Map<string, (event: { payload: NoteChangedEvent | NoteRemovedEvent }) => void>(),
 );
 const createNoteApi = vi.hoisted(() => vi.fn());
 const deleteNoteFileApi = vi.hoisted(() => vi.fn());
@@ -18,8 +18,10 @@ const renameNoteFileApi = vi.hoisted(() => vi.fn());
 const scanNotesDirectoryApi = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/use-tauri-event', () => ({
-  useTauriEvent: (eventName: string, handler: (event: { payload: NoteFile | string }) => void) =>
-    eventHandlers.set(eventName, handler),
+  useTauriEvent: (
+    eventName: string,
+    handler: (event: { payload: NoteChangedEvent | NoteRemovedEvent }) => void,
+  ) => eventHandlers.set(eventName, handler),
 }));
 
 vi.mock('@/settings/settings.api', () => ({
@@ -47,7 +49,6 @@ afterEach(() => {
 });
 
 const firstNote: NoteFile = {
-  path: '/notes/first.md',
   relative_path: 'first.md',
   title: '第一篇笔记',
   tags: [],
@@ -62,7 +63,7 @@ function createWrapper(queryClient: QueryClient) {
 }
 
 it('synchronizes note watcher events into the notes query cache', async () => {
-  scanNotesDirectoryApi.mockResolvedValue([firstNote]);
+  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote] });
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { result } = renderHook(() => useNotesWorkspace(), {
     wrapper: createWrapper(queryClient),
@@ -70,17 +71,21 @@ it('synchronizes note watcher events into the notes query cache', async () => {
   await waitFor(() => expect(result.current.notes).toEqual([firstNote]));
 
   const changedNote = { ...firstNote, title: '外部修改' };
-  act(() => eventHandlers.get('note-changed')?.({ payload: changedNote }));
+  act(() => eventHandlers.get('note-changed')?.({ payload: { revision: 1, note: changedNote } }));
   await waitFor(() => expect(result.current.notes).toEqual([changedNote]));
 
-  act(() => eventHandlers.get('note-removed')?.({ payload: firstNote.path }));
+  act(() =>
+    eventHandlers.get('note-removed')?.({
+      payload: { revision: 1, relative_path: firstNote.relative_path },
+    }),
+  );
   await waitFor(() => expect(result.current.notes).toEqual([]));
 });
 
 it('exposes create, rename, and delete mutations through the workspace hook', async () => {
-  scanNotesDirectoryApi.mockResolvedValue([firstNote]);
-  createNoteApi.mockResolvedValue('/notes/new.md');
-  renameNoteFileApi.mockResolvedValue(undefined);
+  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote] });
+  createNoteApi.mockResolvedValue('new.md');
+  renameNoteFileApi.mockResolvedValue('renamed.md');
   deleteNoteFileApi.mockResolvedValue(undefined);
   deleteNoteFolderApi.mockResolvedValue(undefined);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -89,25 +94,28 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
   });
   await waitFor(() => expect(result.current.notes).toEqual([firstNote]));
 
-  act(() => result.current.createNote.mutate({ dir: '/notes', name: 'new' }));
-  await waitFor(() => expect(createNoteApi).toHaveBeenCalledWith({ dir: '/notes', name: 'new' }));
+  act(() => result.current.createNote.mutate({ directory: '', name: 'new' }));
+  await waitFor(() =>
+    expect(createNoteApi).toHaveBeenCalledWith({ revision: 1, directory: '', name: 'new' }),
+  );
 
   act(() =>
     result.current.renameNote.mutate({
-      oldPath: '/notes/first.md',
-      newPath: '/notes/renamed.md',
+      relativePath: 'first.md',
+      name: 'renamed.md',
     }),
   );
   await waitFor(() =>
     expect(renameNoteFileApi).toHaveBeenCalledWith({
-      oldPath: '/notes/first.md',
-      newPath: '/notes/renamed.md',
+      revision: 1,
+      relativePath: 'first.md',
+      name: 'renamed.md',
     }),
   );
 
-  act(() => result.current.deleteNote.mutate('/notes/first.md'));
-  await waitFor(() => expect(deleteNoteFileApi).toHaveBeenCalledWith('/notes/first.md'));
+  act(() => result.current.deleteNote.mutate('first.md'));
+  await waitFor(() => expect(deleteNoteFileApi).toHaveBeenCalledWith(1, 'first.md'));
 
-  act(() => result.current.deleteFolder.mutate('/notes/folder'));
-  await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledWith('/notes/folder'));
+  act(() => result.current.deleteFolder.mutate('folder'));
+  await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledWith(1, 'folder'));
 });

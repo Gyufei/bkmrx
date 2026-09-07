@@ -39,7 +39,6 @@ pub fn scan_note(root: &Path, path: &Path) -> Option<NoteFile> {
         .map(|duration| duration.as_secs())
         .unwrap_or(0);
     Some(NoteFile {
-        path: path.to_string_lossy().into_owned(),
         relative_path: path.strip_prefix(root).ok()?.to_string_lossy().into_owned(),
         title: path.file_stem()?.to_str()?.to_owned(),
         tags: Vec::new(),

@@ -1,16 +1,130 @@
 use std::sync::Arc;
 
-use bkmrx_lib::{
-    database::Database,
-    todos::{CreateTodo, SqliteTodoRepository, TodoQuery, TodoService, TodoStatus, UpdateTodo},
-};
-
-fn repository() -> SqliteTodoRepository {
-    SqliteTodoRepository::new(Arc::new(Database::open_in_memory().unwrap()))
+#[test]
+fn mutations_notify_once_after_commit_and_reads_and_exports_do_not_notify() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let database = Arc::new(Database::open_in_memory().unwrap());
+    let notifications = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&notifications);
+    let read_store = TodoStore::new(Arc::clone(&database));
+    let store = TodoStore::new(database).with_change_notifier(Arc::new(move || {
+        // A reentrant read proves notification runs after the database lock is released.
+        read_store
+            .query(TodoQuery {
+                status: None,
+                tag_id: None,
+            })
+            .unwrap();
+        observed.fetch_add(1, Ordering::SeqCst);
+    }));
+    let id = create(&store, "task", &["Work"]);
+    let tag = store.tags().unwrap()[0].id;
+    assert_eq!(notifications.load(Ordering::SeqCst), 1);
+    assert!(store.archive_delete_tag(tag).is_err());
+    assert!(store.delete(-1).is_err());
+    assert_eq!(notifications.load(Ordering::SeqCst), 1);
+    store
+        .update(
+            id,
+            UpdateTodo {
+                title: "edited".into(),
+                description: String::new(),
+                is_high_priority: true,
+                tags: vec!["Work".into()],
+            },
+        )
+        .unwrap();
+    store.set_status(id, TodoStatus::Completed).unwrap();
+    store.rename_tag(tag, "Renamed".into()).unwrap();
+    assert_eq!(notifications.load(Ordering::SeqCst), 4);
+    let directory = tempfile::tempdir().unwrap();
+    store
+        .export_todos(directory.path().join("todos.md"), Some(tag))
+        .unwrap();
+    assert!(store.export_todos(directory.path(), Some(tag)).is_err());
+    assert_eq!(notifications.load(Ordering::SeqCst), 4);
+    store.archive_delete_tag(tag).unwrap();
+    assert_eq!(notifications.load(Ordering::SeqCst), 5);
+    assert!(find(&store, id).is_none());
+    let next = create(&store, "next", &["Other"]);
+    let other = store.tags().unwrap()[0].id;
+    store.delete_tag(other).unwrap();
+    store.delete(next).unwrap();
+    assert_eq!(notifications.load(Ordering::SeqCst), 8);
 }
 
-fn create(repository: &SqliteTodoRepository, title: &str, tags: &[&str]) -> i64 {
-    repository
+#[test]
+fn failed_result_hydration_rolls_back_the_mutation_and_emits_no_event() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let database = Arc::new(Database::open_in_memory().unwrap());
+    let notifications = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&notifications);
+    let store = TodoStore::new(Arc::clone(&database)).with_change_notifier(Arc::new(move || {
+        observed.fetch_add(1, Ordering::SeqCst);
+    }));
+    let id = create(&store, "original", &["Work"]);
+    database
+        .execute_batch_for_test(
+            "CREATE TRIGGER corrupt_todo_timestamp AFTER UPDATE ON todos
+         BEGIN UPDATE todos SET updated_at = 9223372036854775807 WHERE id = NEW.id; END;",
+        )
+        .unwrap();
+    assert!(store
+        .update(
+            id,
+            UpdateTodo {
+                title: "changed".into(),
+                description: String::new(),
+                is_high_priority: false,
+                tags: vec!["New".into()]
+            }
+        )
+        .is_err());
+    assert!(store.set_status(id, TodoStatus::Completed).is_err());
+    let todo = find(&store, id).unwrap();
+    assert_eq!(todo.title, "original");
+    assert_eq!(todo.tags, vec!["Work"]);
+    assert_eq!(todo.status, TodoStatus::InProgress);
+    assert_eq!(notifications.load(Ordering::SeqCst), 1);
+    database
+        .execute_batch_for_test(
+            "CREATE TRIGGER corrupt_new_todo AFTER INSERT ON todos
+         BEGIN UPDATE todos SET updated_at = 9223372036854775807 WHERE id = NEW.id; END;",
+        )
+        .unwrap();
+    assert!(store
+        .create(CreateTodo {
+            title: "invalid".into(),
+            description: String::new(),
+            is_high_priority: false,
+            tags: vec!["New".into()]
+        })
+        .is_err());
+    assert_eq!(
+        store
+            .query(TodoQuery {
+                status: None,
+                tag_id: None
+            })
+            .unwrap()
+            .total,
+        1
+    );
+    assert_eq!(store.tags().unwrap().len(), 1);
+    assert_eq!(notifications.load(Ordering::SeqCst), 1);
+}
+
+use bkmrx_lib::{
+    database::Database,
+    todos::{CreateTodo, TodoQuery, TodoStatus, TodoStore, UpdateTodo},
+};
+
+fn store() -> TodoStore {
+    TodoStore::new(Arc::new(Database::open_in_memory().unwrap()))
+}
+
+fn create(store: &TodoStore, title: &str, tags: &[&str]) -> i64 {
+    store
         .create(CreateTodo {
             title: title.into(),
             description: "detail".into(),
@@ -23,18 +137,14 @@ fn create(repository: &SqliteTodoRepository, title: &str, tags: &[&str]) -> i64 
 
 #[test]
 fn creates_updates_and_physically_deletes_while_retaining_tags() {
-    let repository = repository();
-    let id = create(
-        &repository,
-        "  first task  ",
-        &["Work", "work", " Personal "],
-    );
-    let todo = repository.get(id).unwrap().unwrap();
+    let store = store();
+    let id = create(&store, "  first task  ", &["Work", "work", " Personal "]);
+    let todo = find(&store, id).unwrap();
     assert_eq!(todo.title, "first task");
     assert_eq!(todo.tags, vec!["Personal", "Work"]);
     assert_eq!(todo.status, TodoStatus::InProgress);
 
-    let updated = repository
+    let updated = store
         .update(
             id,
             UpdateTodo {
@@ -47,88 +157,75 @@ fn creates_updates_and_physically_deletes_while_retaining_tags() {
         .unwrap();
     assert!(updated.is_high_priority);
 
-    repository.delete(id).unwrap();
-    assert!(repository.get(id).unwrap().is_none());
-    assert_eq!(repository.tags().unwrap().len(), 2);
-    assert!(repository.tags().unwrap().iter().all(|tag| tag.count == 0));
+    store.delete(id).unwrap();
+    assert!(find(&store, id).is_none());
+    assert_eq!(store.tags().unwrap().len(), 2);
+    assert!(store.tags().unwrap().iter().all(|tag| tag.count == 0));
 }
 
 #[test]
 fn status_transitions_manage_completed_at() {
-    let repository = repository();
-    let id = create(&repository, "task", &[]);
-    assert!(repository
+    let store = store();
+    let id = create(&store, "task", &[]);
+    assert!(store
         .set_status(id, TodoStatus::Completed)
         .unwrap()
         .completed_at
         .is_some());
-    assert!(repository
+    assert!(store
         .set_status(id, TodoStatus::Suspended)
         .unwrap()
         .completed_at
         .is_none());
     assert_eq!(
-        repository
-            .set_status(id, TodoStatus::InProgress)
-            .unwrap()
-            .status,
+        store.set_status(id, TodoStatus::InProgress).unwrap().status,
         TodoStatus::InProgress
     );
 }
 
 #[test]
 fn tag_rename_merges_relations_and_delete_keeps_todos() {
-    let repository = repository();
-    let first = create(&repository, "first", &["Work"]);
-    let second = create(&repository, "second", &["Personal"]);
-    let tags = repository.tags().unwrap();
+    let store = store();
+    let first = create(&store, "first", &["Work"]);
+    let second = create(&store, "second", &["Personal"]);
+    let tags = store.tags().unwrap();
     let work_id = tags.iter().find(|tag| tag.name == "Work").unwrap().id;
     let personal_id = tags.iter().find(|tag| tag.name == "Personal").unwrap().id;
 
-    let merged = repository.rename_tag(personal_id, "work".into()).unwrap();
+    let merged = store.rename_tag(personal_id, "work".into()).unwrap();
     assert_eq!(merged.id, work_id);
     assert_eq!(merged.count, 2);
-    repository.delete_tag(work_id).unwrap();
-    assert!(repository.get(first).unwrap().unwrap().tags.is_empty());
-    assert!(repository.get(second).unwrap().unwrap().tags.is_empty());
+    store.delete_tag(work_id).unwrap();
+    assert!(find(&store, first).unwrap().tags.is_empty());
+    assert!(find(&store, second).unwrap().tags.is_empty());
 }
 
 #[test]
 fn archive_delete_removes_tag_and_its_todos_but_keeps_others() {
-    let repository = repository();
-    let finished = create(&repository, "finished", &["Work"]);
-    repository
-        .set_status(finished, TodoStatus::Completed)
-        .unwrap();
-    let suspended = create(&repository, "suspended", &["Work"]);
-    repository
-        .set_status(suspended, TodoStatus::Suspended)
-        .unwrap();
-    let canceled = create(&repository, "canceled", &["Work"]);
-    repository
-        .set_status(canceled, TodoStatus::Canceled)
-        .unwrap();
-    let shared = create(&repository, "shared", &["Work", "Personal"]);
-    repository.set_status(shared, TodoStatus::Canceled).unwrap();
-    let kept = create(&repository, "kept", &["Personal"]);
-    let tags = repository.tags().unwrap();
+    let store = store();
+    let finished = create(&store, "finished", &["Work"]);
+    store.set_status(finished, TodoStatus::Completed).unwrap();
+    let suspended = create(&store, "suspended", &["Work"]);
+    store.set_status(suspended, TodoStatus::Suspended).unwrap();
+    let canceled = create(&store, "canceled", &["Work"]);
+    store.set_status(canceled, TodoStatus::Canceled).unwrap();
+    let shared = create(&store, "shared", &["Work", "Personal"]);
+    store.set_status(shared, TodoStatus::Canceled).unwrap();
+    let kept = create(&store, "kept", &["Personal"]);
+    let tags = store.tags().unwrap();
     let work_id = tags.iter().find(|tag| tag.name == "Work").unwrap().id;
     let personal_id = tags.iter().find(|tag| tag.name == "Personal").unwrap().id;
 
-    repository.archive_delete_tag(work_id).unwrap();
+    store.archive_delete_tag(work_id).unwrap();
 
-    assert!(repository
-        .tags()
-        .unwrap()
-        .iter()
-        .all(|tag| tag.id != work_id));
-    assert!(repository.get(finished).unwrap().is_none());
-    assert!(repository.get(suspended).unwrap().is_none());
-    assert!(repository.get(canceled).unwrap().is_none());
-    assert!(repository.get(shared).unwrap().is_none());
-    let kept_todo = repository.get(kept).unwrap().unwrap();
+    assert!(store.tags().unwrap().iter().all(|tag| tag.id != work_id));
+    assert!(find(&store, finished).is_none());
+    assert!(find(&store, suspended).is_none());
+    assert!(find(&store, canceled).is_none());
+    assert!(find(&store, shared).is_none());
+    let kept_todo = find(&store, kept).unwrap();
     assert_eq!(kept_todo.tags, vec!["Personal"]);
-    assert!(repository
+    assert!(store
         .tags()
         .unwrap()
         .iter()
@@ -137,11 +234,11 @@ fn archive_delete_removes_tag_and_its_todos_but_keeps_others() {
 
 #[test]
 fn archive_delete_is_rejected_while_a_todo_is_in_progress() {
-    let repository = repository();
-    create(&repository, "active", &["Work"]);
-    let done = create(&repository, "done", &["Work"]);
-    repository.set_status(done, TodoStatus::Completed).unwrap();
-    let work_id = repository
+    let store = store();
+    create(&store, "active", &["Work"]);
+    let done = create(&store, "done", &["Work"]);
+    store.set_status(done, TodoStatus::Completed).unwrap();
+    let work_id = store
         .tags()
         .unwrap()
         .iter()
@@ -149,16 +246,12 @@ fn archive_delete_is_rejected_while_a_todo_is_in_progress() {
         .unwrap()
         .id;
 
-    let error = repository.archive_delete_tag(work_id).unwrap_err();
+    let error = store.archive_delete_tag(work_id).unwrap_err();
     assert_eq!(error.code(), "todo_tag_has_active_todos");
-    assert!(repository
-        .tags()
-        .unwrap()
-        .iter()
-        .any(|tag| tag.id == work_id));
+    assert!(store.tags().unwrap().iter().any(|tag| tag.id == work_id));
     assert_eq!(
-        repository
-            .query(&TodoQuery {
+        store
+            .query(TodoQuery {
                 status: None,
                 tag_id: Some(work_id),
             })
@@ -170,17 +263,17 @@ fn archive_delete_is_rejected_while_a_todo_is_in_progress() {
 
 #[test]
 fn archive_delete_returns_not_found_for_missing_tag() {
-    let repository = repository();
-    let error = repository.archive_delete_tag(42).unwrap_err();
+    let store = store();
+    let error = store.archive_delete_tag(42).unwrap_err();
     assert_eq!(error.code(), "todo_tag_not_found");
 }
 
 #[test]
 fn combines_tag_and_status_filters_with_range_statistics() {
-    let repository = repository();
-    let completed = create(&repository, "normal", &["Work"]);
-    let important = create(&repository, "important", &["Work"]);
-    repository
+    let store = store();
+    let completed = create(&store, "normal", &["Work"]);
+    let important = create(&store, "important", &["Work"]);
+    store
         .update(
             important,
             UpdateTodo {
@@ -191,13 +284,11 @@ fn combines_tag_and_status_filters_with_range_statistics() {
             },
         )
         .unwrap();
-    repository
-        .set_status(completed, TodoStatus::Completed)
-        .unwrap();
-    let tag_id = repository.tags().unwrap()[0].id;
+    store.set_status(completed, TodoStatus::Completed).unwrap();
+    let tag_id = store.tags().unwrap()[0].id;
 
-    let list = repository
-        .query(&TodoQuery {
+    let list = store
+        .query(TodoQuery {
             status: Some(TodoStatus::InProgress),
             tag_id: Some(tag_id),
         })
@@ -211,22 +302,16 @@ fn combines_tag_and_status_filters_with_range_statistics() {
 
 #[test]
 fn export_writes_markdown_for_all_statuses() {
-    let repository = repository();
-    create(&repository, "todo1", &["Work"]);
-    let completed = create(&repository, "todo2", &["Work"]);
-    repository
-        .set_status(completed, TodoStatus::Completed)
-        .unwrap();
-    let suspended = create(&repository, "todo3", &["Work"]);
-    repository
-        .set_status(suspended, TodoStatus::Suspended)
-        .unwrap();
-    let canceled = create(&repository, "todo4", &["Work"]);
-    repository
-        .set_status(canceled, TodoStatus::Canceled)
-        .unwrap();
-    let tag_id = work_tag_id(&repository);
-    let service = TodoService::new(repository);
+    let store = store();
+    create(&store, "todo1", &["Work"]);
+    let completed = create(&store, "todo2", &["Work"]);
+    store.set_status(completed, TodoStatus::Completed).unwrap();
+    let suspended = create(&store, "todo3", &["Work"]);
+    store.set_status(suspended, TodoStatus::Suspended).unwrap();
+    let canceled = create(&store, "todo4", &["Work"]);
+    store.set_status(canceled, TodoStatus::Canceled).unwrap();
+    let tag_id = work_tag_id(&store);
+    let service = store;
     let directory = export_directory();
     let path = directory.join("2026-08-24-待办-工作.md");
     let written = service
@@ -247,17 +332,17 @@ fn export_writes_markdown_for_all_statuses() {
 
 #[test]
 fn export_empty_tag_is_rejected_without_creating_a_file() {
-    let repository = repository();
-    let id = create(&repository, "disposable", &["Empty"]);
-    repository.delete(id).unwrap();
-    let tag_id = repository
+    let store = store();
+    let id = create(&store, "disposable", &["Empty"]);
+    store.delete(id).unwrap();
+    let tag_id = store
         .tags()
         .unwrap()
         .into_iter()
         .find(|tag| tag.name == "Empty")
         .unwrap()
         .id;
-    let service = TodoService::new(repository);
+    let service = store;
     let directory = export_directory();
     let path = directory.join("empty.md");
     let error = service
@@ -273,16 +358,16 @@ fn export_empty_tag_is_rejected_without_creating_a_file() {
 #[test]
 fn export_omits_the_date_when_completed_at_is_missing() {
     let database = Arc::new(Database::open_in_memory().unwrap());
-    let repository = SqliteTodoRepository::new(Arc::clone(&database));
-    let id = create(&repository, "legacy", &["Work"]);
-    repository.set_status(id, TodoStatus::Completed).unwrap();
+    let store = TodoStore::new(Arc::clone(&database));
+    let id = create(&store, "legacy", &["Work"]);
+    store.set_status(id, TodoStatus::Completed).unwrap();
     database
         .execute_batch_for_test(&format!(
             "UPDATE todos SET completed_at = NULL WHERE id = {id}"
         ))
         .unwrap();
-    let tag_id = work_tag_id(&repository);
-    let service = TodoService::new(repository);
+    let tag_id = work_tag_id(&store);
+    let service = store;
     let directory = export_directory();
     let path = directory.join("legacy.md");
     service
@@ -297,10 +382,10 @@ fn export_omits_the_date_when_completed_at_is_missing() {
 
 #[test]
 fn export_collapses_newlines_in_titles() {
-    let repository = repository();
-    create(&repository, "line one\nline two", &["Work"]);
-    let tag_id = work_tag_id(&repository);
-    let service = TodoService::new(repository);
+    let store = store();
+    create(&store, "line one\nline two", &["Work"]);
+    let tag_id = work_tag_id(&store);
+    let service = store;
     let directory = export_directory();
     let path = directory.join("multiline.md");
     service
@@ -315,10 +400,10 @@ fn export_collapses_newlines_in_titles() {
 
 #[test]
 fn export_orders_high_priority_first_within_status() {
-    let repository = repository();
-    create(&repository, "normal", &["Work"]);
-    let important = create(&repository, "important", &["Work"]);
-    repository
+    let store = store();
+    create(&store, "normal", &["Work"]);
+    let important = create(&store, "important", &["Work"]);
+    store
         .update(
             important,
             UpdateTodo {
@@ -329,8 +414,8 @@ fn export_orders_high_priority_first_within_status() {
             },
         )
         .unwrap();
-    let tag_id = work_tag_id(&repository);
-    let service = TodoService::new(repository);
+    let tag_id = work_tag_id(&store);
+    let service = store;
     let directory = export_directory();
     let path = directory.join("order.md");
     service
@@ -345,10 +430,10 @@ fn export_orders_high_priority_first_within_status() {
 
 #[test]
 fn export_leaves_no_temp_file_when_write_fails() {
-    let repository = repository();
-    create(&repository, "task", &["Work"]);
-    let tag_id = work_tag_id(&repository);
-    let service = TodoService::new(repository);
+    let store = store();
+    create(&store, "task", &["Work"]);
+    let tag_id = work_tag_id(&store);
+    let service = store;
     let directory = export_directory();
     let blocked = directory.join("blocked.md");
     std::fs::create_dir_all(&blocked).unwrap();
@@ -366,8 +451,8 @@ fn export_leaves_no_temp_file_when_write_fails() {
     std::fs::remove_dir_all(&directory).ok();
 }
 
-fn work_tag_id(repository: &SqliteTodoRepository) -> i64 {
-    repository
+fn work_tag_id(store: &TodoStore) -> i64 {
+    store
         .tags()
         .unwrap()
         .into_iter()
@@ -382,4 +467,16 @@ fn export_directory() -> std::path::PathBuf {
         std::process::id(),
         chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
     ))
+}
+
+fn find(store: &TodoStore, id: i64) -> Option<bkmrx_lib::todos::Todo> {
+    store
+        .query(TodoQuery {
+            status: None,
+            tag_id: None,
+        })
+        .unwrap()
+        .items
+        .into_iter()
+        .find(|todo| todo.id == id)
 }

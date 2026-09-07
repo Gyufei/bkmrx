@@ -5,7 +5,7 @@ use bkmrx_lib::{
     database::Database,
     preview::PreviewService,
     rss::{RssRepository, RssService},
-    todos::{SqliteTodoRepository, TodoService},
+    todos::TodoStore,
 };
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
@@ -82,14 +82,11 @@ fn main() {
             app.manage(Arc::new(PreviewService::new(None)?));
             let todo_handle = handle.clone();
             let todo_service = Arc::new(
-                TodoService::new(SqliteTodoRepository::new(Arc::clone(&database)))
-                    .with_change_notifier(Arc::new(move || {
-                        if let Err(error) = todo_handle.emit("todos-changed", ()) {
-                            log::warn!(
-                                "frontend_event_emit_failed event=todos-changed error={error}"
-                            );
-                        }
-                    })),
+                TodoStore::new(Arc::clone(&database)).with_change_notifier(Arc::new(move || {
+                    if let Err(error) = todo_handle.emit("todos-changed", ()) {
+                        log::warn!("frontend_event_emit_failed event=todos-changed error={error}");
+                    }
+                })),
             );
             app.manage(todo_service);
             let settings_path = runtime_paths.settings_path().to_path_buf();
@@ -128,11 +125,12 @@ fn main() {
             ));
             let translation_service =
                 bkmrx_lib::translation::TranslationService::new(translation_runtime);
-            app.manage(settings_store);
+            app.manage(Arc::clone(&settings_store));
             app.manage(runtime_paths);
             let note_handle = handle.clone();
-            let note_service = Arc::new(bkmrx_lib::notes::NoteService::new(Arc::new(
-                move |event| match event {
+            let note_service = Arc::new(bkmrx_lib::notes::NotesWorkspace::new(
+                Arc::clone(&settings_store),
+                Arc::new(move |event| match event {
                     bkmrx_lib::notes::NoteEvent::Changed(note) => {
                         if let Err(error) = note_handle.emit("note-changed", note) {
                             log::warn!(
@@ -147,8 +145,8 @@ fn main() {
                             );
                         }
                     }
-                },
-            )));
+                }),
+            ));
             app.manage(Arc::clone(&note_service));
             let http_launch =
                 tauri::async_runtime::block_on(bkmrx_lib::http_server::LocalHttpServer::launch(
@@ -218,7 +216,8 @@ fn main() {
         .on_window_event(move |_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 log::info!("application_shutdown_started");
-                if let Some(service) = _window.try_state::<bkmrx_lib::notes::SharedNoteService>() {
+                if let Some(service) = _window.try_state::<bkmrx_lib::notes::SharedNotesWorkspace>()
+                {
                     service.stop();
                 }
                 if let Some(server) =

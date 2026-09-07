@@ -8,16 +8,23 @@ pub fn parse_http_url(raw_url: &str) -> Result<Url, BookmarkPreview> {
     safe_http::parse_http_url(raw_url).map_err(|error| map_error(raw_url, error))
 }
 
-pub async fn resolve_public_target(
-    url: &Url,
-) -> Result<Vec<std::net::SocketAddr>, BookmarkPreview> {
-    safe_http::resolve_public_target(url)
-        .await
-        .map_err(|error| map_error(url.as_str(), error))
-}
-
-fn map_error(url: &str, error: SafeHttpError) -> BookmarkPreview {
+pub(super) fn map_error(url: &str, error: SafeHttpError) -> BookmarkPreview {
     match error {
+        SafeHttpError::Timeout => BookmarkPreview::fallback(
+            url,
+            PreviewFallbackReason::Timeout,
+            "网页响应超时，请稍后重试",
+        ),
+        SafeHttpError::RequestFailed => BookmarkPreview::fallback(
+            url,
+            PreviewFallbackReason::ConnectionFailure,
+            "暂时无法连接该网页",
+        ),
+        SafeHttpError::TooManyRedirects
+        | SafeHttpError::InvalidRedirect
+        | SafeHttpError::BodyTooLarge => {
+            BookmarkPreview::fallback(url, PreviewFallbackReason::HttpError, error.to_string())
+        }
         SafeHttpError::InvalidUrl
         | SafeHttpError::UnsupportedProtocol
         | SafeHttpError::InvalidTarget => BookmarkPreview::fallback(

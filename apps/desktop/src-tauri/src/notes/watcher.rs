@@ -10,18 +10,18 @@ use crate::{
     logging::sanitize_error,
 };
 
-use super::{repository::scan_note, NoteFile};
+use super::{repository::scan_note, NoteChangedEvent, NoteRemovedEvent};
 
 #[derive(Debug, Clone)]
 pub enum NoteEvent {
-    Changed(NoteFile),
-    Removed(String),
+    Changed(NoteChangedEvent),
+    Removed(NoteRemovedEvent),
 }
 
 type EventSink = Arc<dyn Fn(NoteEvent) + Send + Sync>;
 
 pub struct NoteWatcher {
-    current: Mutex<Option<(PathBuf, RecommendedWatcher)>>,
+    current: Mutex<Option<(PathBuf, u64, RecommendedWatcher)>>,
     emit: EventSink,
 }
 
@@ -33,15 +33,17 @@ impl NoteWatcher {
         }
     }
 
-    pub fn watch(&self, dir: &str) -> AppResult<()> {
-        let root = PathBuf::from(dir);
+    pub fn watch(&self, root: &Path, revision: u64) -> AppResult<()> {
+        let root = root.to_path_buf();
         let mut current = self
             .current
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         if current
             .as_ref()
-            .is_some_and(|(watched_dir, _)| watched_dir == &root)
+            .is_some_and(|(watched_dir, watched_revision, _)| {
+                watched_dir == &root && *watched_revision == revision
+            })
         {
             return Ok(());
         }
@@ -66,10 +68,15 @@ impl NoteWatcher {
                     }
                     if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) {
                         if let Some(note) = scan_note(&event_root, &path) {
-                            emit(NoteEvent::Changed(note));
+                            emit(NoteEvent::Changed(NoteChangedEvent { revision, note }));
                         }
                     } else if matches!(event.kind, EventKind::Remove(_)) {
-                        emit(NoteEvent::Removed(path.to_string_lossy().into_owned()));
+                        if let Ok(relative_path) = path.strip_prefix(&event_root) {
+                            emit(NoteEvent::Removed(NoteRemovedEvent {
+                                revision,
+                                relative_path: relative_path.to_string_lossy().replace('\\', "/"),
+                            }));
+                        }
                     }
                 }
             },
@@ -77,9 +84,9 @@ impl NoteWatcher {
         )
         .map_err(watcher_error)?;
         watcher
-            .watch(Path::new(dir), RecursiveMode::Recursive)
+            .watch(&root, RecursiveMode::Recursive)
             .map_err(watcher_error)?;
-        *current = Some((root, watcher));
+        *current = Some((root, revision, watcher));
         log::info!("note_watcher_started");
         Ok(())
     }
@@ -100,14 +107,14 @@ fn watcher_error(error: notify::Error) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::NoteWatcher;
-    use std::sync::Arc;
+    use std::{path::Path, sync::Arc};
 
     #[test]
     fn missing_directory_returns_stable_watcher_error() {
         let watcher = NoteWatcher::new(Arc::new(|_| {}));
 
         let error = watcher
-            .watch("/definitely/missing/bkmrx-notes-directory")
+            .watch(Path::new("/definitely/missing/bkmrx-notes-directory"), 1)
             .unwrap_err();
 
         assert_eq!(error.code(), "note_watcher_error");

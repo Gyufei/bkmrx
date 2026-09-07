@@ -1,14 +1,13 @@
 use std::time::Duration;
 
-use futures_util::StreamExt;
-use reqwest::{header, redirect::Policy, StatusCode};
+use reqwest::{header, StatusCode};
 use scraper::{Html, Selector};
 use url::Url;
 
 use crate::{
     error::{AppError, AppResult},
     logging::{sanitize_error, sanitize_url, Operation},
-    safe_http::{parse_http_url, resolve_public_target},
+    safe_http::{get, parse_http_url, QueryCredential, RequestOptions, SafeHttpError},
     settings::RssHubSettings,
 };
 
@@ -17,7 +16,6 @@ use super::{
     parser::parse_feed,
 };
 
-const MAX_REDIRECTS: usize = 5;
 const MAX_BODY_BYTES: usize = 5 * 1024 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 const USER_AGENT: &str = concat!("bkmrx/", env!("CARGO_PKG_VERSION"), " RSS reader");
@@ -95,18 +93,7 @@ impl FeedFetcher {
             operation.id(),
             sanitize_url(raw_url)
         );
-        let result = match tokio::time::timeout(
-            REQUEST_TIMEOUT,
-            self.fetch_inner(raw_url, settings, operation),
-        )
-        .await
-        {
-            Ok(result) => result,
-            Err(_) => Err(AppError::rss_error(
-                "rss_request_timeout",
-                "The feed request timed out",
-            )),
-        };
+        let result = self.fetch_inner(raw_url, settings).await;
         match &result {
             Ok(fetched) => log::info!(
                 "outbound_request_completed operation_id={} kind=rss_feed host={:?} status=200 redirects={} bytes={} elapsed_ms={}",
@@ -131,91 +118,49 @@ impl FeedFetcher {
         &self,
         raw_url: &str,
         settings: &RssHubSettings,
-        operation: Operation,
     ) -> AppResult<FetchedBody> {
-        let mut url = parse_http_url(raw_url).map_err(safe_http_error)?;
-        for redirect_count in 0..=MAX_REDIRECTS {
-            log::debug!(
-                "outbound_request_hop_started operation_id={} kind=rss_feed redirect={} url={:?}",
-                operation.id(),
-                redirect_count,
-                sanitize_url(url.as_str())
-            );
-            let addresses = resolve_public_target(&url).await.map_err(safe_http_error)?;
-            let host = url.host_str().ok_or_else(|| {
-                AppError::rss_error("rss_invalid_url", "The feed URL has no host")
-            })?;
-            let client = reqwest::Client::builder()
-                .redirect(Policy::none())
-                .user_agent(USER_AGENT)
-                .resolve(host, addresses[0])
-                .build()
-                .map_err(request_error)?;
-            let response = client
-                .get(authenticated_rsshub_url(&url, settings))
-                .header(header::ACCEPT, "application/atom+xml, application/rss+xml, application/xml, text/xml, text/html;q=0.8, */*;q=0.1")
-                .send()
-                .await
-                .map_err(request_error)?;
-            log::debug!(
-                "outbound_request_hop_completed operation_id={} kind=rss_feed redirect={} status={}",
-                operation.id(),
-                redirect_count,
-                response.status().as_u16()
-            );
-
-            if response.status().is_redirection() {
-                if redirect_count == MAX_REDIRECTS {
-                    return Err(AppError::rss_error(
-                        "rss_too_many_redirects",
-                        "The feed redirected too many times",
-                    ));
-                }
-                let location = response
-                    .headers()
-                    .get(header::LOCATION)
-                    .and_then(|value| value.to_str().ok())
-                    .ok_or_else(|| {
-                        AppError::rss_error(
-                            "rss_invalid_redirect",
-                            "The feed returned an invalid redirect",
-                        )
-                    })?;
-                url = url.join(location).map_err(|_| {
-                    AppError::rss_error(
-                        "rss_invalid_redirect",
-                        "The feed returned an invalid redirect",
-                    )
-                })?;
-                parse_http_url(url.as_str()).map_err(safe_http_error)?;
-                continue;
-            }
-
-            if response.status() != StatusCode::OK {
-                return Err(AppError::rss_error(
-                    "rss_http_error",
-                    format!("The feed request returned HTTP {}", response.status()),
-                ));
-            }
-            let mut body = Vec::new();
-            let mut stream = response.bytes_stream();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(request_error)?;
-                if body.len().saturating_add(chunk.len()) > MAX_BODY_BYTES {
-                    return Err(AppError::rss_error(
-                        "rss_response_too_large",
-                        "The feed response exceeds 5 MB",
-                    ));
-                }
-                body.extend_from_slice(&chunk);
-            }
-            return Ok(FetchedBody {
-                url,
-                body,
-                redirects: redirect_count,
+        let mut headers = header::HeaderMap::new();
+        headers.insert(
+            header::USER_AGENT,
+            header::HeaderValue::from_static(USER_AGENT),
+        );
+        headers.insert(header::ACCEPT, header::HeaderValue::from_static("application/atom+xml, application/rss+xml, application/xml, text/xml, text/html;q=0.8, */*;q=0.1"));
+        let credential = settings
+            .base_url
+            .as_deref()
+            .and_then(|raw| Url::parse(raw).ok())
+            .zip(settings.access_key.as_ref().filter(|key| !key.is_empty()))
+            .map(|(base, key)| QueryCredential {
+                origin: base.origin(),
+                name: "key".into(),
+                value: key.clone(),
             });
+        let response = get(
+            raw_url,
+            RequestOptions {
+                timeout: REQUEST_TIMEOUT,
+                max_bytes: MAX_BODY_BYTES,
+                https_only: false,
+                headers,
+                credential,
+            },
+        )
+        .await
+        .map_err(safe_http_error)?;
+        if response.status() != StatusCode::OK {
+            return Err(AppError::rss_error(
+                "rss_http_error",
+                format!("The feed request returned HTTP {}", response.status()),
+            ));
         }
-        unreachable!("redirect loop always returns")
+        let url = response.final_url.clone();
+        let redirects = response.redirects;
+        let body = response.bytes().await.map_err(safe_http_error)?;
+        Ok(FetchedBody {
+            url,
+            body,
+            redirects,
+        })
     }
 }
 
@@ -235,25 +180,6 @@ fn resolve_rsshub_url(raw_url: &str, settings: &RssHubSettings) -> AppResult<Str
 
 pub(super) fn is_official_rsshub_url(url: &Url) -> bool {
     url.host_str() == Some("rsshub.app")
-}
-
-fn authenticated_rsshub_url(url: &Url, settings: &RssHubSettings) -> Url {
-    let Some(base) = settings
-        .base_url
-        .as_deref()
-        .and_then(|raw| Url::parse(raw).ok())
-    else {
-        return url.clone();
-    };
-    if url.origin() != base.origin() {
-        return url.clone();
-    }
-    let Some(key) = settings.access_key.as_deref().filter(|key| !key.is_empty()) else {
-        return url.clone();
-    };
-    let mut authenticated = url.clone();
-    authenticated.query_pairs_mut().append_pair("key", key);
-    authenticated
 }
 
 struct FetchedBody {
@@ -314,17 +240,21 @@ fn discover_feed_links(body: &[u8], base_url: &Url) -> Vec<FeedCandidate> {
     candidates
 }
 
-fn safe_http_error(error: crate::safe_http::SafeHttpError) -> AppError {
-    AppError::rss_error("rss_unsafe_url", error.to_string())
-}
-
-fn request_error(error: reqwest::Error) -> AppError {
-    AppError::rss_error("rss_request_failed", error.to_string())
+fn safe_http_error(error: SafeHttpError) -> AppError {
+    let code = match error {
+        SafeHttpError::Timeout => "rss_request_timeout",
+        SafeHttpError::RequestFailed => "rss_request_failed",
+        SafeHttpError::TooManyRedirects => "rss_too_many_redirects",
+        SafeHttpError::InvalidRedirect => "rss_invalid_redirect",
+        SafeHttpError::BodyTooLarge => "rss_response_too_large",
+        _ => "rss_unsafe_url",
+    };
+    AppError::rss_error(code, error.to_string())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{authenticated_rsshub_url, discover_feed_links, resolve_rsshub_url};
+    use super::{discover_feed_links, resolve_rsshub_url};
     use crate::settings::RssHubSettings;
     use url::Url;
 
@@ -350,11 +280,6 @@ mod tests {
         };
         let resolved = resolve_rsshub_url("https://rsshub.app/dedao?limit=10", &settings).unwrap();
         assert_eq!(resolved, "https://rss.example.com/dedao?limit=10");
-        let authenticated = authenticated_rsshub_url(&Url::parse(&resolved).unwrap(), &settings);
-        assert_eq!(
-            authenticated.as_str(),
-            "https://rss.example.com/dedao?limit=10&key=secret"
-        );
         assert!(!resolved.contains("secret"));
     }
 }

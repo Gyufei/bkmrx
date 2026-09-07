@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { sharedNoteSaveQueue } from './note-save';
+import { noteSaveKey, sharedNoteSaveQueue } from './note-save';
 import { readNoteContentApi } from './notes.api';
 
 export interface NoteDocumentDependencies {
@@ -28,6 +28,8 @@ export interface NoteDocumentSession {
   flush(): Promise<void>;
   retrySave(): Promise<void>;
   dismissSaveError(): void;
+  discardPending(): Promise<void>;
+  resumePending(): void;
 }
 
 interface CapturedSaveFailure extends NoteSaveFailure {
@@ -43,13 +45,6 @@ interface PathSaveWatermark {
   pendingReads: number;
 }
 
-const productionDefaults: NoteDocumentDependencies = {
-  read: readNoteContentApi,
-  save: (path, content) => sharedNoteSaveQueue.enqueue(path, content),
-  pending: (path) => sharedNoteSaveQueue.pending(path),
-  debounceMs: 400,
-};
-
 export function stripFrontmatter(content: string): string {
   if (content.startsWith('---')) {
     const end = content.indexOf('---', 3);
@@ -60,10 +55,21 @@ export function stripFrontmatter(content: string): string {
 
 export function useNoteDocument(
   filePath: string,
+  revisionOrDependencies: number | Partial<NoteDocumentDependencies> = 1,
   dependencies?: Partial<NoteDocumentDependencies>,
 ): NoteDocumentSession {
+  const revision = typeof revisionOrDependencies === 'number' ? revisionOrDependencies : 1;
+  const resolvedDependencies =
+    typeof revisionOrDependencies === 'number' ? dependencies : revisionOrDependencies;
+  const keyFor = (path: string) => noteSaveKey(revision, path);
+  const productionDefaults: NoteDocumentDependencies = {
+    read: (path) => readNoteContentApi(revision, path),
+    save: (path, content) => sharedNoteSaveQueue.enqueue(keyFor(path), content),
+    pending: (path) => sharedNoteSaveQueue.pending(keyFor(path)),
+    debounceMs: 400,
+  };
   const dependencyRef = useRef<NoteDocumentDependencies>(productionDefaults);
-  dependencyRef.current = { ...productionDefaults, ...dependencies };
+  dependencyRef.current = { ...productionDefaults, ...resolvedDependencies };
   const currentPathRef = useRef(filePath);
   const initializedPathRef = useRef<string | null>(null);
   const loadedPathRef = useRef<string | null>(null);
@@ -75,6 +81,7 @@ export function useNoteDocument(
   const latestSubmittedPromiseRef = useRef<Promise<void> | null>(null);
   const latestSavedVersionRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const suppressNextCleanupRef = useRef(false);
   const mountedRef = useRef(false);
   const saveFailureRef = useRef<CapturedSaveFailure | null>(null);
   const retryPromiseRef = useRef<{
@@ -316,7 +323,11 @@ export function useNoteDocument(
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = undefined;
       }
-      void flushCurrentSnapshot(filePath, currentSessionIdRef.current).catch(() => undefined);
+      if (suppressNextCleanupRef.current) {
+        suppressNextCleanupRef.current = false;
+      } else {
+        void flushCurrentSnapshot(filePath, currentSessionIdRef.current).catch(() => undefined);
+      }
     };
   }, [filePath, flushCurrentSnapshot, readCurrent]);
 
@@ -351,6 +362,19 @@ export function useNoteDocument(
       if (!isCurrentSession(path, sessionId) || currentVersionRef.current === version) return;
     }
   }, [flushCurrentSnapshot, isCurrentSession]);
+
+  const discardPending = useCallback(async () => {
+    suppressNextCleanupRef.current = true;
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = undefined;
+    }
+    await dependencyRef.current.pending(currentPathRef.current);
+  }, []);
+
+  const resumePending = useCallback(() => {
+    suppressNextCleanupRef.current = false;
+  }, []);
 
   const retrySave = useCallback(() => {
     const failure = saveFailureRef.current;
@@ -425,5 +449,7 @@ export function useNoteDocument(
     flush,
     retrySave,
     dismissSaveError,
+    discardPending,
+    resumePending,
   };
 }

@@ -7,7 +7,6 @@ import type {
   CreateBookmark,
   ImportPreview,
   PrepareBookmarkPreviewRequest,
-  NoteFile,
   Tag,
   TagQueryRequest,
   UpdateBookmark,
@@ -246,30 +245,42 @@ export function invokeGetSystemInfo(): Promise<SystemInfo> {
 
 /* ───── Notes ───── */
 
-export function invokeScanNotes(dir: string): Promise<NoteFile[]> {
-  return invoke<NoteFile[]>('scan_notes', { dir });
+export function invokeScanNotes(): Promise<import('../types').NotesWorkspaceListing> {
+  return invoke('scan_notes');
 }
 
-export function invokeReadNoteFile(path: string): Promise<string> {
-  return invoke<string>('read_note_file', { path });
+export function invokeReadNoteFile(revision: number, relativePath: string): Promise<string> {
+  return invoke<string>('read_note_file', { revision, relativePath });
 }
 
-export function invokeWriteNoteFile(path: string, content: string): Promise<void> {
-  return invoke('write_note_file', { path, content });
+export function invokeWriteNoteFile(
+  revision: number,
+  relativePath: string,
+  content: string,
+): Promise<void> {
+  return invoke('write_note_file', { revision, relativePath, content });
 }
 
-export function invokeCreateNoteFile(dir: string, name: string): Promise<string> {
-  return invoke<string>('create_note_file', { dir, name });
+export function invokeCreateNoteFile(
+  revision: number,
+  directory: string,
+  name: string,
+): Promise<string> {
+  return invoke<string>('create_note_file', { revision, directory, name });
 }
 
-export function invokeDeleteNote(path: string): Promise<void> {
-  return invoke('delete_note', { path });
+export function invokeDeleteNote(revision: number, relativePath: string): Promise<void> {
+  return invoke('delete_note', { revision, relativePath });
 }
 
-export function invokeDeleteNoteFolder(path: string): Promise<void> {
-  return invoke('delete_note_folder', { path });
+export function invokeDeleteNoteFolder(revision: number, relativePath: string): Promise<void> {
+  return invoke('delete_note_folder', { revision, relativePath });
 }
 
-export function invokeRenameNote(oldPath: string, newPath: string): Promise<void> {
-  return invoke('rename_note', { oldPath, newPath });
+export function invokeRenameNote(
+  revision: number,
+  relativePath: string,
+  name: string,
+): Promise<string> {
+  return invoke<string>('rename_note', { revision, relativePath, name });
 }

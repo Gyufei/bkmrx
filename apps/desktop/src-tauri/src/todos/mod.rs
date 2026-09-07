@@ -1,8 +1,7 @@
 mod model;
 mod repository;
-mod service;
+mod store;
 mod transfer;
 
 pub use model::*;
-pub use repository::SqliteTodoRepository;
-pub use service::{SharedTodoService, TodoService};
+pub use store::{SharedTodoStore, TodoStore};

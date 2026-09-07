@@ -1,36 +1,28 @@
 use std::time::Duration;
 
-use reqwest::{header, redirect::Policy, Client, Response};
+use reqwest::header;
 use url::Url;
 
-use crate::logging::{sanitize_error, sanitize_url, Operation};
+use crate::logging::{sanitize_url, Operation};
 
-use super::{
-    model::{BookmarkPreview, PreviewFallbackReason},
-    security::resolve_public_target,
-};
+use super::model::{BookmarkPreview, PreviewFallbackReason};
 
 #[derive(Clone)]
 pub struct WebPreviewClient;
 
 impl WebPreviewClient {
     pub fn new() -> Result<Self, reqwest::Error> {
-        Client::builder()
-            .connect_timeout(Duration::from_secs(3))
-            .timeout(Duration::from_secs(8))
-            .redirect(Policy::none())
-            .build()?;
         Ok(Self)
     }
 
-    pub async fn prepare(&self, original_url: &str, mut url: Url) -> BookmarkPreview {
+    pub async fn prepare(&self, original_url: &str, url: Url) -> BookmarkPreview {
         let operation = Operation::start();
         log::debug!(
             "outbound_request_started operation_id={} kind=web_preview method=GET url={:?}",
             operation.id(),
             sanitize_url(url.as_str())
         );
-        let result = self.prepare_inner(original_url, &mut url, operation).await;
+        let result = self.prepare_inner(original_url, &url).await;
         match &result {
             BookmarkPreview::Web { final_url, .. } => log::info!(
                 "outbound_request_completed operation_id={} kind=web_preview host={:?} status=success elapsed_ms={}",
@@ -57,135 +49,42 @@ impl WebPreviewClient {
         result
     }
 
-    async fn prepare_inner(
-        &self,
-        original_url: &str,
-        url: &mut Url,
-        operation: Operation,
-    ) -> BookmarkPreview {
-        for redirect_count in 0..=5 {
-            log::debug!(
-                "outbound_request_hop_started operation_id={} kind=web_preview redirect={} url={:?}",
-                operation.id(),
-                redirect_count,
-                sanitize_url(url.as_str())
-            );
-            let addresses = match resolve_public_target(url).await {
-                Ok(addresses) => addresses,
-                Err(fallback) => return fallback,
-            };
-            let host = url.host_str().expect("validated URL has a host");
-            let client = match Client::builder()
-                .connect_timeout(Duration::from_secs(3))
-                .timeout(Duration::from_secs(8))
-                .redirect(Policy::none())
-                .resolve_to_addrs(host, &addresses)
-                .build()
-            {
-                Ok(client) => client,
-                Err(_) => {
-                    return BookmarkPreview::fallback(
-                        original_url,
-                        PreviewFallbackReason::ConnectionFailure,
-                        "网页请求初始化失败",
-                    )
-                }
-            };
-            let response = match client.get(url.clone()).send().await {
-                Ok(response) => response,
-                Err(error) if error.is_timeout() => {
-                    log::debug!(
-                        "outbound_request_error operation_id={} kind=web_preview error={:?}",
-                        operation.id(),
-                        sanitize_error(&error.to_string())
-                    );
-                    return BookmarkPreview::fallback(
-                        original_url,
-                        PreviewFallbackReason::Timeout,
-                        "网页响应超时，请稍后重试",
-                    );
-                }
-                Err(error) if error.is_connect() => {
-                    log::debug!(
-                        "outbound_request_error operation_id={} kind=web_preview error={:?}",
-                        operation.id(),
-                        sanitize_error(&error.to_string())
-                    );
-                    return BookmarkPreview::fallback(
-                        original_url,
-                        PreviewFallbackReason::ConnectionFailure,
-                        "暂时无法连接该网页",
-                    );
-                }
-                Err(error) => {
-                    log::debug!(
-                        "outbound_request_error operation_id={} kind=web_preview error={:?}",
-                        operation.id(),
-                        sanitize_error(&error.to_string())
-                    );
-                    return BookmarkPreview::fallback(
-                        original_url,
-                        PreviewFallbackReason::ConnectionFailure,
-                        "网页请求失败，请稍后重试",
-                    );
-                }
-            };
-            log::debug!(
-                "outbound_request_hop_completed operation_id={} kind=web_preview redirect={} status={}",
-                operation.id(),
-                redirect_count,
-                response.status().as_u16()
-            );
-
-            if response.status().is_redirection() {
-                let Some(location) = response.headers().get(header::LOCATION) else {
-                    return http_error(original_url, &response);
-                };
-                let Ok(location) = location.to_str() else {
-                    return http_error(original_url, &response);
-                };
-                let Ok(next_url) = url.join(location) else {
-                    return http_error(original_url, &response);
-                };
-                *url = next_url;
-                continue;
-            }
-
-            if !response.status().is_success() {
-                return http_error(original_url, &response);
-            }
-            if denies_embedding(&response) {
-                return BookmarkPreview::fallback(
-                    original_url,
-                    PreviewFallbackReason::EmbeddingDenied,
-                    "该网站的安全策略不允许在应用内显示",
-                );
-            }
-            return BookmarkPreview::Web {
-                url: original_url.to_string(),
-                final_url: url.to_string(),
+    async fn prepare_inner(&self, original_url: &str, url: &Url) -> BookmarkPreview {
+        let response = match crate::safe_http::get(
+            url.as_str(),
+            crate::safe_http::RequestOptions {
+                timeout: Duration::from_secs(8),
+                max_bytes: 0,
+                https_only: false,
+                headers: header::HeaderMap::new(),
+                credential: None,
+            },
+        )
+        .await
+        {
+            Ok(response) => response,
+            Err(error) => return super::security::map_error(original_url, error),
+        };
+        if !response.status().is_success() {
+            return BookmarkPreview::Fallback {
+                url: original_url.into(),
+                reason: PreviewFallbackReason::HttpError,
+                message: format!("网页返回 HTTP {}", response.status().as_u16()),
+                http_status: Some(response.status().as_u16()),
             };
         }
-
-        BookmarkPreview::fallback(
-            original_url,
-            PreviewFallbackReason::HttpError,
-            "网页重定向次数过多",
-        )
+        if headers_deny_embedding(response.headers()) {
+            return BookmarkPreview::fallback(
+                original_url,
+                PreviewFallbackReason::EmbeddingDenied,
+                "该网站的安全策略不允许在应用内显示",
+            );
+        }
+        BookmarkPreview::Web {
+            url: original_url.into(),
+            final_url: response.final_url.to_string(),
+        }
     }
-}
-
-fn http_error(original_url: &str, response: &Response) -> BookmarkPreview {
-    BookmarkPreview::Fallback {
-        url: original_url.to_string(),
-        reason: PreviewFallbackReason::HttpError,
-        message: format!("网页返回 HTTP {}", response.status().as_u16()),
-        http_status: Some(response.status().as_u16()),
-    }
-}
-
-fn denies_embedding(response: &Response) -> bool {
-    headers_deny_embedding(response.headers())
 }
 
 fn headers_deny_embedding(headers: &header::HeaderMap) -> bool {

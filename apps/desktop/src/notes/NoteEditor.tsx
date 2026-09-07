@@ -17,6 +17,8 @@ const MarkdownSourceEditor = lazy(() => import('./MarkdownSourceEditor'));
 
 interface Props {
   filePath: string;
+  revision?: number;
+  onSessionChange?(session: import('./use-note-document').NoteDocumentSession | null): void;
 }
 
 type Mode = 'view' | 'edit';
@@ -46,8 +48,12 @@ function modeShortcutLabel(): string {
     : 'Ctrl E';
 }
 
-export default function NoteEditor({ filePath }: Props) {
-  const session = useNoteDocument(filePath);
+export default function NoteEditor({ filePath, revision = 1, onSessionChange }: Props) {
+  const session = useNoteDocument(filePath, revision);
+  useLayoutEffect(() => {
+    onSessionChange?.(session);
+    return () => onSessionChange?.(null);
+  }, [onSessionChange, session]);
   const [modeState, setModeState] = useState<ModeState>({ filePath, value: 'view' });
   const modeRef = useRef<Mode>('view');
   const filePathRef = useRef(filePath);

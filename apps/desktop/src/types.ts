@@ -180,12 +180,25 @@ export interface ImportPreview {
 }
 
 export interface NoteFile {
-  path: string;
   relative_path: string;
   title: string;
   tags: string[];
   modified: number;
   size: number;
+}
+
+export interface NotesWorkspaceListing {
+  revision: number;
+  notes: NoteFile[];
+}
+
+export interface NoteChangedEvent {
+  revision: number;
+  note: NoteFile;
+}
+export interface NoteRemovedEvent {
+  revision: number;
+  relative_path: string;
 }
 
 export type TodoStatus = 'in_progress' | 'completed' | 'suspended' | 'canceled';
