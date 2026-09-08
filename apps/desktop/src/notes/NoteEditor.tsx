@@ -1,4 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { BookOpen, Pencil } from 'lucide-react';
 import { useHotkeys } from '@tanstack/react-hotkeys';
 
@@ -11,14 +20,14 @@ import { Spinner } from '@/components/ui/spinner';
 import type { MarkdownEditorSnapshot } from './MarkdownSourceEditor';
 import MarkdownViewer from './MarkdownViewer';
 import { toggleMarkdownTaskAtLine } from './toggle-markdown-task';
-import { useNoteDocument } from './use-note-document';
+import { useNoteDocument, type NoteDocumentCommands } from './use-note-document';
 
 const MarkdownSourceEditor = lazy(() => import('./MarkdownSourceEditor'));
 
 interface Props {
   filePath: string;
   revision?: number;
-  onSessionChange?(session: import('./use-note-document').NoteDocumentSession | null): void;
+  onSessionChange?(commands: NoteDocumentCommands | null): void;
 }
 
 type Mode = 'view' | 'edit';
@@ -50,10 +59,14 @@ function modeShortcutLabel(): string {
 
 export default function NoteEditor({ filePath, revision = 1, onSessionChange }: Props) {
   const session = useNoteDocument(filePath, revision);
+  const commands = useMemo<NoteDocumentCommands>(
+    () => ({ flush: session.flush, rename: session.rename, delete: session.delete }),
+    [session.delete, session.flush, session.rename],
+  );
   useLayoutEffect(() => {
-    onSessionChange?.(session);
+    onSessionChange?.(commands);
     return () => onSessionChange?.(null);
-  }, [onSessionChange, session]);
+  }, [commands, onSessionChange]);
   const [modeState, setModeState] = useState<ModeState>({ filePath, value: 'view' });
   const modeRef = useRef<Mode>('view');
   const filePathRef = useRef(filePath);

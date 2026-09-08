@@ -22,6 +22,8 @@ const session = vi.hoisted(() => ({
   flush: vi.fn().mockResolvedValue(undefined),
   retrySave: vi.fn().mockResolvedValue(undefined),
   dismissSaveError: vi.fn(),
+  rename: vi.fn().mockResolvedValue('renamed.md'),
+  delete: vi.fn().mockResolvedValue(undefined),
 }));
 
 const editorHarness = vi.hoisted(() => ({
@@ -37,23 +39,31 @@ const editorHarness = vi.hoisted(() => ({
 
 const noteDocumentHarness = vi.hoisted(() => ({
   useReal: false,
+  returnCopy: false,
   read: vi.fn<(path: string) => Promise<string>>(),
   save: vi.fn<(path: string, content: string) => Promise<void>>(),
-  debounceMs: 60_000,
+}));
+
+const receiptApi = vi.hoisted(() => ({
+  open: vi.fn(),
+  save: vi.fn(),
+}));
+
+vi.mock('./notes.api', () => ({
+  openNoteDocumentApi: receiptApi.open,
+  saveNoteDocumentApi: receiptApi.save,
+  renameNoteDocumentApi: vi.fn(),
+  deleteNoteDocumentApi: vi.fn(),
 }));
 
 vi.mock('./use-note-document', async (importOriginal) => {
   const original = await importOriginal<typeof import('./use-note-document')>();
   return {
     ...original,
-    useNoteDocument: (filePath: string) =>
-      noteDocumentHarness.useReal
-        ? original.useNoteDocument(filePath, {
-            read: noteDocumentHarness.read,
-            save: noteDocumentHarness.save,
-            debounceMs: noteDocumentHarness.debounceMs,
-          })
-        : session,
+    useNoteDocument: (filePath: string) => {
+      if (noteDocumentHarness.useReal) return original.useNoteDocument(filePath);
+      return noteDocumentHarness.returnCopy ? { ...session } : session;
+    },
   };
 });
 
@@ -202,14 +212,24 @@ describe('NoteEditor', () => {
     session.flush.mockReset().mockResolvedValue(undefined);
     session.retrySave.mockReset().mockResolvedValue(undefined);
     session.dismissSaveError.mockReset();
+    session.rename.mockReset().mockResolvedValue('renamed.md');
+    session.delete.mockReset().mockResolvedValue(undefined);
     editorHarness.autoReady = true;
     editorHarness.mounts = 0;
     editorHarness.initialSnapshots.length = 0;
     editorHarness.nextSnapshot = { anchor: 3, head: 7, scrollTop: 96 };
     noteDocumentHarness.useReal = false;
+    noteDocumentHarness.returnCopy = false;
     noteDocumentHarness.read.mockReset().mockResolvedValue('# Read me');
     noteDocumentHarness.save.mockReset().mockResolvedValue(undefined);
-    noteDocumentHarness.debounceMs = 60_000;
+    receiptApi.open.mockReset().mockImplementation(async (_revision: number, path: string) => ({
+      content: await noteDocumentHarness.read(path),
+      receipt: path,
+    }));
+    receiptApi.save.mockReset().mockImplementation(async (receipt: string, content: string) => {
+      await noteDocumentHarness.save(receipt, content);
+      return { receipt };
+    });
     setConcurrentRoute = undefined;
   });
 
@@ -222,10 +242,26 @@ describe('NoteEditor', () => {
     expect(editorHarness.mounts).toBe(0);
   });
 
+  it('publishes stable document commands once across state-only rerenders', () => {
+    noteDocumentHarness.returnCopy = true;
+    const onSessionChange = vi.fn();
+    const view = render(<NoteEditor filePath="/notes/a.md" onSessionChange={onSessionChange} />);
+
+    expect(onSessionChange).toHaveBeenCalledTimes(1);
+    const commands = onSessionChange.mock.calls[0]?.[0];
+    expect(commands).toEqual({
+      flush: session.flush,
+      rename: session.rename,
+      delete: session.delete,
+    });
+
+    view.rerender(<NoteEditor filePath="/notes/a.md" onSessionChange={onSessionChange} />);
+    expect(onSessionChange).toHaveBeenCalledTimes(1);
+  });
+
   it('coalesces rapid rendered-view task toggles into one saved snapshot', async () => {
     noteDocumentHarness.useReal = true;
     noteDocumentHarness.read.mockResolvedValue('- [ ] first\n- [ ] second');
-    noteDocumentHarness.debounceMs = 400;
     const filePath = '/notes/tasks.md';
     renderEditor(filePath);
     const checkboxes = await screen.findAllByRole('checkbox');

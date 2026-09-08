@@ -10,7 +10,7 @@ import NoteNameDialog from './NoteNameDialog';
 import NotesList from './NotesList';
 import NotesSidebar from './NotesSidebar';
 import { useNotesWorkspace } from './use-notes-workspace';
-import type { NoteDocumentSession } from './use-note-document';
+import type { NoteDocumentCommands } from './use-note-document';
 
 type NameDialogState = { mode: 'create' } | { mode: 'rename'; note: NoteFile };
 type DeletingFolder = { path: string; name: string };
@@ -46,8 +46,9 @@ export default function NotesPanel() {
   const [deletingNote, setDeletingNote] = useState<NoteFile | null>(null);
   const [deletingFolder, setDeletingFolder] = useState<DeletingFolder | null>(null);
   const [documentActionError, setDocumentActionError] = useState<Error | null>(null);
+  const [navigationError, setNavigationError] = useState<Error | null>(null);
   const [documentActionPending, setDocumentActionPending] = useState(false);
-  const documentSessionRef = useRef<NoteDocumentSession | null>(null);
+  const documentSessionRef = useRef<NoteDocumentCommands | null>(null);
   const {
     notesDir,
     workspaceRevision,
@@ -60,6 +61,16 @@ export default function NotesPanel() {
     renameNote,
     refreshNotes,
   } = useNotesWorkspace();
+
+  const leaveActiveDocument = async (navigate: () => void) => {
+    setNavigationError(null);
+    try {
+      await documentSessionRef.current?.flush();
+      navigate();
+    } catch (error) {
+      setNavigationError(error instanceof Error ? error : new Error(String(error)));
+    }
+  };
 
   useEffect(() => {
     if (!notesDir) return;
@@ -121,25 +132,21 @@ export default function NotesPanel() {
       return;
     }
 
-    createNote.mutate(
-      { directory: selectedFolder ?? '', name },
-      {
-        onSuccess: (filePath) => {
-          setSelectedFilePath(filePath);
-          setNameDialog(null);
-        },
-      },
-    );
+    const filePath = await createNote.mutateAsync({ directory: selectedFolder ?? '', name });
+    setSelectedFilePath(filePath);
+    setNameDialog(null);
   };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {error && (
+      {(error || navigationError) && (
         <Alert
           variant="destructive"
           className="shrink-0 rounded-none border-x-0 border-t-0 px-4 py-2"
         >
-          <AlertDescription>{error.message}</AlertDescription>
+          <AlertDescription>
+            {navigationError ? `无法切换笔记：${navigationError.message}` : error!.message}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -147,14 +154,13 @@ export default function NotesPanel() {
         <NotesSidebar
           notes={notes}
           selectedFolder={selectedFolder}
-          onSelectFolder={(path) =>
-            void (async () => {
-              await documentSessionRef.current?.flush();
+          onSelectFolder={(path) => {
+            void leaveActiveDocument(() => {
               setSelectedFolder(path);
               writeSelectedFolder(notesDir, path);
               setSelectedFilePath(null);
-            })()
-          }
+            });
+          }}
           onDeleteFolder={(folder) => {
             deleteFolder.reset();
             setDeletingFolder(folder);
@@ -165,12 +171,11 @@ export default function NotesPanel() {
           loading={loading}
           selectedFolder={selectedFolder}
           selectedFilePath={selectedFilePath}
-          onSelectNote={(note) =>
-            void (async () => {
-              await documentSessionRef.current?.flush();
+          onSelectNote={(note) => {
+            void leaveActiveDocument(() => {
               setSelectedFilePath(note.relative_path);
-            })()
-          }
+            });
+          }}
           onCreateNote={() => {
             createNote.reset();
             setNameDialog({ mode: 'create' });
@@ -215,7 +220,7 @@ export default function NotesPanel() {
             : createNote.error
         }
         onOpenChange={(open) => !open && setNameDialog(null)}
-        onSubmit={(name) => void submitName(name).catch(() => undefined)}
+        onSubmit={submitName}
       />
 
       <ConfirmDeleteDialog

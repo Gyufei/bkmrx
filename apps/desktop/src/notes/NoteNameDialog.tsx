@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -20,7 +20,7 @@ interface NoteNameDialogProps {
   pending: boolean;
   error: Error | null;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (name: string) => void;
+  onSubmit: (name: string) => void | Promise<void>;
 }
 
 export default function NoteNameDialog({
@@ -33,21 +33,31 @@ export default function NoteNameDialog({
 }: NoteNameDialogProps) {
   const [fileName, setFileName] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
     setFileName(note?.title ?? '');
     setValidationError(null);
+    submittingRef.current = false;
   }, [note, open]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (pending || submittingRef.current) return;
     const name = fileName.trim();
     if (!name) {
       setValidationError('请输入文件名');
       return;
     }
     setValidationError(null);
-    onSubmit(name);
+    submittingRef.current = true;
+    try {
+      await onSubmit(name);
+    } catch {
+      // The caller exposes command failures through the error prop.
+    } finally {
+      submittingRef.current = false;
+    }
   };
 
   const displayedError = validationError ?? error?.message;
@@ -71,7 +81,13 @@ export default function NoteNameDialog({
                 setFileName(event.target.value);
                 setValidationError(null);
               }}
-              onKeyDown={(event) => event.key === 'Enter' && handleSubmit()}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.repeat || event.nativeEvent.isComposing) {
+                  return;
+                }
+                event.preventDefault();
+                void handleSubmit();
+              }}
               placeholder="输入文件名（无需 .md）"
               aria-invalid={Boolean(displayedError)}
               autoFocus
@@ -87,7 +103,12 @@ export default function NoteNameDialog({
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button variant="default" size="sm" disabled={pending} onClick={handleSubmit}>
+          <Button
+            variant="default"
+            size="sm"
+            disabled={pending}
+            onClick={() => void handleSubmit()}
+          >
             {pending && <Spinner data-icon="inline-start" />}
             确定
           </Button>

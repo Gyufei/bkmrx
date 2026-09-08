@@ -159,6 +159,25 @@ it('uses the same primary-tinted selection background as the folder column', asy
   expect(secondNote.classList.contains('bg-primary/15')).toBe(false);
 });
 
+it('keeps the active note selected and reports an error when navigation flush fails', async () => {
+  activeDocumentSession.flush.mockRejectedValueOnce(new Error('磁盘已满'));
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  const secondNote = screen.getByRole('button', { name: '第二篇笔记' });
+  fireEvent.click(firstNote);
+  await screen.findByTestId('note-editor');
+
+  fireEvent.click(secondNote);
+
+  expect(await screen.findByText('无法切换笔记：磁盘已满')).toBeTruthy();
+  expect(screen.getByTestId('note-editor').getAttribute('data-file-path')).toBe('first.md');
+  expect(activeDocumentSession.flush).toHaveBeenCalledOnce();
+});
+
 it('renames a note from its context menu using the file dialog', async () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
