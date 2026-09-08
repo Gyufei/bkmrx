@@ -100,6 +100,11 @@ export function useBookmarkBrowser() {
     },
     [startRandomDraw],
   );
+  const cancelSearch = useCallback(() => {
+    if (baseView === 'random' && isSearchMode) startRandomDraw();
+    setQuery('');
+    setSelectedTags([]);
+  }, [baseView, isSearchMode, startRandomDraw]);
   useEffect(() => {
     if (!randomView || !bookmarksQuery.isFetching) setRandomDrawing(false);
   }, [bookmarksQuery.isFetching, randomView]);
@@ -123,5 +128,6 @@ export function useBookmarkBrowser() {
     handleSearch,
     handleTagsChange,
     handleBaseViewChange,
+    cancelSearch,
   };
 }

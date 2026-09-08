@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Dice5, Search, SquareLibrary, Star, X } from 'lucide-react';
+import { Dice5, Eraser, Search, SquareLibrary, Star, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
@@ -76,36 +76,37 @@ export default function BookmarkSidebar({
 
   return (
     <div className="flex h-full flex-col">
-      {selectedTags.length > 0 && (
-        <div className="mb-3 flex justify-end px-1">
+      <div className="mb-3 flex items-center gap-1">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="筛选标签"
+            value={tagQuery}
+            onChange={(event) => setTagQuery(event.target.value)}
+            placeholder="筛选标签…"
+            className="h-9 pl-9 pr-8 text-xs"
+          />
+          {tagQuery && (
+            <button
+              type="button"
+              aria-label="清空标签搜索"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-accent"
+              onClick={() => setTagQuery('')}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+        {selectedTags.length > 0 && (
           <Button
-            variant="ghost"
-            className="h-auto p-0 text-xs text-muted-foreground"
+            variant="outline"
+            size="icon"
+            aria-label="清除已选标签"
+            title="清除已选标签"
             onClick={() => onTagsChange([])}
           >
-            清除
+            <Eraser />
           </Button>
-        </div>
-      )}
-
-      <div className="relative mb-3">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          aria-label="筛选标签"
-          value={tagQuery}
-          onChange={(event) => setTagQuery(event.target.value)}
-          placeholder="筛选标签…"
-          className="h-9 pl-9 pr-8 text-xs"
-        />
-        {tagQuery && (
-          <button
-            type="button"
-            aria-label="清空标签搜索"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-accent"
-            onClick={() => setTagQuery('')}
-          >
-            <X className="size-3.5" />
-          </button>
         )}
       </div>
 

@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/toast';
+import type { BookmarkBaseView } from '@/types';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 import AddBookmarkDialog from './AddBookmarkDialog';
 import BookmarkSidebar from './BookmarkSidebar';
@@ -12,6 +14,7 @@ import { useBookmarkNavigation } from './use-bookmark-navigation';
 
 export default function BookmarkView() {
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [searchResetKey, setSearchResetKey] = useState(0);
   const [resultListInteractionLocked, setResultListInteractionLocked] = useState(false);
   const [previewContainer, setPreviewContainer] = useState<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -21,6 +24,25 @@ export default function BookmarkView() {
     singleKeyLocked: showAddDialog || resultListInteractionLocked,
     searchInputRef,
   });
+  const handleBaseViewChange = (view: BookmarkBaseView) => {
+    if (browser.isSearchMode) {
+      const id = toast.add({
+        type: 'info',
+        title: '搜索状态无法切换',
+        description: '当前处于搜索状态，请先退出搜索，再切换全部/星标/随便看看',
+        actionProps: {
+          children: '取消搜索',
+          onClick: () => {
+            browser.cancelSearch();
+            setSearchResetKey((current) => current + 1);
+            toast.close(id);
+          },
+        },
+      });
+      return;
+    }
+    browser.handleBaseViewChange(view);
+  };
 
   return (
     <div ref={setPreviewContainer} className="relative flex min-h-0 w-full flex-1 overflow-hidden">
@@ -29,7 +51,7 @@ export default function BookmarkView() {
           selectedTags={browser.selectedTags}
           onTagsChange={browser.handleTagsChange}
           baseView={browser.baseView}
-          onBaseViewChange={browser.handleBaseViewChange}
+          onBaseViewChange={handleBaseViewChange}
           randomDrawing={browser.randomDrawing}
         />
       </CollapsibleSidebar>
@@ -37,6 +59,7 @@ export default function BookmarkView() {
         <header className="shrink-0 border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <SearchBar
+              key={searchResetKey}
               ref={searchInputRef}
               onSearch={browser.handleSearch}
               loading={browser.bookmarksQuery.isLoading}

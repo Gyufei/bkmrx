@@ -28,7 +28,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 vi.mock('@tauri-apps/plugin-shell', () => ({ open: openMock }));
 vi.mock('../lib/invoke', () => ({ invokeRecordBookmarkAccess: recordAccessMock }));
 vi.mock('@/components/ui/toast', () => ({
-  toast: { add: toastAddMock },
+  toast: { add: toastAddMock, close: vi.fn() },
 }));
 
 vi.mock('./SearchBar', async () => {
@@ -293,6 +293,44 @@ describe('BookmarkView infinite pagination', () => {
     fireEvent.click(screen.getByText('清空标签'));
     expect(await screen.findByText('星标模式')).toBeTruthy();
   });
+
+  it.each([
+    ['全部视图', true, false],
+    ['全部视图', false, true],
+    ['全部视图', true, true],
+    ['星标视图', true, false],
+    ['随便看看', false, true],
+    ['星标视图', true, true],
+    ['随便看看', true, true],
+  ])(
+    'offers to cancel search when clicking %s (query=%s, tags=%s)',
+    async (button, query, tags) => {
+      queryBookmarksMock.mockResolvedValue({ items: [], next_cursor: null });
+      renderView();
+      await screen.findByText('暂无书签');
+      if (query) fireEvent.click(screen.getByTestId('search-bar'));
+      if (tags) fireEvent.click(screen.getByTestId('tag-panel'));
+      await waitFor(() => expect(lastBookmarkRequest()).toMatchObject({ mode: 'search' }));
+      const input = screen.getByLabelText('搜索书签');
+      fireEvent.click(screen.getByText(button));
+      expect(toastAddMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'info',
+          title: '搜索状态无法切换',
+          description: '当前处于搜索状态，请先退出搜索，再切换全部/星标/随便看看',
+          actionProps: expect.objectContaining({ children: '取消搜索' }),
+        }),
+      );
+      expect(lastBookmarkRequest()).toMatchObject({ mode: 'search' });
+
+      act(() =>
+        toastAddMock.mock.calls[toastAddMock.mock.calls.length - 1][0].actionProps.onClick(),
+      );
+      await screen.findByText('暂无书签');
+      expect(lastBookmarkRequest()).toMatchObject({ mode: 'browse', starred: false });
+      expect(screen.getByLabelText('搜索书签')).not.toBe(input);
+    },
+  );
 
   it('draws random bookmarks after the dice delay and ignores clicks while drawing', async () => {
     queryBookmarksMock.mockImplementation(({ mode }: { mode: string }) =>
