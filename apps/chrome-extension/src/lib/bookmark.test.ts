@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { bookmarkPayload, formFromBookmark } from './bookmark'
+import type { BookmarkId } from './types'
 
 describe('bookmark form', () => {
   it('maps every editable field from an existing bookmark', () => {
     expect(formFromBookmark({
-      id: 42,
+      id: '018f0000-0000-7000-8000-00000000002a' as BookmarkId,
       url: 'https://example.com/',
       title: 'Saved title',
       description: '',

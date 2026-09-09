@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::{
     database::Database,
     error::{AppError, AppResult},
+    identity::{TodoId, TodoTagId},
     logging::observe_database,
 };
 
@@ -45,33 +46,33 @@ impl TodoStore {
             self.changed(self.repository.create(input))
         })
     }
-    pub fn update(&self, id: i64, input: UpdateTodo) -> AppResult<Todo> {
+    pub fn update(&self, id: TodoId, input: UpdateTodo) -> AppResult<Todo> {
         observe_database("todos", "update", || {
             self.changed(self.repository.update(id, input))
         })
     }
-    pub fn set_status(&self, id: i64, status: TodoStatus) -> AppResult<Todo> {
+    pub fn set_status(&self, id: TodoId, status: TodoStatus) -> AppResult<Todo> {
         observe_database("todos", "set_status", || {
             self.changed(self.repository.set_status(id, status))
         })
     }
-    pub fn delete(&self, id: i64) -> AppResult<()> {
+    pub fn delete(&self, id: TodoId) -> AppResult<()> {
         observe_database("todos", "delete", || {
             self.changed(self.repository.delete(id))
         })
     }
-    pub fn rename_tag(&self, id: i64, name: String) -> AppResult<TodoTag> {
+    pub fn rename_tag(&self, id: TodoTagId, name: String) -> AppResult<TodoTag> {
         observe_database("todos", "rename_tag", || {
             self.changed(self.repository.rename_tag(id, name))
         })
     }
-    pub fn delete_tag(&self, id: i64) -> AppResult<()> {
+    pub fn delete_tag(&self, id: TodoTagId) -> AppResult<()> {
         observe_database("todos", "delete_tag", || {
             self.changed(self.repository.delete_tag(id))
         })
     }
 
-    pub fn archive_delete_tag(&self, id: i64) -> AppResult<()> {
+    pub fn archive_delete_tag(&self, id: TodoTagId) -> AppResult<()> {
         observe_database("todos", "archive_delete_tag", || {
             self.changed(self.repository.archive_delete_tag(id))
         })
@@ -80,7 +81,7 @@ impl TodoStore {
     pub fn export_todos(
         &self,
         destination: impl AsRef<Path>,
-        tag_id: Option<i64>,
+        tag_id: Option<TodoTagId>,
     ) -> AppResult<PathBuf> {
         observe_database("todos", "export", || {
             let list = self.repository.query(&TodoQuery {

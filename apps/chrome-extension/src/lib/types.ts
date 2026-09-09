@@ -1,5 +1,8 @@
+declare const bookmarkIdBrand: unique symbol
+export type BookmarkId = string & { readonly [bookmarkIdBrand]: 'Bookmark' }
+
 export interface Bookmark {
-  readonly id: number
+  readonly id: BookmarkId
   readonly url: string
   readonly title: string
   readonly description: string

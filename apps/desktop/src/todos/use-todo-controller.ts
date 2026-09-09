@@ -4,6 +4,7 @@ import { toast } from '@/components/ui/toast';
 import { getErrorMessage } from '@/lib/error';
 import { useTauriEvent } from '@/lib/use-tauri-event';
 import type { CreateTodo, Todo, TodoStatus } from '@/types';
+import type { TodoId, TodoTagId } from '@/identity';
 import {
   createTodoApi,
   deleteTodoApi,
@@ -33,7 +34,7 @@ export const STATUS_TABS: Array<{ value: StatusFilter; label: string }> = [
 export function useTodoController() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<StatusFilter>('all');
-  const [tagId, setTagId] = useState<number | null>(null);
+  const [tagId, setTagId] = useState<TodoTagId | null>(null);
   const request = useMemo(
     () => ({ status: status === 'all' ? null : status, tag_id: tagId }),
     [status, tagId],
@@ -58,11 +59,11 @@ export function useTodoController() {
     onError: reportError,
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, input }: { id: number; input: CreateTodo }) => updateTodoApi(id, input),
+    mutationFn: ({ id, input }: { id: TodoId; input: CreateTodo }) => updateTodoApi(id, input),
     onError: reportError,
   });
   const statusMutation = useMutation({
-    mutationFn: ({ id, next }: { id: number; next: TodoStatus }) => setTodoStatusApi(id, next),
+    mutationFn: ({ id, next }: { id: TodoId; next: TodoStatus }) => setTodoStatusApi(id, next),
     onError: reportError,
   });
   const deleteMutation = useMutation({
@@ -70,7 +71,7 @@ export function useTodoController() {
     onError: reportError,
   });
   const renameMutation = useMutation({
-    mutationFn: ({ id, name }: { id: number; name: string }) => renameTodoTagApi(id, name),
+    mutationFn: ({ id, name }: { id: TodoTagId; name: string }) => renameTodoTagApi(id, name),
     onSuccess: (tag, variables) => {
       setTagId((current) => (current === variables.id ? tag.id : current));
     },

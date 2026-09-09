@@ -35,3 +35,27 @@ _Avoid_: scanned directory, notes root
 **Document Session**:
 The active note draft together with its load, autosave, retry, and transition coordination state.
 _Avoid_: editor state, note hook
+
+**Bookmark**:
+The single source of truth for a saved website, whether it is found through search or presented in Navigation.
+_Avoid_: navigation item, shortcut link
+
+**Navigation Category**:
+A user-managed, ordered, single-level group that presents Bookmarks for frequent access. A Bookmark may belong to multiple Navigation Categories.
+_Avoid_: folder, tag
+
+**Navigation Placement**:
+The membership of a Bookmark in a Navigation Category, ordered by when that membership was established. Removing a Navigation Placement does not itself remove the Bookmark.
+_Avoid_: navigation bookmark, category bookmark
+
+**Bookmark Dataset**:
+The portable snapshot of Bookmarks, Tags, Navigation Categories, and Navigation Placements. It excludes todos, RSS data, notes, and Application Settings.
+_Avoid_: database backup, application backup
+
+**Bookmark Initialization**:
+Populating an empty bookmark domain from a Bookmark Dataset. It is not a merge and is unavailable when Bookmarks or Navigation Categories already exist.
+_Avoid_: bookmark import, restore merge
+
+**Entity ID**:
+The stable UUID v7 identity used by desktop domain entities and every relationship between them. Database row numbers are internal implementation details and never identify domain entities.
+_Avoid_: database ID, numeric ID, row ID

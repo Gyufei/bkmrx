@@ -4,6 +4,7 @@ import { open as openExternal } from '@tauri-apps/plugin-shell';
 import type { Bookmark } from '@/types';
 import { toast } from '@/components/ui/toast';
 import { invokeRecordBookmarkAccess } from '@/lib/invoke';
+import type { BookmarkId } from '@/identity';
 
 interface Options {
   bookmarks: Bookmark[];
@@ -13,8 +14,8 @@ interface Options {
 
 export function useBookmarkNavigation({ bookmarks, singleKeyLocked, searchInputRef }: Options) {
   const [previewBookmark, setPreviewBookmark] = useState<Bookmark | null>(null);
-  const [activeBookmarkId, setActiveBookmarkId] = useState<number | null>(null);
-  const bookmarkElementsRef = useRef(new Map<number, HTMLElement>());
+  const [activeBookmarkId, setActiveBookmarkId] = useState<BookmarkId | null>(null);
+  const bookmarkElementsRef = useRef(new Map<BookmarkId, HTMLElement>());
   const previewTriggerRef = useRef<HTMLElement | null>(null);
   const activeBookmarkIndex = bookmarks.findIndex((bookmark) => bookmark.id === activeBookmarkId);
   const activeBookmark = activeBookmarkIndex >= 0 ? bookmarks[activeBookmarkIndex] : null;
@@ -73,7 +74,7 @@ export function useBookmarkNavigation({ bookmarks, singleKeyLocked, searchInputR
     if (previewTriggerRef.current?.isConnected) previewTriggerRef.current.focus();
     previewTriggerRef.current = null;
   }, []);
-  const registerBookmarkElement = useCallback((id: number, element: HTMLElement | null) => {
+  const registerBookmarkElement = useCallback((id: BookmarkId, element: HTMLElement | null) => {
     if (element) bookmarkElementsRef.current.set(id, element);
     else bookmarkElementsRef.current.delete(id);
   }, []);

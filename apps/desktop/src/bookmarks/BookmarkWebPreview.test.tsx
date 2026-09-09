@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import type { Bookmark, BookmarkPreview } from '@/types';
+import { bookmarkId } from '@/test-utils/identity';
 import BookmarkWebPreview from './BookmarkWebPreview';
 
 const mocks = vi.hoisted(() => ({
@@ -15,7 +16,7 @@ vi.mock('@tauri-apps/plugin-shell', () => ({ open: mocks.open }));
 vi.mock('@/lib/invoke', () => ({ invokePrepareBookmarkPreview: mocks.prepare }));
 
 const bookmark: Bookmark = {
-  id: 1,
+  id: bookmarkId(1),
   url: 'https://example.com/article',
   title: 'Example article',
   description: '',
@@ -204,7 +205,7 @@ it('ignores a stale preview response after the bookmark changes', async () => {
     )
     .mockResolvedValueOnce(webPreview);
   const { rerender, container } = renderPreview();
-  const second = { ...bookmark, id: 2, title: 'Second article' };
+  const second = { ...bookmark, id: bookmarkId(2), title: 'Second article' };
 
   rerender(
     <BookmarkWebPreview bookmark={second} open onOpenChange={vi.fn()} container={container} />,

@@ -6,6 +6,7 @@ use std::{
 use crate::{
     database::Database,
     error::{AppError, AppResult},
+    identity::BookmarkId,
     logging::observe_database,
 };
 
@@ -64,7 +65,7 @@ impl BookmarkStore {
         })
     }
 
-    pub fn get(&self, id: i64) -> AppResult<Bookmark> {
+    pub fn get(&self, id: BookmarkId) -> AppResult<Bookmark> {
         observe_database("bookmarks", "get_by_id", || {
             self.repository
                 .get_by_id(id)?
@@ -92,7 +93,7 @@ impl BookmarkStore {
         })
     }
 
-    pub fn update(&self, id: i64, input: UpdateBookmark) -> AppResult<Bookmark> {
+    pub fn update(&self, id: BookmarkId, input: UpdateBookmark) -> AppResult<Bookmark> {
         observe_database("bookmarks", "update", || {
             let bookmark = self.repository.update(id, input)?;
             self.events.changed();
@@ -100,7 +101,7 @@ impl BookmarkStore {
         })
     }
 
-    pub fn delete(&self, id: i64) -> AppResult<()> {
+    pub fn delete(&self, id: BookmarkId) -> AppResult<()> {
         observe_database("bookmarks", "delete", || {
             self.repository.delete(id)?;
             self.events.changed();
@@ -108,7 +109,7 @@ impl BookmarkStore {
         })
     }
 
-    pub fn delete_many(&self, ids: &[i64]) -> AppResult<u64> {
+    pub fn delete_many(&self, ids: &[BookmarkId]) -> AppResult<u64> {
         observe_database("bookmarks", "delete_many", || {
             let deleted = self.repository.delete_many(ids)?;
             if deleted > 0 {
@@ -118,7 +119,7 @@ impl BookmarkStore {
         })
     }
 
-    pub fn record_access(&self, id: i64) -> AppResult<Bookmark> {
+    pub fn record_access(&self, id: BookmarkId) -> AppResult<Bookmark> {
         observe_database("bookmarks", "record_access", || {
             let bookmark = self.repository.record_access(id)?;
             self.events.accessed(&bookmark);
@@ -126,7 +127,7 @@ impl BookmarkStore {
         })
     }
 
-    pub fn set_starred(&self, id: i64, starred: bool) -> AppResult<Bookmark> {
+    pub fn set_starred(&self, id: BookmarkId, starred: bool) -> AppResult<Bookmark> {
         observe_database("bookmarks", "set_starred", || {
             let bookmark = self.repository.set_starred(id, starred)?;
             self.events.changed();

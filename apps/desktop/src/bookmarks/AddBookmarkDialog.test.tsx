@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AddBookmarkDialog from './AddBookmarkDialog';
 import { addBookmarkApi } from './bookmarks.api';
+import { bookmarkId } from '@/test-utils/identity';
 
 vi.mock('./bookmarks.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./bookmarks.api')>();
@@ -49,7 +50,7 @@ afterEach(cleanup);
 describe('AddBookmarkDialog', () => {
   it('keeps the create mutation in the dialog container', async () => {
     vi.mocked(addBookmarkApi).mockResolvedValue({
-      id: 1,
+      id: bookmarkId(1),
       url: 'https://example.com',
       title: '',
       tags: [],
@@ -81,7 +82,7 @@ describe('AddBookmarkDialog', () => {
 
   it('prefills supplied values and reports the created bookmark', async () => {
     const created = {
-      id: 1,
+      id: bookmarkId(1),
       url: 'https://example.com/rss',
       title: 'RSS title',
       tags: [],

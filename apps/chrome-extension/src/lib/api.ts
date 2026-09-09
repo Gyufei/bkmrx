@@ -1,5 +1,5 @@
 import { API_URL } from './config'
-import type { Bookmark, BookmarkPayload, Tag, Translation } from './types'
+import type { Bookmark, BookmarkId, BookmarkPayload, Tag, Translation } from './types'
 
 interface ErrorBody {
   readonly error?: {
@@ -98,7 +98,7 @@ export async function createBookmark(payload: BookmarkPayload): Promise<Bookmark
 }
 
 export async function updateBookmark(
-  id: number,
+  id: BookmarkId,
   payload: BookmarkPayload,
 ): Promise<Bookmark> {
   const bookmark = await request<Bookmark>(

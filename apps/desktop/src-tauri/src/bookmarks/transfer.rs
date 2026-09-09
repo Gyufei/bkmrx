@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 
 use crate::database::Database;
 use crate::error::{AppError, AppResult};
+use crate::identity::BookmarkId;
 
 use super::repository::{persist_searchable_content, remove_unused_tags};
 use super::{BookmarkExportV1, BookmarkTransferRecord, ImportPreview};
@@ -53,7 +54,7 @@ pub(crate) fn apply_import(
         for record in &validated.records {
             let existing = transaction
                 .query_row(
-                    "SELECT id, title, description, access_count,
+                    "SELECT uuid, title, description, access_count,
                         created_at, updated_at, accessed_at, starred_at
                  FROM bookmarks WHERE url = ?1",
                     [&record.url],
@@ -74,12 +75,14 @@ pub(crate) fn apply_import(
 
             match existing {
                 None => {
+                    let id = BookmarkId::new();
                     transaction.execute(
                         "INSERT INTO bookmarks (
-                            url, title, description, access_count,
+                            uuid, url, title, description, access_count,
                             created_at, updated_at, accessed_at, starred_at
-                         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                         params![
+                            id,
                             record.url,
                             record.title,
                             record.description,
@@ -90,7 +93,6 @@ pub(crate) fn apply_import(
                             record.starred_at,
                         ],
                     )?;
-                    let id = transaction.last_insert_rowid();
                     persist_searchable_content(
                         transaction,
                         id,
@@ -128,7 +130,7 @@ pub(crate) fn apply_import(
                              updated_at = ?5,
                              accessed_at = ?6,
                              starred_at = ?7
-                         WHERE id = ?8",
+                         WHERE uuid = ?8",
                         params![
                             title,
                             description,
@@ -161,14 +163,14 @@ pub(crate) fn apply_import(
 fn snapshot(database: &Database) -> AppResult<BookmarkExportV1> {
     database.snapshot(|transaction| {
         let mut statement = transaction.prepare(
-            "SELECT id, url, title, description, access_count,
+            "SELECT uuid, url, title, description, access_count,
                     created_at, updated_at, accessed_at, starred_at
              FROM bookmarks
              ORDER BY url",
         )?;
         let rows = statement.query_map([], |row| {
             Ok((
-                row.get::<_, i64>(0)?,
+                row.get::<_, BookmarkId>(0)?,
                 BookmarkTransferRecord {
                     url: row.get(1)?,
                     title: row.get(2)?,
@@ -200,11 +202,11 @@ fn snapshot(database: &Database) -> AppResult<BookmarkExportV1> {
         let mut tag_statement = transaction.prepare(
             "SELECT bt.bookmark_id, t.name
              FROM bookmark_tags bt
-             JOIN tags t ON t.id = bt.tag_id
+             JOIN tags t ON t.uuid = bt.tag_id
              ORDER BY bt.bookmark_id, t.name",
         )?;
         let tags = tag_statement.query_map([], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            Ok((row.get::<_, BookmarkId>(0)?, row.get::<_, String>(1)?))
         })?;
         for tag in tags {
             let (bookmark_id, name) = tag?;
@@ -346,7 +348,7 @@ struct ValidatedRecord {
 }
 
 struct ExistingBookmark {
-    id: i64,
+    id: BookmarkId,
     title: String,
     description: String,
     access_count: i64,

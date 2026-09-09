@@ -7,12 +7,13 @@ use bkmrx_lib::{
         UpdateBookmark,
     },
     database::Database,
+    identity::BookmarkId,
 };
 
 struct Fixture {
     database: Arc<Database>,
     store: BookmarkStore,
-    ids: Vec<i64>,
+    ids: Vec<BookmarkId>,
 }
 
 fn fixture() -> Fixture {
@@ -79,7 +80,7 @@ fn fixture() -> Fixture {
     for (position, id) in ids.iter().enumerate() {
         database
             .execute_batch_for_test(&format!(
-                "UPDATE bookmarks SET updated_at = {}, starred_at = {} WHERE id = {}",
+                "UPDATE bookmarks SET updated_at = {}, starred_at = {} WHERE uuid = '{}'",
                 1_700_000_000 + position,
                 1_700_000_000 + position,
                 id
@@ -94,7 +95,7 @@ fn fixture() -> Fixture {
     }
 }
 
-fn page_ids(page: &BookmarkPage) -> Vec<i64> {
+fn page_ids(page: &BookmarkPage) -> Vec<BookmarkId> {
     page.items.iter().map(|bookmark| bookmark.id).collect()
 }
 
@@ -137,8 +138,8 @@ fn empty_query_without_tags_only_pages_starred_by_starred_at_then_id() {
         .database
         .execute_batch_for_test(&format!(
             "UPDATE bookmarks SET starred_at = NULL;
-             UPDATE bookmarks SET starred_at = 100 WHERE id IN ({}, {});
-             UPDATE bookmarks SET starred_at = 200 WHERE id = {};",
+             UPDATE bookmarks SET starred_at = 100 WHERE uuid IN ('{}', '{}');
+             UPDATE bookmarks SET starred_at = 200 WHERE uuid = '{}';",
             fixture.ids[1], fixture.ids[2], fixture.ids[4]
         ))
         .unwrap();
@@ -384,7 +385,10 @@ fn service_maps_not_found_and_notifies_only_successful_mutations() {
         accessed: Arc::clone(&accesses),
     }));
 
-    assert_eq!(service.get(99).unwrap_err().code(), "bookmark_not_found");
+    assert_eq!(
+        service.get(BookmarkId::new()).unwrap_err().code(),
+        "bookmark_not_found"
+    );
     assert_eq!(notifications.load(Ordering::SeqCst), 0);
 
     let created = service

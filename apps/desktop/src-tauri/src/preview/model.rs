@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+use crate::identity::BookmarkId;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PrepareBookmarkPreviewRequest {
-    pub bookmark_id: i64,
+    pub bookmark_id: BookmarkId,
     pub url: String,
 }
 

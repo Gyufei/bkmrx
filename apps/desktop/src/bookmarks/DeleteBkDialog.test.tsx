@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { useState } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Bookmark } from '@/types';
+import { bookmarkId } from '@/test-utils/identity';
 import DeleteBkDialog from './DeleteBkDialog';
 
 const deleteBookmarksApi = vi.hoisted(() => vi.fn());
@@ -24,7 +25,7 @@ it('only closes a bookmark deletion after it succeeds', async () => {
     }),
   );
   const target: Bookmark = {
-    id: 7,
+    id: bookmarkId(7),
     url: 'https://example.com',
     title: '示例书签',
     description: '',
@@ -45,7 +46,9 @@ it('only closes a bookmark deletion after it succeeds', async () => {
   );
 
   fireEvent.click(screen.getByRole('button', { name: '删除' }));
-  await waitFor(() => expect(deleteBookmarksApi.mock.calls[0]?.[0]).toEqual([7]));
+  await waitFor(() =>
+    expect(deleteBookmarksApi.mock.calls[0]?.[0]).toEqual([bookmarkId(7)]),
+  );
   expect(setDeleteTarget).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: '删除' }).getAttribute('disabled')).not.toBeNull();
 
@@ -56,7 +59,7 @@ it('only closes a bookmark deletion after it succeeds', async () => {
 it('clears a previous deletion error when a target is opened again', async () => {
   deleteBookmarksApi.mockRejectedValueOnce(new Error('删除服务不可用'));
   const target: Bookmark = {
-    id: 7,
+    id: bookmarkId(7),
     url: 'https://example.com',
     title: '示例书签',
     description: '',

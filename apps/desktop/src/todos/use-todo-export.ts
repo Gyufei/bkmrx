@@ -7,6 +7,7 @@ import {
   sanitizeFilenameSegment,
 } from '@/lib/path';
 import type { TodoTag } from '@/types';
+import type { TodoTagId } from '@/identity';
 import { exportTodosApi } from './todos.api';
 import { getSettingsApi, SettingsQueryApiKey } from '@/settings/settings.api';
 
@@ -24,7 +25,7 @@ export function useTodoExport(reportError: (error: unknown) => void) {
     queryFn: getSettingsApi,
   });
   const mutation = useMutation({
-    mutationFn: ({ path, tagId }: { path: string; tagId: number }) => exportTodosApi(path, tagId),
+    mutationFn: ({ path, tagId }: { path: string; tagId: TodoTagId }) => exportTodosApi(path, tagId),
     onError: reportError,
   });
 

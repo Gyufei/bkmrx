@@ -1,12 +1,13 @@
 use bkmrx_lib::bookmarks::{BookmarkStore, CreateBookmark, TagQueryRequest, UpdateBookmark};
 use bkmrx_lib::database::Database;
+use bkmrx_lib::identity::BookmarkId;
 use std::sync::Arc;
 
 #[test]
 fn creates_latest_schema_and_enables_fts5_trigram() {
     let db = Database::open_in_memory().unwrap();
 
-    assert_eq!(db.schema_version().unwrap(), 1);
+    assert_eq!(db.schema_version().unwrap(), 3);
     for table in [
         "bookmarks",
         "tags",
@@ -24,7 +25,14 @@ fn creates_latest_schema_and_enables_fts5_trigram() {
         "idx_bookmark_tags_tag_bookmark",
         "idx_bookmarks_starred",
         "idx_bookmarks_updated",
+        "idx_bookmarks_starred_uuid",
+        "idx_bookmarks_updated_uuid",
+        "idx_bookmarks_uuid",
+        "idx_tags_uuid",
         "idx_todos_status_sort",
+        "idx_todos_status_uuid_sort",
+        "idx_todos_uuid",
+        "idx_todo_tags_uuid",
         "idx_todo_tag_relations_tag_todo",
         "idx_rss_entries_feed_sort",
         "idx_rss_entries_unread_sort",
@@ -41,12 +49,12 @@ fn creates_latest_schema_and_enables_fts5_trigram() {
     assert_eq!(
         db.query_i64_for_test("SELECT count(*) FROM pragma_table_info('bookmarks')")
             .unwrap(),
-        9
+        10
     );
     assert_eq!(
         db.query_i64_for_test("SELECT count(*) FROM pragma_table_info('todos')")
             .unwrap(),
-        8
+        9
     );
     assert_eq!(
         db.query_i64_for_test("SELECT count(*) FROM pragma_foreign_key_list('bookmark_tags')")
@@ -79,21 +87,24 @@ fn reopens_existing_database_without_changing_data() {
     let directory = tempfile::TempDir::new().unwrap();
     let path = directory.path().join("bookmarks.db");
     let database = Database::open(&path).unwrap();
+    let id = BookmarkId::new();
     database
-        .execute_batch_for_test(
+        .execute_batch_for_test(&format!(
             "INSERT INTO bookmarks
-             (id, url, title, description, access_count, created_at, updated_at)
-             VALUES (7, 'https://example.com', 'Existing', '', 0, 1, 1);",
-        )
+                 (id, uuid, url, title, description, access_count, created_at, updated_at)
+                 VALUES (7, '{id}', 'https://example.com', 'Existing', '', 0, 1, 1);"
+        ))
         .unwrap();
     drop(database);
 
     let database = Database::open(&path).unwrap();
 
-    assert_eq!(database.schema_version().unwrap(), 1);
+    assert_eq!(database.schema_version().unwrap(), 3);
     assert_eq!(
         database
-            .query_i64_for_test("SELECT count(*) FROM bookmarks WHERE id = 7")
+            .query_i64_for_test(&format!(
+                "SELECT count(*) FROM bookmarks WHERE uuid = '{id}'"
+            ))
             .unwrap(),
         1
     );
@@ -101,7 +112,7 @@ fn reopens_existing_database_without_changing_data() {
 
 #[test]
 fn rejects_every_newer_schema_version() {
-    for version in [2, 3, 4] {
+    for version in [4, 5, 6] {
         let directory = tempfile::TempDir::new().unwrap();
         let path = directory.path().join("bookmarks.db");
         let connection = rusqlite::Connection::open(&path).unwrap();
@@ -115,9 +126,42 @@ fn rejects_every_newer_schema_version() {
         assert_eq!(error.code(), "unsupported_schema_version");
         assert_eq!(
             error.details,
-            Some(serde_json::json!({ "found": version, "supported": 1 }))
+            Some(serde_json::json!({ "found": version, "supported": 3 }))
         );
     }
+}
+
+#[test]
+fn rejects_an_uncut_legacy_database_without_mutating_it() {
+    let directory = tempfile::TempDir::new().unwrap();
+    let path = directory.path().join("bookmarks.db");
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection
+        .execute("CREATE TABLE legacy_marker(value TEXT NOT NULL)", [])
+        .unwrap();
+    connection
+        .execute("INSERT INTO legacy_marker(value) VALUES ('preserved')", [])
+        .unwrap();
+    connection.pragma_update(None, "user_version", 1).unwrap();
+    drop(connection);
+
+    let error = Database::open(&path).unwrap_err();
+
+    assert_eq!(error.code(), "unsupported_schema_version");
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    assert_eq!(
+        connection
+            .query_row("SELECT value FROM legacy_marker", [], |row| row
+                .get::<_, String>(0))
+            .unwrap(),
+        "preserved"
+    );
+    assert_eq!(
+        connection
+            .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
 }
 
 #[test]
@@ -217,7 +261,7 @@ fn repository_sets_and_clears_starred_at_without_changing_updated_at() {
 fn repository_set_starred_returns_not_found_for_unknown_id() {
     let (_, store) = store();
 
-    let error = store.set_starred(99, true).unwrap_err();
+    let error = store.set_starred(BookmarkId::new(), true).unwrap_err();
 
     assert_eq!(error.code(), "bookmark_not_found");
 }

@@ -3,10 +3,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Todo } from '@/types';
+import { todoId, todoTagId } from '@/test-utils/identity';
 import TodoListItem from './TodoListItem';
 
 const todo: Todo = {
-  id: 1,
+  id: todoId(1),
   title: '写测试',
   description: '',
   status: 'in_progress',
@@ -25,7 +26,7 @@ describe('TodoListItem', () => {
     render(
       <TodoListItem
         todo={todo}
-        tags={[{ id: 4, name: '工作', count: 1 }]}
+        tags={[{ id: todoTagId(4), name: '工作', count: 1 }]}
         statusPending={false}
         deletePending={false}
         onEdit={vi.fn()}
@@ -37,7 +38,7 @@ describe('TodoListItem', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '标记为已完成' }));
-    expect(onSetStatus).toHaveBeenCalledWith(1, 'completed');
+    expect(onSetStatus).toHaveBeenCalledWith(todo.id, 'completed');
   });
 
   it('exposes tags as keyboard-focusable filter buttons', () => {
@@ -45,7 +46,7 @@ describe('TodoListItem', () => {
     render(
       <TodoListItem
         todo={todo}
-        tags={[{ id: 4, name: '工作', count: 1 }]}
+        tags={[{ id: todoTagId(4), name: '工作', count: 1 }]}
         statusPending={false}
         deletePending={false}
         onEdit={vi.fn()}
@@ -61,7 +62,7 @@ describe('TodoListItem', () => {
     expect(document.activeElement).toBe(tagButton);
 
     fireEvent.click(tagButton);
-    expect(onSelectTag).toHaveBeenCalledWith(4);
+    expect(onSelectTag).toHaveBeenCalledWith(todoTagId(4));
   });
 
   it('keeps suspended status changes in the context menu', async () => {
@@ -84,7 +85,7 @@ describe('TodoListItem', () => {
     fireEvent.contextMenu(screen.getByText('写测试'));
     fireEvent.click(await screen.findByText('取消挂起'));
 
-    await waitFor(() => expect(onSetStatus).toHaveBeenCalledWith(1, 'in_progress'));
+    await waitFor(() => expect(onSetStatus).toHaveBeenCalledWith(todo.id, 'in_progress'));
   });
 
   it('requires confirmation before deleting a todo', async () => {
@@ -119,6 +120,6 @@ describe('TodoListItem', () => {
     expect(onPrepareDelete).toHaveBeenCalledTimes(2);
     fireEvent.click(screen.getByRole('button', { name: '删除' }));
     await waitFor(() => expect(onDelete).toHaveBeenCalledOnce());
-    expect(onDelete).toHaveBeenCalledWith(1);
+    expect(onDelete).toHaveBeenCalledWith(todo.id);
   });
 });

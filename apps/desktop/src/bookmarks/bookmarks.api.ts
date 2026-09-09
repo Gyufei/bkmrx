@@ -16,6 +16,7 @@ import type {
   UpdateBookmark,
 } from '../types';
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
+import type { BookmarkId } from '../identity';
 
 export const BkQueryApiKey = {
   BOOKMARKS: 'bookmarks',
@@ -98,7 +99,7 @@ export function updateBookmarkAccessQueries(queryClient: QueryClient, updated: B
   );
 }
 
-export function removeRandomBookmarksFromQuery(queryClient: QueryClient, ids: number[]) {
+export function removeRandomBookmarksFromQuery(queryClient: QueryClient, ids: BookmarkId[]) {
   const deletedIds = new Set(ids);
   queryClient.setQueriesData<InfiniteData<BookmarkPage>>(
     { predicate: ({ queryKey }) => isRandomBookmarkQuery(queryKey) },
@@ -131,7 +132,7 @@ export function addBookmarkApi(input: CreateBookmark) {
   return invokeCreateBookmark(input);
 }
 
-export function deleteBookmarksApi(ids: number[]) {
+export function deleteBookmarksApi(ids: BookmarkId[]) {
   return invokeDeleteBookmarks(ids);
 }
 
@@ -139,10 +140,10 @@ export function checkBookmarkApi(url: string) {
   return invokeGetBookmarkByUrl(url);
 }
 
-export function updateBookmarkApi({ id, input }: { id: number; input: UpdateBookmark }) {
+export function updateBookmarkApi({ id, input }: { id: BookmarkId; input: UpdateBookmark }) {
   return invokeUpdateBookmark(id, input);
 }
 
-export function setBookmarkStarredApi({ id, starred }: { id: number; starred: boolean }) {
+export function setBookmarkStarredApi({ id, starred }: { id: BookmarkId; starred: boolean }) {
   return invokeSetBookmarkStarred(id, starred);
 }

@@ -63,7 +63,7 @@ async fn health_and_crud_routes_use_canonical_contracts() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(created["url"], "https://example.com");
     assert_eq!(created["access_count"], 0);
-    let id = created["id"].as_i64().unwrap();
+    let id = created["id"].as_str().unwrap().to_owned();
 
     let conflict = app
         .clone()
@@ -179,7 +179,7 @@ async fn update_uses_path_id_and_rejects_a_url_owned_by_another_bookmark() {
         .unwrap();
     let (status, updated) = json_response(updated).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(updated["id"], first.id);
+    assert_eq!(updated["id"], first.id.to_string());
     assert_eq!(updated["url"], "https://updated.example");
 
     let conflict = app

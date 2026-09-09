@@ -19,7 +19,8 @@ serde_json = "1"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
 axum = "0.7"
 notify = "8.2.0"
-rusqlite = { version = "0.35", features = ["bundled"] }
+rusqlite = { version = "0.35", features = ["backup", "bundled"] }
+uuid = { version = "1", features = ["serde", "v7"] }
 sha2 = "0.10"
 base64 = "0.22"
 thiserror = "2"

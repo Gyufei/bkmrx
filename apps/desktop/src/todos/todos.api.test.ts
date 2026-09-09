@@ -1,12 +1,14 @@
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
 import { invalidateTodoQueries, TODO_TAGS_QUERY_KEY, todoQueryKey } from './todos.api';
+import { todoTagId } from '@/test-utils/identity';
 
 describe('todo query keys', () => {
   it('keeps tag and status filters in the cache key', () => {
-    expect(todoQueryKey({ status: 'completed', tag_id: 7 })).toEqual([
+    const tagId = todoTagId(7);
+    expect(todoQueryKey({ status: 'completed', tag_id: tagId })).toEqual([
       'todos',
-      { status: 'completed', tag_id: 7 },
+      { status: 'completed', tag_id: tagId },
     ]);
   });
 

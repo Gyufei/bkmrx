@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
+import type { BookmarkId } from '@/identity';
 
 interface Props {
   bookmarks: Bookmark[];
@@ -29,13 +30,13 @@ interface Props {
   onRetryNextPage: () => void;
   starredView: boolean;
   emptyMessage: string;
-  starPendingId: number | null;
+  starPendingId: BookmarkId | null;
   onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
   onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
   onOpenBookmark: (bookmark: Bookmark) => void;
-  activeBookmarkId: number | null;
-  onActiveBookmarkChange: (id: number) => void;
-  onBookmarkElementChange: (id: number, element: HTMLElement | null) => void;
+  activeBookmarkId: BookmarkId | null;
+  onActiveBookmarkChange: (id: BookmarkId) => void;
+  onBookmarkElementChange: (id: BookmarkId, element: HTMLElement | null) => void;
   onInteractionLockChange: (locked: boolean) => void;
 }
 
@@ -232,8 +233,8 @@ function BookmarkRow({
   onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
   onOpenBookmark: (bookmark: Bookmark) => void;
   active: boolean;
-  onActiveBookmarkChange: (id: number) => void;
-  onElementChange: (id: number, element: HTMLElement | null) => void;
+  onActiveBookmarkChange: (id: BookmarkId) => void;
+  onElementChange: (id: BookmarkId, element: HTMLElement | null) => void;
 }) {
   const handleClickStar = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();

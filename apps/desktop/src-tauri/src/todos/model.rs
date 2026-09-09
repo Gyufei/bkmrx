@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::identity::{TodoId, TodoTagId};
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TodoStatus {
@@ -32,7 +34,7 @@ impl TodoStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Todo {
-    pub id: i64,
+    pub id: TodoId,
     pub title: String,
     pub description: String,
     pub status: TodoStatus,
@@ -45,7 +47,7 @@ pub struct Todo {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TodoTag {
-    pub id: i64,
+    pub id: TodoTagId,
     pub name: String,
     pub count: i64,
 }
@@ -53,7 +55,7 @@ pub struct TodoTag {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TodoQuery {
     pub status: Option<TodoStatus>,
-    pub tag_id: Option<i64>,
+    pub tag_id: Option<TodoTagId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

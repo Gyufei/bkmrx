@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { API_URL } from './config'
 import { checkHealth, createBookmark, findBookmarkByUrl, getTags, parseApiResponse, translateDescription, updateBookmark } from './api'
+import type { BookmarkId } from './types'
 
+const bookmarkId = '018f0000-0000-7000-8000-00000000002a' as BookmarkId
 const savedBookmark = {
-  id: 42,
+  id: bookmarkId,
   url: 'https://example.com/',
   title: 'Saved title',
   description: 'Saved description',
@@ -43,9 +45,9 @@ describe('API client', () => {
     const payload = { url: savedBookmark.url, title: savedBookmark.title, description: '', tags: ['saved-tag'] }
 
     await expect(createBookmark(payload)).resolves.toEqual(savedBookmark)
-    await expect(updateBookmark(42, payload)).resolves.toEqual(savedBookmark)
+    await expect(updateBookmark(bookmarkId, payload)).resolves.toEqual(savedBookmark)
     expect(fetchMock).toHaveBeenNthCalledWith(1, `${API_URL}/api/bookmarks`, expect.objectContaining({ method: 'POST' }))
-    expect(fetchMock).toHaveBeenNthCalledWith(2, `${API_URL}/api/bookmarks/42`, expect.objectContaining({ method: 'PATCH' }))
+    expect(fetchMock).toHaveBeenNthCalledWith(2, `${API_URL}/api/bookmarks/${bookmarkId}`, expect.objectContaining({ method: 'PATCH' }))
   })
 
   it('returns tag suggestions', async () => {

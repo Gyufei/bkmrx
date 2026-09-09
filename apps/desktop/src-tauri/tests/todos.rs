@@ -21,7 +21,7 @@ fn mutations_notify_once_after_commit_and_reads_and_exports_do_not_notify() {
     let tag = store.tags().unwrap()[0].id;
     assert_eq!(notifications.load(Ordering::SeqCst), 1);
     assert!(store.archive_delete_tag(tag).is_err());
-    assert!(store.delete(-1).is_err());
+    assert!(store.delete(TodoId::new()).is_err());
     assert_eq!(notifications.load(Ordering::SeqCst), 1);
     store
         .update(
@@ -116,6 +116,7 @@ fn failed_result_hydration_rolls_back_the_mutation_and_emits_no_event() {
 
 use bkmrx_lib::{
     database::Database,
+    identity::{TodoId, TodoTagId},
     todos::{CreateTodo, TodoQuery, TodoStatus, TodoStore, UpdateTodo},
 };
 
@@ -123,7 +124,7 @@ fn store() -> TodoStore {
     TodoStore::new(Arc::new(Database::open_in_memory().unwrap()))
 }
 
-fn create(store: &TodoStore, title: &str, tags: &[&str]) -> i64 {
+fn create(store: &TodoStore, title: &str, tags: &[&str]) -> TodoId {
     store
         .create(CreateTodo {
             title: title.into(),
@@ -264,7 +265,7 @@ fn archive_delete_is_rejected_while_a_todo_is_in_progress() {
 #[test]
 fn archive_delete_returns_not_found_for_missing_tag() {
     let store = store();
-    let error = store.archive_delete_tag(42).unwrap_err();
+    let error = store.archive_delete_tag(TodoTagId::new()).unwrap_err();
     assert_eq!(error.code(), "todo_tag_not_found");
 }
 
@@ -363,7 +364,7 @@ fn export_omits_the_date_when_completed_at_is_missing() {
     store.set_status(id, TodoStatus::Completed).unwrap();
     database
         .execute_batch_for_test(&format!(
-            "UPDATE todos SET completed_at = NULL WHERE id = {id}"
+            "UPDATE todos SET completed_at = NULL WHERE uuid = '{id}'"
         ))
         .unwrap();
     let tag_id = work_tag_id(&store);
@@ -451,7 +452,7 @@ fn export_leaves_no_temp_file_when_write_fails() {
     std::fs::remove_dir_all(&directory).ok();
 }
 
-fn work_tag_id(store: &TodoStore) -> i64 {
+fn work_tag_id(store: &TodoStore) -> TodoTagId {
     store
         .tags()
         .unwrap()
@@ -469,7 +470,7 @@ fn export_directory() -> std::path::PathBuf {
     ))
 }
 
-fn find(store: &TodoStore, id: i64) -> Option<bkmrx_lib::todos::Todo> {
+fn find(store: &TodoStore, id: TodoId) -> Option<bkmrx_lib::todos::Todo> {
     store
         .query(TodoQuery {
             status: None,

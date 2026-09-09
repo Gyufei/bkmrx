@@ -5,6 +5,7 @@ use crate::bookmarks::{
     SharedBookmarkStore, TagQueryRequest, TagSummary, UpdateBookmark,
 };
 use crate::error::AppResult;
+use crate::identity::BookmarkId;
 use crate::notes::SharedNotesWorkspace;
 use crate::preview::{BookmarkPreview, PrepareBookmarkPreviewRequest, SharedPreviewService};
 use crate::rss::{
@@ -34,14 +35,17 @@ pub fn create_bookmark(
 #[tauri::command]
 pub fn update_bookmark(
     service: State<'_, SharedBookmarkStore>,
-    id: i64,
+    id: BookmarkId,
     input: UpdateBookmark,
 ) -> AppResult<Bookmark> {
     service.update(id, input)
 }
 
 #[tauri::command]
-pub fn delete_bookmarks(service: State<'_, SharedBookmarkStore>, ids: Vec<i64>) -> AppResult<u64> {
+pub fn delete_bookmarks(
+    service: State<'_, SharedBookmarkStore>,
+    ids: Vec<BookmarkId>,
+) -> AppResult<u64> {
     service.delete_many(&ids)
 }
 
@@ -64,7 +68,7 @@ pub fn get_tags(
 #[tauri::command]
 pub fn record_bookmark_access(
     service: State<'_, SharedBookmarkStore>,
-    id: i64,
+    id: BookmarkId,
 ) -> AppResult<Bookmark> {
     service.record_access(id)
 }
@@ -72,7 +76,7 @@ pub fn record_bookmark_access(
 #[tauri::command]
 pub fn set_bookmark_starred(
     service: State<'_, SharedBookmarkStore>,
-    id: i64,
+    id: BookmarkId,
     starred: bool,
 ) -> AppResult<Bookmark> {
     service.set_starred(id, starred)
@@ -182,7 +186,7 @@ pub fn create_todo(service: State<'_, SharedTodoStore>, input: CreateTodo) -> Ap
 #[tauri::command]
 pub fn update_todo(
     service: State<'_, SharedTodoStore>,
-    id: i64,
+    id: crate::identity::TodoId,
     input: UpdateTodo,
 ) -> AppResult<Todo> {
     service.update(id, input)
@@ -191,33 +195,42 @@ pub fn update_todo(
 #[tauri::command]
 pub fn set_todo_status(
     service: State<'_, SharedTodoStore>,
-    id: i64,
+    id: crate::identity::TodoId,
     status: TodoStatus,
 ) -> AppResult<Todo> {
     service.set_status(id, status)
 }
 
 #[tauri::command]
-pub fn delete_todo(service: State<'_, SharedTodoStore>, id: i64) -> AppResult<()> {
+pub fn delete_todo(
+    service: State<'_, SharedTodoStore>,
+    id: crate::identity::TodoId,
+) -> AppResult<()> {
     service.delete(id)
 }
 
 #[tauri::command]
 pub fn rename_todo_tag(
     service: State<'_, SharedTodoStore>,
-    id: i64,
+    id: crate::identity::TodoTagId,
     name: String,
 ) -> AppResult<TodoTag> {
     service.rename_tag(id, name)
 }
 
 #[tauri::command]
-pub fn delete_todo_tag(service: State<'_, SharedTodoStore>, id: i64) -> AppResult<()> {
+pub fn delete_todo_tag(
+    service: State<'_, SharedTodoStore>,
+    id: crate::identity::TodoTagId,
+) -> AppResult<()> {
     service.delete_tag(id)
 }
 
 #[tauri::command]
-pub fn archive_delete_todo_tag(service: State<'_, SharedTodoStore>, id: i64) -> AppResult<()> {
+pub fn archive_delete_todo_tag(
+    service: State<'_, SharedTodoStore>,
+    id: crate::identity::TodoTagId,
+) -> AppResult<()> {
     service.archive_delete_tag(id)
 }
 
@@ -225,7 +238,7 @@ pub fn archive_delete_todo_tag(service: State<'_, SharedTodoStore>, id: i64) -> 
 pub fn export_todos(
     service: State<'_, SharedTodoStore>,
     path: String,
-    tag_id: Option<i64>,
+    tag_id: Option<crate::identity::TodoTagId>,
 ) -> AppResult<String> {
     service
         .export_todos(path, tag_id)

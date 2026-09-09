@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import type { Bookmark } from '@/types';
+import type { BookmarkId } from '@/identity';
+import { bookmarkId } from '@/test-utils/identity';
 import ResultList from './ResultList';
 
 const toastAddMock = vi.hoisted(() => vi.fn());
@@ -46,7 +48,7 @@ afterEach(() => {
 it('waits for explicit retry after a next-page failure', () => {
   const onLoadMore = vi.fn();
   const bookmark: Bookmark = {
-    id: 1,
+    id: bookmarkId(1),
     url: 'https://example.com',
     title: 'Example',
     description: '',
@@ -103,8 +105,8 @@ function renderList({
   onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
   onPreviewBookmark?: (bookmark: Bookmark, trigger: HTMLElement) => void;
   onOpenBookmark?: (bookmark: Bookmark) => void;
-  activeBookmarkId?: number | null;
-  onActiveBookmarkChange?: (id: number) => void;
+  activeBookmarkId?: BookmarkId | null;
+  onActiveBookmarkChange?: (id: BookmarkId) => void;
   onInteractionLockChange?: (locked: boolean) => void;
 }) {
   return render(
@@ -133,7 +135,7 @@ function renderList({
 
 it('previews a bookmark from card content but opens only the title externally', () => {
   const bookmark: Bookmark = {
-    id: 1,
+    id: bookmarkId(1),
     url: 'https://example.com',
     title: 'Example',
     description: '',
@@ -166,7 +168,7 @@ it('previews a bookmark from card content but opens only the title externally', 
 it('stars a bookmark from an independent accessible card button', () => {
   const onToggleStarred = vi.fn();
   const bookmark: Bookmark = {
-    id: 1,
+    id: bookmarkId(1),
     url: 'https://example.com',
     title: 'Example',
     description: '',
@@ -188,7 +190,7 @@ it('immediately unstars in the default starred view and offers undo', () => {
   const onToggleStarred = vi.fn();
   toastAddMock.mockReturnValue('toast-1');
   const bookmark: Bookmark = {
-    id: 1,
+    id: bookmarkId(1),
     url: 'https://example.com',
     title: 'Example',
     description: '',
@@ -221,7 +223,7 @@ it('immediately unstars in the default starred view and offers undo', () => {
 it('unstars without an undo toast in search or tag results', () => {
   const onToggleStarred = vi.fn();
   const bookmark: Bookmark = {
-    id: 1,
+    id: bookmarkId(1),
     url: 'https://example.com',
     title: 'Example',
     description: '',
@@ -242,7 +244,7 @@ it('unstars without an undo toast in search or tag results', () => {
 
 it('disables the star button while that bookmark is updating', () => {
   const bookmark: Bookmark = {
-    id: 1,
+    id: bookmarkId(1),
     url: 'https://example.com',
     title: 'Example',
     description: '',
@@ -283,7 +285,7 @@ it('disables the star button while that bookmark is updating', () => {
 
 it('locks page shortcuts while a bookmark dialog target is active', () => {
   const bookmark: Bookmark = {
-    id: 1,
+    id: bookmarkId(1),
     url: 'https://example.com',
     title: 'Example',
     description: '',
@@ -309,7 +311,7 @@ it('locks page shortcuts while a bookmark dialog target is active', () => {
 
 it('distinguishes the active bookmark from the lighter hover state', () => {
   const bookmark: Bookmark = {
-    id: 1,
+    id: bookmarkId(1),
     url: 'https://example.com',
     title: 'Example',
     description: '',

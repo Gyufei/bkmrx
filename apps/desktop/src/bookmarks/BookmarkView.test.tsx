@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Bookmark, BookmarkPage } from '@/types';
+import type { BookmarkId } from '@/identity';
+import { bookmarkId } from '@/test-utils/identity';
 import BookmarkView from './BookmarkView';
 
 const queryBookmarksMock = vi.hoisted(() => vi.fn());
@@ -83,13 +85,13 @@ vi.mock('./ResultList', () => ({
     onLoadMore: () => void;
     starredView: boolean;
     emptyMessage: string;
-    starPendingId: number | null;
+    starPendingId: BookmarkId | null;
     onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
     onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
     onOpenBookmark: (bookmark: Bookmark) => void;
-    activeBookmarkId: number | null;
-    onActiveBookmarkChange: (id: number) => void;
-    onBookmarkElementChange: (id: number, element: HTMLElement | null) => void;
+    activeBookmarkId: BookmarkId | null;
+    onActiveBookmarkChange: (id: BookmarkId) => void;
+    onBookmarkElementChange: (id: BookmarkId, element: HTMLElement | null) => void;
   }) => (
     <div>
       <div>{props.starredView ? '星标模式' : '普通模式'}</div>
@@ -141,7 +143,7 @@ vi.mock('./BookmarkWebPreview', () => ({
 
 function bookmark(id: number, title: string): Bookmark {
   return {
-    id,
+    id: bookmarkId(id),
     url: `https://example.com/${id}`,
     title,
     description: '',
@@ -370,9 +372,12 @@ describe('BookmarkView infinite pagination', () => {
     expect(await screen.findByText('Star me')).toBeTruthy();
     fireEvent.click(screen.getByText('切换星标'));
     await waitFor(() =>
-      expect(setBookmarkStarredMock.mock.calls[0]?.[0]).toEqual({ id: 1, starred: true }),
+      expect(setBookmarkStarredMock.mock.calls[0]?.[0]).toEqual({
+        id: bookmarkId(1),
+        starred: true,
+      }),
     );
-    expect(await screen.findByText('正在更新 1')).toBeTruthy();
+    expect(await screen.findByText(`正在更新 ${bookmarkId(1)}`)).toBeTruthy();
 
     resolveStar({ ...bookmark(1, 'Star me'), starred_at: '2026-01-02T00:00:00Z' });
     await waitFor(() => expect(queryBookmarksMock.mock.calls.length).toBeGreaterThan(1));
@@ -403,7 +408,7 @@ describe('BookmarkView infinite pagination', () => {
 
     expect(screen.getByTestId('web-preview').textContent).toContain('https://example.com/1');
     expect(recordAccessMock).toHaveBeenCalledOnce();
-    expect(recordAccessMock).toHaveBeenCalledWith(1);
+    expect(recordAccessMock).toHaveBeenCalledWith(bookmarkId(1));
     expect(openMock).not.toHaveBeenCalled();
   });
 
@@ -535,7 +540,7 @@ describe('BookmarkView infinite pagination', () => {
     dispatchKey('j');
     dispatchKey('p');
     expect(screen.getByTestId('web-preview').textContent).toContain('https://example.com/2');
-    expect(recordAccessMock).toHaveBeenCalledWith(2);
+    expect(recordAccessMock).toHaveBeenCalledWith(bookmarkId(2));
 
     dispatchKey('x');
     expect(screen.queryByTestId('web-preview')).toBeNull();

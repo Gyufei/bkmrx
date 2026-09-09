@@ -25,6 +25,7 @@ import type {
   FeedRefreshResult,
   RefreshResult,
 } from '../types';
+import type { BookmarkId, TodoId, TodoTagId } from '../identity';
 
 /* ───── Bookmarks ───── */
 
@@ -40,11 +41,11 @@ export function invokeCreateBookmark(input: CreateBookmark): Promise<Bookmark> {
   return invoke<Bookmark>('create_bookmark', { input });
 }
 
-export function invokeUpdateBookmark(id: number, input: UpdateBookmark): Promise<Bookmark> {
+export function invokeUpdateBookmark(id: BookmarkId, input: UpdateBookmark): Promise<Bookmark> {
   return invoke<Bookmark>('update_bookmark', { id, input });
 }
 
-export function invokeDeleteBookmarks(ids: number[]): Promise<number> {
+export function invokeDeleteBookmarks(ids: BookmarkId[]): Promise<number> {
   return invoke<number>('delete_bookmarks', { ids });
 }
 
@@ -52,11 +53,11 @@ export function invokeGetBookmarkByUrl(url: string): Promise<Bookmark | null> {
   return invoke<Bookmark | null>('get_bookmark_by_url', { url });
 }
 
-export function invokeRecordBookmarkAccess(id: number): Promise<Bookmark> {
+export function invokeRecordBookmarkAccess(id: BookmarkId): Promise<Bookmark> {
   return invoke<Bookmark>('record_bookmark_access', { id });
 }
 
-export function invokeSetBookmarkStarred(id: number, starred: boolean): Promise<Bookmark> {
+export function invokeSetBookmarkStarred(id: BookmarkId, starred: boolean): Promise<Bookmark> {
   return invoke<Bookmark>('set_bookmark_starred', { id, starred });
 }
 
@@ -117,31 +118,31 @@ export function invokeCreateTodo(input: CreateTodo): Promise<Todo> {
   return invoke<Todo>('create_todo', { input });
 }
 
-export function invokeUpdateTodo(id: number, input: UpdateTodo): Promise<Todo> {
+export function invokeUpdateTodo(id: TodoId, input: UpdateTodo): Promise<Todo> {
   return invoke<Todo>('update_todo', { id, input });
 }
 
-export function invokeSetTodoStatus(id: number, status: TodoStatus): Promise<Todo> {
+export function invokeSetTodoStatus(id: TodoId, status: TodoStatus): Promise<Todo> {
   return invoke<Todo>('set_todo_status', { id, status });
 }
 
-export function invokeDeleteTodo(id: number): Promise<void> {
+export function invokeDeleteTodo(id: TodoId): Promise<void> {
   return invoke('delete_todo', { id });
 }
 
-export function invokeRenameTodoTag(id: number, name: string): Promise<TodoTag> {
+export function invokeRenameTodoTag(id: TodoTagId, name: string): Promise<TodoTag> {
   return invoke<TodoTag>('rename_todo_tag', { id, name });
 }
 
-export function invokeDeleteTodoTag(id: number): Promise<void> {
+export function invokeDeleteTodoTag(id: TodoTagId): Promise<void> {
   return invoke('delete_todo_tag', { id });
 }
 
-export function invokeArchiveDeleteTodoTag(id: number): Promise<void> {
+export function invokeArchiveDeleteTodoTag(id: TodoTagId): Promise<void> {
   return invoke('archive_delete_todo_tag', { id });
 }
 
-export function invokeExportTodos(path: string, tagId: number): Promise<string> {
+export function invokeExportTodos(path: string, tagId: TodoTagId): Promise<string> {
   return invoke<string>('export_todos', { path, tagId });
 }
 

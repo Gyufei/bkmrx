@@ -1,5 +1,7 @@
+import type { BookmarkId, TodoId, TodoTagId } from './identity';
+
 export interface Bookmark {
-  id: number;
+  id: BookmarkId;
   url: string;
   title: string;
   description: string;
@@ -12,7 +14,7 @@ export interface Bookmark {
 }
 
 export interface PrepareBookmarkPreviewRequest {
-  bookmark_id: number;
+  bookmark_id: BookmarkId;
   url: string;
 }
 
@@ -217,7 +219,7 @@ export interface RenamedNoteDocument extends SavedNoteDocument {
 export type TodoStatus = 'in_progress' | 'completed' | 'suspended' | 'canceled';
 
 export interface Todo {
-  id: number;
+  id: TodoId;
   title: string;
   description: string;
   status: TodoStatus;
@@ -229,14 +231,14 @@ export interface Todo {
 }
 
 export interface TodoTag {
-  id: number;
+  id: TodoTagId;
   name: string;
   count: number;
 }
 
 export interface TodoQuery {
   status: TodoStatus | null;
-  tag_id: number | null;
+  tag_id: TodoTagId | null;
 }
 
 export interface TodoList {

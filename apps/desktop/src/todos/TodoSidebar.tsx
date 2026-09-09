@@ -8,13 +8,14 @@ import {
 } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 import type { TodoTag } from '@/types';
+import type { TodoTagId } from '@/identity';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 
 interface TodoSidebarProps {
   tags: TodoTag[];
   total: number;
-  selectedTagId: number | null;
-  onSelectTag: (tagId: number | null) => void;
+  selectedTagId: TodoTagId | null;
+  onSelectTag: (tagId: TodoTagId | null) => void;
   onExportTag: (tag: TodoTag) => void;
   onRenameTag: (tag: TodoTag) => void;
   onDeleteTag: (tag: TodoTag) => void;

@@ -4,8 +4,10 @@ use crate::error::{AppError, AppResult};
 use crate::logging::{sanitize_error, Operation};
 
 mod v1_baseline;
+mod v2_bookmark_uuid;
+mod v3_todo_uuid;
 
-pub(super) const LATEST_SCHEMA_VERSION: i64 = 1;
+pub(super) const LATEST_SCHEMA_VERSION: i64 = 3;
 
 type ApplyMigration = fn(&Transaction<'_>) -> AppResult<()>;
 
@@ -20,11 +22,23 @@ struct Migration {
 // 2. Append one contiguous step to MIGRATIONS.
 // 3. Advance LATEST_SCHEMA_VERSION.
 // The runner owns transactions and user_version updates; migration functions must not.
-const MIGRATIONS: &[Migration] = &[Migration {
-    from: 0,
-    to: 1,
-    apply: v1_baseline::apply,
-}];
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        from: 0,
+        to: 1,
+        apply: v1_baseline::apply,
+    },
+    Migration {
+        from: 1,
+        to: 2,
+        apply: v2_bookmark_uuid::apply,
+    },
+    Migration {
+        from: 2,
+        to: 3,
+        apply: v3_todo_uuid::apply,
+    },
+];
 
 pub(super) fn run(connection: &mut Connection) -> AppResult<()> {
     run_pending(connection, LATEST_SCHEMA_VERSION, MIGRATIONS)

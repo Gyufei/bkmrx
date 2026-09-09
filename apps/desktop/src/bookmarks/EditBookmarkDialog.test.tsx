@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Bookmark } from '../types';
+import { bookmarkId } from '@/test-utils/identity';
 import EditBookmarkDialog from './EditBookmarkDialog';
 import { updateBookmarkApi } from './bookmarks.api';
 
@@ -21,7 +22,7 @@ vi.mock('@/components/TagInput', () => ({
 }));
 
 const bookmark: Bookmark = {
-  id: 7,
+  id: bookmarkId(7),
   url: 'https://old.example',
   title: 'Example',
   description: 'Description',
@@ -156,7 +157,7 @@ describe('EditBookmarkDialog', () => {
     view.rerender(
       <QueryClientProvider client={queryClient}>
         <EditBookmarkDialog
-          editTarget={{ ...bookmark, id: 8, url: 'https://next.example' }}
+          editTarget={{ ...bookmark, id: bookmarkId(8), url: 'https://next.example' }}
           setEditTarget={setEditTarget}
         />
       </QueryClientProvider>,

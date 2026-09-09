@@ -6,6 +6,7 @@ use rusqlite::{Connection, Transaction};
 use crate::error::{AppError, AppResult};
 use crate::logging::{sanitize_error, Operation};
 
+pub mod cutover;
 mod migrations;
 
 #[derive(Debug)]
@@ -85,8 +86,8 @@ impl Database {
         self.write(|transaction| {
         transaction
             .execute(
-                "INSERT INTO bookmarks_fts(rowid, url, title, description, tags)
-                 VALUES (9223372036854775807, '', '中文分词验证', '', '')",
+                "INSERT INTO bookmarks_fts(bookmark_uuid, url, title, description, tags)
+                 VALUES ('00000000-0000-7000-8000-000000000000', '', '中文分词验证', '', '')",
                 [],
             )
             ?;
@@ -96,7 +97,7 @@ impl Database {
                 "SELECT EXISTS(
                     SELECT 1 FROM bookmarks_fts
                     WHERE bookmarks_fts MATCH '中文分'
-                      AND rowid = 9223372036854775807
+                      AND bookmark_uuid = '00000000-0000-7000-8000-000000000000'
                 )",
                 [],
                 |row| row.get(0),
@@ -105,7 +106,8 @@ impl Database {
 
         transaction
             .execute(
-                "DELETE FROM bookmarks_fts WHERE rowid = 9223372036854775807",
+                "DELETE FROM bookmarks_fts
+                 WHERE bookmark_uuid = '00000000-0000-7000-8000-000000000000'",
                 [],
             )
             ?;
@@ -135,6 +137,15 @@ impl Database {
                  PRAGMA busy_timeout = 5000;",
             )
             .map_err(database_error)?;
+
+        let version =
+            connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))?;
+        if version == 1 {
+            return Err(AppError::unsupported_schema_version(
+                version,
+                migrations::LATEST_SCHEMA_VERSION,
+            ));
+        }
 
         migrations::run(&mut connection)?;
         Ok(Self {

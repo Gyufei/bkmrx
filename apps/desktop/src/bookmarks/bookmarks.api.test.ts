@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { QueryClient, type InfiniteData } from '@tanstack/react-query';
 
 import type { Bookmark, BookmarkPage } from '@/types';
+import { bookmarkId } from '@/test-utils/identity';
 import {
   bookmarkByUrlQueryKey,
   bookmarkQueryKey,
@@ -62,7 +63,7 @@ describe('bookmark pagination helpers', () => {
     const queryClient = new QueryClient();
     const key = bookmarkQueryKey({ mode: 'random', limit: 7 }, 1);
     const original = {
-      id: 1,
+      id: bookmarkId(1),
       url: 'https://example.com',
       title: 'Original',
       description: '',
@@ -83,7 +84,7 @@ describe('bookmark pagination helpers', () => {
       'Updated',
     );
 
-    removeRandomBookmarksFromQuery(queryClient, [1]);
+    removeRandomBookmarksFromQuery(queryClient, [bookmarkId(1)]);
     expect(queryClient.getQueryData<InfiniteData<BookmarkPage>>(key)?.pages[0].items).toEqual([]);
   });
 
@@ -97,7 +98,7 @@ describe('bookmark pagination helpers', () => {
     });
     const randomKey = bookmarkQueryKey({ mode: 'random', limit: 7 }, 1);
     const original = {
-      id: 1,
+      id: bookmarkId(1),
       url: 'https://example.com',
       title: 'Original',
       description: '',

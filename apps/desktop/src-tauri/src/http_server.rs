@@ -3,6 +3,7 @@ use crate::bookmarks::{
     TagQueryRequest, TagSummary, UpdateBookmark,
 };
 use crate::error::AppError;
+use crate::identity::BookmarkId;
 use crate::translation::{TranslationRequest, TranslationService};
 use axum::{
     body::Body,
@@ -175,7 +176,7 @@ async fn get_bookmark_by_url_handler(
 
 async fn get_bookmark_handler(
     State(state): State<HttpState>,
-    id: Result<Path<i64>, PathRejection>,
+    id: Result<Path<BookmarkId>, PathRejection>,
 ) -> Result<Json<Bookmark>, ApiError> {
     let Path(id) = id.map_err(|error| ApiError::Request(error.status()))?;
     state.bookmarks.get(id).map(Json).map_err(ApiError::App)
@@ -183,7 +184,7 @@ async fn get_bookmark_handler(
 
 async fn update_bookmark_handler(
     State(state): State<HttpState>,
-    id: Result<Path<i64>, PathRejection>,
+    id: Result<Path<BookmarkId>, PathRejection>,
     input: Result<Json<UpdateBookmark>, JsonRejection>,
 ) -> Result<Json<Bookmark>, ApiError> {
     let Path(id) = id.map_err(|error| ApiError::Request(error.status()))?;
@@ -197,7 +198,7 @@ async fn update_bookmark_handler(
 
 async fn delete_bookmark_handler(
     State(state): State<HttpState>,
-    id: Result<Path<i64>, PathRejection>,
+    id: Result<Path<BookmarkId>, PathRejection>,
 ) -> Result<StatusCode, ApiError> {
     let Path(id) = id.map_err(|error| ApiError::Request(error.status()))?;
     state.bookmarks.delete(id).map_err(ApiError::App)?;

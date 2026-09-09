@@ -9,6 +9,7 @@ import {
 import { tagColor } from '@/lib/tagColor';
 import { cn } from '@/lib/utils';
 import type { Todo, TodoStatus, TodoTag } from '@/types';
+import type { TodoId, TodoTagId } from '@/identity';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { useState } from 'react';
 import { Badge, badgeVariants } from '@/components/ui/badge';
@@ -21,10 +22,10 @@ interface TodoListItemProps {
   deletePending: boolean;
   deleteError?: unknown;
   onEdit: (todo: Todo) => void;
-  onSelectTag: (tagId: number) => void;
-  onSetStatus: (id: number, status: TodoStatus) => void;
+  onSelectTag: (tagId: TodoTagId) => void;
+  onSetStatus: (id: TodoId, status: TodoStatus) => void;
   onPrepareDelete: () => void;
-  onDelete: (id: number) => Promise<void>;
+  onDelete: (id: TodoId) => Promise<void>;
 }
 
 function StatusToggle({

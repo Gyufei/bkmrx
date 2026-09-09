@@ -2,17 +2,18 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from '@/components/ui/toast';
 import type { Todo, TodoTag } from '@/types';
+import type { TodoTagId } from '@/identity';
 import { archiveDeleteTodoTagApi } from './todos.api';
 
 interface Options {
   items?: Todo[];
-  onDeleted: (id: number) => void;
+  onDeleted: (id: TodoTagId) => void;
 }
 
 export function useArchiveDeleteTag({ items, onDeleted }: Options) {
   const [archivingTag, setArchivingTag] = useState<TodoTag | null>(null);
   const mutation = useMutation({
-    mutationFn: (id: number) => archiveDeleteTodoTagApi(id),
+    mutationFn: (id: TodoTagId) => archiveDeleteTodoTagApi(id),
     onSuccess: (_result, deletedId) => {
       onDeleted(deletedId);
     },

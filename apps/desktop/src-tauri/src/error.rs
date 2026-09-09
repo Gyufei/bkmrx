@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::identity::BookmarkId;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, thiserror::Error)]
 #[error("{message}")]
 pub struct AppError {
@@ -23,7 +25,7 @@ impl AppError {
         Self::new("invalid_cursor", "The pagination cursor is invalid", None)
     }
 
-    pub fn bookmark_not_found(id: i64) -> Self {
+    pub fn bookmark_not_found(id: BookmarkId) -> Self {
         Self::new(
             "bookmark_not_found",
             "Bookmark not found",
@@ -47,7 +49,7 @@ impl AppError {
         )
     }
 
-    pub fn todo_not_found(id: i64) -> Self {
+    pub fn todo_not_found(id: crate::identity::TodoId) -> Self {
         Self::new(
             "todo_not_found",
             "Todo not found",
@@ -55,7 +57,7 @@ impl AppError {
         )
     }
 
-    pub fn todo_tag_not_found(id: i64) -> Self {
+    pub fn todo_tag_not_found(id: crate::identity::TodoTagId) -> Self {
         Self::new(
             "todo_tag_not_found",
             "Todo tag not found",
@@ -173,15 +175,17 @@ impl AppError {
 #[cfg(test)]
 mod tests {
     use super::AppError;
+    use crate::identity::BookmarkId;
 
     #[test]
     fn keeps_wire_contract() {
+        let id = BookmarkId::new();
         assert_eq!(
-            serde_json::to_value(AppError::bookmark_not_found(7)).unwrap(),
+            serde_json::to_value(AppError::bookmark_not_found(id)).unwrap(),
             serde_json::json!({
                 "code": "bookmark_not_found",
                 "message": "Bookmark not found",
-                "details": { "id": 7 }
+                "details": { "id": id.to_string() }
             })
         );
     }
