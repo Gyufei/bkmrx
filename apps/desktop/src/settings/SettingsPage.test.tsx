@@ -7,11 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSettings, ProviderStatus, SettingsSnapshot } from '@/lib/invoke';
 import SettingsPage from './SettingsPage';
 import {
-  applyBookmarkImportApi,
   activateProviderApi,
+  bookmarkInitializationStatusApi,
   deactivateProviderApi,
   getSettingsApi,
-  previewBookmarkImportApi,
+  initializeBookmarksApi,
   updateSettingsApi,
 } from './settings.api';
 
@@ -25,8 +25,8 @@ vi.mock('./settings.api', () => ({
   getSystemInfoApi: vi.fn(),
   updateSettingsApi: vi.fn(),
   exportBookmarksApi: vi.fn(),
-  previewBookmarkImportApi: vi.fn(),
-  applyBookmarkImportApi: vi.fn(),
+  bookmarkInitializationStatusApi: vi.fn(),
+  initializeBookmarksApi: vi.fn(),
   activateProviderApi: vi.fn(),
   deactivateProviderApi: vi.fn(),
 }));
@@ -93,6 +93,7 @@ describe('SettingsPage', () => {
     vi.mocked(updateSettingsApi).mockResolvedValue(snapshot);
     vi.mocked(activateProviderApi).mockResolvedValue(snapshot);
     vi.mocked(deactivateProviderApi).mockResolvedValue(snapshot);
+    vi.mocked(bookmarkInitializationStatusApi).mockResolvedValue({ can_initialize: true });
   });
   afterEach(cleanup);
 
@@ -141,32 +142,20 @@ describe('SettingsPage', () => {
     expect(await screen.findByText('保存失败：无法写入设置')).toBeTruthy();
   });
 
-  it('keeps bookmark import and export actions on the general tab', async () => {
+  it('initializes an empty bookmark domain without a preview flow', async () => {
     vi.mocked(open).mockResolvedValue('/tmp/bookmarks.json');
-    vi.mocked(previewBookmarkImportApi).mockResolvedValue({
-      file_hash: 'hash',
-      total: 1,
-      create_count: 1,
-      update_count: 0,
-      skip_count: 0,
-    });
-    vi.mocked(applyBookmarkImportApi).mockResolvedValue({
-      file_hash: 'hash',
-      total: 1,
-      create_count: 1,
-      update_count: 0,
-      skip_count: 0,
+    vi.mocked(initializeBookmarksApi).mockResolvedValue({
+      bookmark_count: 1,
+      navigation_category_count: 2,
     });
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: '导入 JSON' }));
-    expect(await screen.findByRole('heading', { name: '确认导入书签？' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '确认导入' }));
+    const initializeButton = await screen.findByRole('button', { name: '初始化书签' });
+    await waitFor(() => expect((initializeButton as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(initializeButton);
     await waitFor(() =>
-      expect(vi.mocked(applyBookmarkImportApi)).toHaveBeenCalledWith({
-        path: '/tmp/bookmarks.json',
-        fileHash: 'hash',
-      }),
+      expect(vi.mocked(initializeBookmarksApi).mock.calls[0]?.[0]).toBe('/tmp/bookmarks.json'),
     );
+    expect(await screen.findByText('初始化完成：恢复 1 条书签、2 个导航分类。')).toBeTruthy();
   });
 
   it('manages RSSHub from the services tab', async () => {

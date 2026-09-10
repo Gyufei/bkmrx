@@ -180,7 +180,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            bkmrx_lib::commands::list_navigation_categories,
+            bkmrx_lib::commands::list_navigation_sections,
             bkmrx_lib::commands::create_navigation_category,
             bkmrx_lib::commands::update_navigation_category,
             bkmrx_lib::commands::delete_navigation_category,
@@ -215,9 +215,9 @@ fn main() {
             bkmrx_lib::commands::delete_todo_tag,
             bkmrx_lib::commands::archive_delete_todo_tag,
             bkmrx_lib::commands::export_todos,
-            bkmrx_lib::commands::export_bookmarks,
-            bkmrx_lib::commands::preview_bookmark_import,
-            bkmrx_lib::commands::apply_bookmark_import,
+            bkmrx_lib::commands::export_bookmark_dataset,
+            bkmrx_lib::commands::get_bookmark_initialization_status,
+            bkmrx_lib::commands::initialize_bookmarks,
             bkmrx_lib::commands::scan_notes,
             bkmrx_lib::commands::open_note_document,
             bkmrx_lib::commands::save_note_document,

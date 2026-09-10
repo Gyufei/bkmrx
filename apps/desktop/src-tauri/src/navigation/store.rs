@@ -11,8 +11,8 @@ use crate::{
 };
 
 use super::{
-    AddNavigationBookmarks, CreateNavigationCategory, NavigationBookmark, NavigationCategory,
-    UpdateNavigationCategory,
+    AddNavigationBookmarks, CreateNavigationCategory, NavigationCategory, NavigationPlacementCard,
+    NavigationSection, UpdateNavigationCategory,
 };
 
 type ChangeNotifier = Arc<dyn Fn() + Send + Sync>;
@@ -35,8 +35,8 @@ impl NavigationStore {
         self
     }
 
-    pub fn list_categories(&self) -> AppResult<Vec<NavigationCategory>> {
-        observe_database("navigation", "list_categories", || {
+    pub fn list_sections(&self) -> AppResult<Vec<NavigationSection>> {
+        observe_database("navigation", "list_sections", || {
             self.database.read(|connection| {
             let mut statement = connection.prepare(
                 "SELECT id,name,\"order\",created_at,updated_at FROM navigation_categories ORDER BY \"order\",id",
@@ -46,9 +46,9 @@ impl NavigationStore {
                 .collect::<Result<Vec<_>, _>>()?;
             categories
                 .into_iter()
-                .map(|mut category| {
-                    category.bookmarks = list_bookmarks(connection, category.id)?;
-                    Ok(category)
+                .map(|category| {
+                    let cards = list_cards(connection, category.id)?;
+                    Ok(NavigationSection { category, cards })
                 })
                 .collect()
         })
@@ -115,7 +115,7 @@ impl NavigationStore {
         &self,
         category_id: NavigationCategoryId,
         input: AddNavigationBookmarks,
-    ) -> AppResult<Vec<NavigationBookmark>> {
+    ) -> AppResult<Vec<NavigationPlacementCard>> {
         let result = observe_database("navigation", "add_bookmarks", || {
             self.database.write(|transaction| {
                 ensure_category_exists(transaction, category_id)?;
@@ -128,7 +128,7 @@ impl NavigationStore {
                         )
                         .map_err(placement_write_error)?;
                 }
-                list_bookmarks(transaction, category_id)
+                list_cards(transaction, category_id)
             })
         });
         self.changed(result)
@@ -195,22 +195,21 @@ fn category_from_row(row: &Row<'_>) -> rusqlite::Result<NavigationCategory> {
         order: row.get(2)?,
         created_at: row.get(3)?,
         updated_at: row.get(4)?,
-        bookmarks: Vec::new(),
     })
 }
 
-fn list_bookmarks(
+fn list_cards(
     connection: &rusqlite::Connection,
     category_id: NavigationCategoryId,
-) -> AppResult<Vec<NavigationBookmark>> {
+) -> AppResult<Vec<NavigationPlacementCard>> {
     let mut statement = connection.prepare(
         "SELECT p.id,b.id,b.title,b.url,p.created_at FROM navigation_placements p JOIN bookmarks b ON b.id=p.bookmark_id WHERE p.category_id=?1 ORDER BY p.id",
     )?;
-    let bookmarks = statement
+    let cards = statement
         .query_map([category_id], |row| {
-            Ok(NavigationBookmark {
+            Ok(NavigationPlacementCard {
                 placement_id: row.get(0)?,
-                id: row.get(1)?,
+                bookmark_id: row.get(1)?,
                 title: row.get(2)?,
                 url: row.get(3)?,
                 created_at: row.get(4)?,
@@ -218,7 +217,7 @@ fn list_bookmarks(
         })?
         .collect::<Result<Vec<_>, _>>()
         .map_err(AppError::from)?;
-    Ok(bookmarks)
+    Ok(cards)
 }
 
 fn ensure_category_exists(

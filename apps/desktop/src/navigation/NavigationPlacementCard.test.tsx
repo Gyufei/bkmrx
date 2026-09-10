@@ -4,22 +4,22 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bookmarkId, navigationPlacementId } from '@/test-utils/identity';
-import NavigationBookmarkCard from './NavigationBookmarkCard';
+import NavigationPlacementCard from './NavigationPlacementCard';
 
-describe('NavigationBookmarkCard', () => {
+describe('NavigationPlacementCard favicon', () => {
   afterEach(cleanup);
 
   it('loads the site favicon lazily and falls back when it fails', () => {
     const bookmark = {
       placement_id: navigationPlacementId(1),
-      id: bookmarkId(1),
+      bookmark_id: bookmarkId(1),
       title: 'Docs',
       url: 'https://example.com/page',
       created_at: 1,
     };
     const { container } = render(
-      <NavigationBookmarkCard
-        bookmark={bookmark}
+      <NavigationPlacementCard
+        card={bookmark}
         removing={false}
         onOpen={vi.fn()}
         onRemove={vi.fn()}

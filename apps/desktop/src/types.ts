@@ -1,9 +1,9 @@
 import type { BookmarkId, RssEntryId, RssFeedId, TodoId, TodoTagId } from './identity';
 import type { NavigationCategoryId, NavigationPlacementId } from './identity';
 
-export interface NavigationBookmark {
+export interface NavigationPlacementCard {
   placement_id: NavigationPlacementId;
-  id: BookmarkId;
+  bookmark_id: BookmarkId;
   title: string;
   url: string;
   created_at: number;
@@ -15,7 +15,11 @@ export interface NavigationCategory {
   order: number;
   created_at: number;
   updated_at: number;
-  bookmarks: NavigationBookmark[];
+}
+
+export interface NavigationSection {
+  category: NavigationCategory;
+  cards: NavigationPlacementCard[];
 }
 
 export interface Bookmark {
@@ -191,12 +195,13 @@ export interface RefreshResult {
   failed: number;
 }
 
-export interface ImportPreview {
-  file_hash: string;
-  total: number;
-  create_count: number;
-  update_count: number;
-  skip_count: number;
+export interface BookmarkInitializationStatus {
+  can_initialize: boolean;
+}
+
+export interface BookmarkInitializationResult {
+  bookmark_count: number;
+  navigation_category_count: number;
 }
 
 export interface NoteFile {

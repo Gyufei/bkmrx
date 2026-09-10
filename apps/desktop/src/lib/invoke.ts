@@ -5,7 +5,8 @@ import type {
   BookmarkPage,
   BookmarkPageRequest,
   CreateBookmark,
-  ImportPreview,
+  BookmarkInitializationResult,
+  BookmarkInitializationStatus,
   PrepareBookmarkPreviewRequest,
   Tag,
   TagQueryRequest,
@@ -25,7 +26,8 @@ import type {
   FeedRefreshResult,
   RefreshResult,
   NavigationCategory,
-  NavigationBookmark,
+  NavigationPlacementCard,
+  NavigationSection,
 } from '../types';
 import type {
   BookmarkId,
@@ -36,8 +38,8 @@ import type {
   TodoTagId,
 } from '../identity';
 
-export const invokeListNavigationCategories = () =>
-  invoke<NavigationCategory[]>('list_navigation_categories');
+export const invokeListNavigationSections = () =>
+  invoke<NavigationSection[]>('list_navigation_sections');
 export const invokeCreateNavigationCategory = (name: string) =>
   invoke<NavigationCategory>('create_navigation_category', { input: { name } });
 export const invokeUpdateNavigationCategory = (id: NavigationCategoryId, name: string) =>
@@ -48,7 +50,7 @@ export const invokeAddNavigationBookmarks = (
   categoryId: NavigationCategoryId,
   bookmarkIds: BookmarkId[],
 ) =>
-  invoke<NavigationBookmark[]>('add_navigation_bookmarks', {
+  invoke<NavigationPlacementCard[]>('add_navigation_bookmarks', {
     categoryId,
     input: { bookmark_ids: bookmarkIds },
   });
@@ -122,16 +124,16 @@ export const invokeDeleteRssFeed = (id: RssFeedId) => invoke<void>('delete_rss_f
 export const invokeDownloadRssImage = (url: string, referer: string | null, destination: string) =>
   invoke<void>('download_rss_image', { url, referer, destination });
 
-export function invokeExportBookmarks(path: string): Promise<string> {
-  return invoke<string>('export_bookmarks', { path });
+export function invokeExportBookmarkDataset(path: string): Promise<string> {
+  return invoke<string>('export_bookmark_dataset', { path });
 }
 
-export function invokePreviewBookmarkImport(path: string): Promise<ImportPreview> {
-  return invoke<ImportPreview>('preview_bookmark_import', { path });
+export function invokeGetBookmarkInitializationStatus(): Promise<BookmarkInitializationStatus> {
+  return invoke<BookmarkInitializationStatus>('get_bookmark_initialization_status');
 }
 
-export function invokeApplyBookmarkImport(path: string, fileHash: string): Promise<ImportPreview> {
-  return invoke<ImportPreview>('apply_bookmark_import', { path, fileHash });
+export function invokeInitializeBookmarks(path: string): Promise<BookmarkInitializationResult> {
+  return invoke<BookmarkInitializationResult>('initialize_bookmarks', { path });
 }
 
 /* ───── Todos ───── */

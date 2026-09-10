@@ -4,9 +4,9 @@ import {
   invokeUpdateSettings,
   invokeActivateProvider,
   invokeDeactivateProvider,
-  invokeExportBookmarks,
-  invokePreviewBookmarkImport,
-  invokeApplyBookmarkImport,
+  invokeExportBookmarkDataset,
+  invokeGetBookmarkInitializationStatus,
+  invokeInitializeBookmarks,
   AppSettings,
 } from '../lib/invoke';
 
@@ -43,13 +43,13 @@ export async function deactivateProviderApi(
 }
 
 export function exportBookmarksApi(path: string) {
-  return invokeExportBookmarks(path);
+  return invokeExportBookmarkDataset(path);
 }
 
-export function previewBookmarkImportApi(path: string) {
-  return invokePreviewBookmarkImport(path);
+export function bookmarkInitializationStatusApi() {
+  return invokeGetBookmarkInitializationStatus();
 }
 
-export function applyBookmarkImportApi({ path, fileHash }: { path: string; fileHash: string }) {
-  return invokeApplyBookmarkImport(path, fileHash);
+export function initializeBookmarksApi(path: string) {
+  return invokeInitializeBookmarks(path);
 }

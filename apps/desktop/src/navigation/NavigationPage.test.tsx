@@ -5,10 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bookmarkId, navigationCategoryId, navigationPlacementId } from '@/test-utils/identity';
-import type { NavigationCategory } from '@/types';
+import type { NavigationCategory, NavigationSection } from '@/types';
 import NavigationPage from './NavigationPage';
 
-let categories: NavigationCategory[];
+let sections: NavigationSection[];
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   create: vi.fn(),
@@ -33,15 +33,15 @@ vi.mock('@/components/ui/toast', () => ({
 }));
 
 vi.mock('./navigation.api', () => ({
-  NAVIGATION_CATEGORIES_KEY: ['navigation-categories'],
-  listNavigationCategoriesApi: mocks.list,
+  NAVIGATION_SECTIONS_KEY: ['navigation-sections'],
+  listNavigationSectionsApi: mocks.list,
   createNavigationCategoryApi: mocks.create,
   updateNavigationCategoryApi: mocks.update,
   deleteNavigationCategoryApi: mocks.remove,
   addNavigationBookmarksApi: mocks.addBookmarks,
   removeNavigationBookmarkApi: mocks.removeBookmark,
-  invalidateNavigationCategories: (client: QueryClient) =>
-    client.invalidateQueries({ queryKey: ['navigation-categories'] }),
+  invalidateNavigationSections: (client: QueryClient) =>
+    client.invalidateQueries({ queryKey: ['navigation-sections'] }),
 }));
 
 function renderPage() {
@@ -56,9 +56,9 @@ function renderPage() {
 
 describe('NavigationPage category lifecycle', () => {
   beforeEach(() => {
-    categories = [];
+    sections = [];
     vi.clearAllMocks();
-    mocks.list.mockImplementation(async () => categories);
+    mocks.list.mockImplementation(async () => sections);
     mocks.toastAdd.mockReturnValue('toast-1');
     mocks.open.mockResolvedValue(undefined);
     mocks.recordAccess.mockResolvedValue(undefined);
@@ -67,22 +67,23 @@ describe('NavigationPage category lifecycle', () => {
       const category = {
         id: navigationCategoryId(1),
         name: name.trim(),
-        order: categories.length,
+        order: sections.length,
         created_at: 1,
         updated_at: 1,
-        bookmarks: [],
       };
-      categories = [...categories, category];
+      sections = [...sections, { category, cards: [] }];
       return category;
     });
     mocks.update.mockImplementation(async (id: NavigationCategory['id'], name: string) => {
-      categories = categories.map((category) =>
-        category.id === id ? { ...category, name: name.trim() } : category,
+      sections = sections.map((section) =>
+        section.category.id === id
+          ? { ...section, category: { ...section.category, name: name.trim() } }
+          : section,
       );
-      return categories.find((category) => category.id === id)!;
+      return sections.find((section) => section.category.id === id)!.category;
     });
     mocks.remove.mockImplementation(async (id: NavigationCategory['id']) => {
-      categories = categories.filter((category) => category.id !== id);
+      sections = sections.filter((section) => section.category.id !== id);
     });
   });
 
@@ -101,28 +102,30 @@ describe('NavigationPage category lifecycle', () => {
     };
     const placed = {
       placement_id: navigationPlacementId(1),
-      id: bookmark.id,
+      bookmark_id: bookmark.id,
       title: bookmark.title,
       url: bookmark.url,
       created_at: 1,
     };
-    categories = [
+    sections = [
       {
-        id: navigationCategoryId(1),
-        name: '工具',
-        order: 0,
-        created_at: 1,
-        updated_at: 1,
-        bookmarks: [],
+        category: {
+          id: navigationCategoryId(1),
+          name: '工具',
+          order: 0,
+          created_at: 1,
+          updated_at: 1,
+        },
+        cards: [],
       },
     ];
     mocks.queryBookmarks.mockResolvedValue({ items: [bookmark], next_cursor: null });
     mocks.addBookmarks.mockImplementation(async () => {
-      categories = [{ ...categories[0], bookmarks: [placed] }];
+      sections = [{ ...sections[0], cards: [placed] }];
       return [placed];
     });
     mocks.removeBookmark.mockImplementation(async () => {
-      categories = [{ ...categories[0], bookmarks: [] }];
+      sections = [{ ...sections[0], cards: [] }];
     });
 
     renderPage();
@@ -131,18 +134,23 @@ describe('NavigationPage category lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: '添加（1）' }));
     expect(await screen.findByRole('button', { name: 'Example Docs' })).toBeVisible();
 
+    fireEvent.click(screen.getByRole('button', { name: /添加书签/ }));
+    expect(await screen.findByText('已添加')).toBeVisible();
+    expect(screen.getByRole('checkbox')).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+
     fireEvent.click(screen.getByRole('button', { name: 'Example Docs' }));
     await waitFor(() => expect(mocks.open).toHaveBeenCalledWith(bookmark.url));
     expect(mocks.recordAccess).toHaveBeenCalledWith(bookmark.id);
 
     fireEvent.click(screen.getByRole('button', { name: '从分类移除 Example Docs' }));
     await waitFor(() =>
-      expect(mocks.removeBookmark).toHaveBeenCalledWith(categories[0].id, bookmark.id),
+      expect(mocks.removeBookmark).toHaveBeenCalledWith(sections[0].category.id, bookmark.id),
     );
     const notice = mocks.toastAdd.mock.calls.find(([value]) => value.title === '已从分类移除')?.[0];
     expect(notice.actionProps.children).toBe('撤销');
     notice.actionProps.onClick();
-    expect(mocks.addBookmarks).toHaveBeenLastCalledWith(categories[0].id, [bookmark.id]);
+    expect(mocks.addBookmarks).toHaveBeenLastCalledWith(sections[0].category.id, [bookmark.id]);
   });
   afterEach(cleanup);
 
@@ -164,7 +172,7 @@ describe('NavigationPage category lifecycle', () => {
     expect(await screen.findByRole('heading', { name: '常用工具' })).toBeVisible();
 
     fireEvent.click(screen.getByRole('button', { name: '删除 常用工具' }));
-    expect(screen.getByText('只会删除分类及其中的导航关联，不会删除任何书签。')).toBeVisible();
+    expect(screen.getByText('将删除“常用工具”及其中 0 个导航关联，不会删除书签。')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: '删除' }));
     await waitFor(() => expect(mocks.remove).toHaveBeenCalledOnce());
     expect(await screen.findByText('还没有导航分类，先创建一个常用分类吧。')).toBeVisible();

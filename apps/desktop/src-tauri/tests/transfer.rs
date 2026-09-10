@@ -1,438 +1,147 @@
-use std::{fs, path::Path, sync::Arc};
+use std::{fs, sync::Arc};
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use bkmrx_lib::{
-    bookmarks::{BookmarkPageRequest, BookmarkStore, CreateBookmark},
+    bookmarks::{BookmarkStore, CreateBookmark},
     database::Database,
+    navigation::{AddNavigationBookmarks, CreateNavigationCategory, NavigationStore},
 };
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
-type Service = BookmarkStore;
-
-fn service() -> (Arc<Database>, Service) {
+fn stores() -> (Arc<Database>, BookmarkStore, NavigationStore) {
     let database = Arc::new(Database::open_in_memory().unwrap());
-    let service = BookmarkStore::new(Arc::clone(&database));
-    (database, service)
+    let bookmarks = BookmarkStore::new(Arc::clone(&database));
+    let navigation = NavigationStore::new(Arc::clone(&database));
+    (database, bookmarks, navigation)
 }
 
-fn create(service: &Service, url: &str) {
-    service
+fn populated_dataset() -> (TempDir, std::path::PathBuf, Value) {
+    let (_, bookmarks, navigation) = stores();
+    let bookmark = bookmarks
         .create(CreateBookmark {
-            url: url.to_owned(),
-            title: "Example".to_owned(),
-            description: "Description".to_owned(),
-            tags: vec!["rust".to_owned(), "中文".to_owned()],
+            url: "https://example.com".into(),
+            title: "Example".into(),
+            description: "Description".into(),
+            tags: vec!["reference".into()],
         })
         .unwrap();
-}
-
-fn write_json(directory: &TempDir, name: &str, value: Value) -> std::path::PathBuf {
-    let path = directory.path().join(name);
-    fs::write(&path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
-    path
-}
-
-fn hash_file(path: &Path) -> String {
-    URL_SAFE_NO_PAD.encode(Sha256::digest(fs::read(path).unwrap()))
-}
-
-fn record(url: &str) -> Value {
-    json!({
-        "url": url,
-        "title": "Imported",
-        "description": "Imported description",
-        "tags": ["imported", " 中文 ", "imported"],
-        "access_count": 7,
-        "created_at": "2020-01-01T00:00:00Z",
-        "updated_at": "2099-01-01T00:00:00Z",
-        "accessed_at": "2025-01-01T00:00:00Z"
-    })
-}
-
-fn export(records: Vec<Value>) -> Value {
-    json!({
-        "format_version": 1,
-        "exported_at": "2026-07-23T12:00:00Z",
-        "app_version": "0.1.0",
-        "bookmarks": records
-    })
+    let category = navigation
+        .create_category(CreateNavigationCategory {
+            name: "工具".into(),
+        })
+        .unwrap();
+    navigation
+        .add_bookmarks(
+            category.id,
+            AddNavigationBookmarks {
+                bookmark_ids: vec![bookmark.id],
+            },
+        )
+        .unwrap();
+    let directory = TempDir::new().unwrap();
+    let path = bookmarks.export(directory.path()).unwrap();
+    let value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    (directory, path, value)
 }
 
 #[test]
-fn export_v1_omits_database_ids() {
-    let (_, service) = service();
-    create(&service, "https://example.com");
-    let directory = TempDir::new().unwrap();
-
-    let path = service.export(directory.path()).unwrap();
-    let json: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
-
-    assert_eq!(json["format_version"], 1);
-    assert!(json["bookmarks"][0].get("id").is_none());
-    assert_eq!(json["bookmarks"][0]["url"], "https://example.com");
-    assert!(json["bookmarks"][0].get("starred_at").is_some());
-    assert!(json["bookmarks"][0]["starred_at"].is_null());
+fn exports_v2_with_uuid_entities_and_relationships_only() {
+    let (_directory, _path, value) = populated_dataset();
+    assert_eq!(value["format_version"], 2);
+    assert!(value["bookmarks"][0]["id"].is_string());
+    assert!(value["tags"][0]["id"].is_string());
+    assert!(value["bookmark_tag_relations"][0]["bookmark_id"].is_string());
+    assert!(value["navigation_categories"][0]["id"].is_string());
+    assert!(value["navigation_placements"][0]["id"].is_string());
+    for excluded in ["todos", "rss_feeds", "notes", "settings", "favicons"] {
+        assert!(value.get(excluded).is_none());
+    }
 }
 
 #[test]
-fn exported_starred_at_round_trips_into_empty_database() {
-    let (_, source) = service();
-    create(&source, "https://example.com");
-    let source_bookmark = source.find_by_url("https://example.com").unwrap().unwrap();
-    source.set_starred(source_bookmark.id, true).unwrap();
+fn round_trip_preserves_entity_and_relationship_ids() {
+    let (_directory, path, source) = populated_dataset();
+    let (_, target, navigation) = stores();
+    assert!(target.initialization_status().unwrap().can_initialize);
+    let result = target.initialize(&path).unwrap();
+    assert_eq!(
+        (result.bookmark_count, result.navigation_category_count),
+        (1, 1)
+    );
     let directory = TempDir::new().unwrap();
-    let path = source.export(directory.path()).unwrap();
-    let (_, target) = service();
+    let target_path = target.export(directory.path()).unwrap();
+    let restored: Value = serde_json::from_slice(&fs::read(target_path).unwrap()).unwrap();
+    for key in [
+        "bookmarks",
+        "tags",
+        "bookmark_tag_relations",
+        "navigation_categories",
+        "navigation_placements",
+    ] {
+        assert_eq!(
+            restored[key], source[key],
+            "{key} changed during initialization"
+        );
+    }
+    assert_eq!(navigation.list_sections().unwrap()[0].cards.len(), 1);
+}
 
-    let preview = target.preview_import(&path).unwrap();
-    target.apply_import(&path, &preview.file_hash).unwrap();
-
+#[test]
+fn initialization_requires_an_empty_bookmark_domain() {
+    let (_directory, path, _) = populated_dataset();
+    let (_, target, _) = stores();
+    target
+        .create(CreateBookmark {
+            url: "https://local.example".into(),
+            title: "Local".into(),
+            description: String::new(),
+            tags: vec![],
+        })
+        .unwrap();
+    assert!(!target.initialization_status().unwrap().can_initialize);
+    assert_eq!(
+        target.initialize(path).unwrap_err().code(),
+        "import_validation_failed"
+    );
     assert!(target
-        .find_by_url("https://example.com")
+        .find_by_url("https://local.example")
         .unwrap()
-        .unwrap()
-        .starred_at
         .is_some());
 }
 
 #[test]
-fn exported_starred_at_preserves_milliseconds_and_import_order() {
-    let (source_database, source) = service();
-    create(&source, "https://a.example");
-    create(&source, "https://z.example");
-    let later = source.find_by_url("https://a.example").unwrap().unwrap();
-    let earlier = source.find_by_url("https://z.example").unwrap().unwrap();
-    source_database
-        .execute_batch_for_test(&format!(
-            "UPDATE bookmarks SET starred_at = 1767225600456 WHERE id = '{}';
-             UPDATE bookmarks SET starred_at = 1767225600123 WHERE id = '{}';",
-            later.id, earlier.id
-        ))
-        .unwrap();
+fn rejects_v1_and_dangling_relationships_before_writing() {
     let directory = TempDir::new().unwrap();
-    let path = source.export(directory.path()).unwrap();
-    let exported: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-
-    assert_eq!(
-        exported["bookmarks"][0]["starred_at"],
-        "2026-01-01T00:00:00.456Z"
-    );
-    assert_eq!(
-        exported["bookmarks"][1]["starred_at"],
-        "2026-01-01T00:00:00.123Z"
-    );
-
-    let (_, target) = service();
-    let preview = target.preview_import(&path).unwrap();
-    target.apply_import(&path, &preview.file_hash).unwrap();
-    let page = target
-        .query(BookmarkPageRequest::Browse {
-            starred: true,
-            cursor: None,
-            page_size: 50,
-        })
-        .unwrap();
-
-    assert_eq!(
-        page.items
-            .iter()
-            .map(|bookmark| bookmark.url.as_str())
-            .collect::<Vec<_>>(),
-        vec!["https://a.example", "https://z.example"]
-    );
-}
-
-#[test]
-fn newer_import_without_starred_at_clears_existing_local_star() {
-    let (_, service) = service();
-    create(&service, "https://example.com");
-    let local = service.find_by_url("https://example.com").unwrap().unwrap();
-    service.set_starred(local.id, true).unwrap();
-    let directory = TempDir::new().unwrap();
-    let path = write_json(
-        &directory,
-        "without-star.json",
-        export(vec![record("https://example.com")]),
-    );
-
-    let preview = service.preview_import(&path).unwrap();
-    service.apply_import(&path, &preview.file_hash).unwrap();
-
-    assert_eq!(
-        service
-            .find_by_url("https://example.com")
-            .unwrap()
-            .unwrap()
-            .starred_at,
-        None
-    );
-}
-
-#[test]
-fn newer_import_with_explicit_null_clears_existing_local_star() {
-    let (_, service) = service();
-    create(&service, "https://example.com");
-    let local = service.find_by_url("https://example.com").unwrap().unwrap();
-    service.set_starred(local.id, true).unwrap();
-    let directory = TempDir::new().unwrap();
-    let mut imported = record("https://example.com");
-    imported["starred_at"] = Value::Null;
-    let path = write_json(&directory, "clear-star.json", export(vec![imported]));
-
-    let preview = service.preview_import(&path).unwrap();
-    service.apply_import(&path, &preview.file_hash).unwrap();
-
-    assert_eq!(
-        service
-            .find_by_url("https://example.com")
-            .unwrap()
-            .unwrap()
-            .starred_at,
-        None
-    );
-}
-
-#[test]
-fn exported_json_round_trips_into_empty_database() {
-    let (_, source) = service();
-    create(&source, "legacy value that is not a parsed URL");
-    let directory = TempDir::new().unwrap();
-    let path = source.export(directory.path()).unwrap();
-    let (_, target) = service();
-
-    let preview = target.preview_import(&path).unwrap();
-    assert_eq!(preview.create_count, 1);
-    target.apply_import(&path, &preview.file_hash).unwrap();
-
-    let imported = target
-        .find_by_url("legacy value that is not a parsed URL")
-        .unwrap()
-        .unwrap();
-    assert_eq!(imported.title, "Example");
-    assert_eq!(imported.tags, vec!["rust", "中文"]);
-}
-
-#[test]
-fn preview_rejects_tags_that_cannot_use_the_http_filter_contract() {
-    let (_, service) = service();
-    let directory = TempDir::new().unwrap();
-    let mut invalid = record("https://example.com");
-    invalid["tags"] = json!(["a,b"]);
-    let path = write_json(&directory, "comma-tag.json", export(vec![invalid]));
-
-    let error = service.preview_import(path).unwrap_err();
-
-    assert_eq!(error.code(), "import_validation_failed");
-}
-
-#[test]
-fn preview_rejects_invalid_starred_at() {
-    let (_, service) = service();
-    let directory = TempDir::new().unwrap();
-    let mut invalid = record("https://example.com");
-    invalid["starred_at"] = json!("not-a-timestamp");
-    let path = write_json(&directory, "invalid-star.json", export(vec![invalid]));
-
-    let error = service.preview_import(path).unwrap_err();
-
-    assert_eq!(error.code(), "import_validation_failed");
-}
-
-#[test]
-fn import_without_starred_at_creates_unstarred_bookmark() {
-    let (_, service) = service();
-    let directory = TempDir::new().unwrap();
-    let path = write_json(
-        &directory,
-        "without-star-new.json",
-        export(vec![record("https://example.com")]),
-    );
-
-    let preview = service.preview_import(&path).unwrap();
-    service.apply_import(&path, &preview.file_hash).unwrap();
-
-    assert_eq!(
-        service
-            .find_by_url("https://example.com")
-            .unwrap()
-            .unwrap()
-            .starred_at,
-        None
-    );
-}
-
-#[test]
-fn preview_rejects_unknown_format() {
-    let (_, service) = service();
-    let directory = TempDir::new().unwrap();
-    let path = write_json(
-        &directory,
-        "unknown.json",
-        json!({ "format_version": 2, "bookmarks": [] }),
-    );
-
-    let error = service.preview_import(path).unwrap_err();
-
-    assert_eq!(error.code(), "unsupported_import_format");
-}
-
-#[test]
-fn preview_rejects_duplicate_urls() {
-    let (_, service) = service();
-    let directory = TempDir::new().unwrap();
-    let path = write_json(
-        &directory,
-        "duplicates.json",
-        export(vec![
-            record("https://example.com"),
-            record("https://example.com"),
-        ]),
-    );
-
-    let error = service.preview_import(path).unwrap_err();
-
-    assert_eq!(error.code(), "import_validation_failed");
-}
-
-#[test]
-fn apply_rejects_file_changed_after_preview() {
-    let (_, service) = service();
-    let directory = TempDir::new().unwrap();
-    let path = write_json(
-        &directory,
-        "changed.json",
-        export(vec![record("https://example.com")]),
-    );
-    let preview = service.preview_import(&path).unwrap();
+    let v1 = directory.path().join("v1.json");
     fs::write(
-        &path,
-        serde_json::to_vec_pretty(&export(Vec::new())).unwrap(),
+        &v1,
+        serde_json::to_vec(&json!({"format_version": 1, "bookmarks": []})).unwrap(),
     )
     .unwrap();
+    let (_, target, _) = stores();
+    assert_eq!(
+        target.initialize(&v1).unwrap_err().code(),
+        "unsupported_import_format"
+    );
 
-    let error = service.apply_import(path, &preview.file_hash).unwrap_err();
-
-    assert_eq!(error.code(), "import_validation_failed");
+    let (_source_directory, _source_path, mut value) = populated_dataset();
+    value["bookmark_tag_relations"][0]["bookmark_id"] =
+        json!("018f0000-0000-7000-8000-000000000099");
+    let dangling = directory.path().join("dangling.json");
+    fs::write(&dangling, serde_json::to_vec(&value).unwrap()).unwrap();
+    assert_eq!(
+        target.initialize(dangling).unwrap_err().code(),
+        "import_validation_failed"
+    );
+    assert!(target.initialization_status().unwrap().can_initialize);
 }
 
 #[test]
-fn apply_recomputes_outcome_when_database_changes_after_preview() {
-    let directory = TempDir::new().unwrap();
-    let path = write_json(
-        &directory,
-        "database-changed.json",
-        export(vec![record("https://example.com")]),
-    );
-    let (_, service) = service();
-    let preview = service.preview_import(&path).unwrap();
-    assert_eq!(preview.create_count, 1);
-
-    create(&service, "https://example.com");
-
-    let outcome = service.apply_import(&path, &preview.file_hash).unwrap();
-    assert_eq!(outcome.create_count, 0);
-    assert_eq!(outcome.update_count, 1);
-    assert_eq!(outcome.skip_count, 0);
-}
-
-#[test]
-fn merge_uses_newer_content_earlier_created_and_larger_access_count() {
-    let (database, service) = service();
-    create(&service, "https://example.com");
-    database
-        .execute_batch_for_test(
-            "UPDATE bookmarks
-             SET created_at = 1735689600000,
-                 updated_at = 1735689600000,
-                 access_count = 2,
-                 accessed_at = NULL",
-        )
-        .unwrap();
-    let directory = TempDir::new().unwrap();
-    let path = write_json(
-        &directory,
-        "merge.json",
-        export(vec![record("https://example.com")]),
-    );
-
-    let preview = service.preview_import(&path).unwrap();
-    assert_eq!(preview.update_count, 1);
-    service.apply_import(path, &preview.file_hash).unwrap();
-
-    let bookmark = service.find_by_url("https://example.com").unwrap().unwrap();
-    assert_eq!(bookmark.title, "Imported");
-    assert_eq!(bookmark.description, "Imported description");
-    assert_eq!(bookmark.tags, vec!["imported", "中文"]);
-    assert_eq!(bookmark.created_at, "2020-01-01T00:00:00Z");
-    assert_eq!(bookmark.updated_at, "2099-01-01T00:00:00Z");
-    assert_eq!(bookmark.access_count, 7);
-    assert_eq!(
-        bookmark.accessed_at.as_deref(),
-        Some("2025-01-01T00:00:00Z")
-    );
-}
-
-#[test]
-fn one_invalid_record_rolls_back_entire_import() {
-    let (database, service) = service();
-    let directory = TempDir::new().unwrap();
-    let path = write_json(
-        &directory,
-        "invalid.json",
-        export(vec![record("https://valid.example"), record("")]),
-    );
-    let hash = hash_file(&path);
-
-    let error = service.apply_import(path, &hash).unwrap_err();
-
-    assert_eq!(error.code(), "import_validation_failed");
-    assert_eq!(
-        database
-            .query_i64_for_test("SELECT count(*) FROM bookmarks")
-            .unwrap(),
-        0
-    );
-}
-
-#[test]
-fn database_failure_rolls_back_records_already_imported_in_same_transaction() {
-    let (database, service) = service();
-    database
-        .execute_batch_for_test(
-            "CREATE TRIGGER reject_second_import
-             BEFORE INSERT ON bookmarks
-             WHEN NEW.url = 'https://reject.example/'
-             BEGIN
-                 SELECT RAISE(ABORT, 'forced import failure');
-             END;",
-        )
-        .unwrap();
-    let directory = TempDir::new().unwrap();
-    let path = write_json(
-        &directory,
-        "rollback.json",
-        export(vec![
-            record("https://first.example/"),
-            record("https://reject.example/"),
-        ]),
-    );
-    let preview = service.preview_import(&path).unwrap();
-
-    let error = service.apply_import(path, &preview.file_hash).unwrap_err();
-
-    assert_eq!(error.code(), "database_error");
-    assert_eq!(
-        database
-            .query_i64_for_test("SELECT count(*) FROM bookmarks")
-            .unwrap(),
-        0
-    );
-    assert_eq!(
-        database
-            .query_i64_for_test("SELECT count(*) FROM bookmarks_fts")
-            .unwrap(),
-        0
-    );
+fn write_failure_rolls_back_every_entity_and_relation() {
+    let (_directory, path, _) = populated_dataset();
+    let (database, target, _) = stores();
+    database.execute_batch_for_test("CREATE TRIGGER reject_placements BEFORE INSERT ON navigation_placements BEGIN SELECT RAISE(ABORT, 'forced failure'); END;").unwrap();
+    assert!(target.initialize(path).is_err());
+    assert!(target.initialization_status().unwrap().can_initialize);
+    assert!(target.find_by_url("https://example.com").unwrap().is_none());
 }

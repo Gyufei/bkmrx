@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { BookmarkId, NavigationCategoryId } from '@/identity';
-import type { NavigationBookmark } from '@/types';
+import type { NavigationPlacementCard } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -18,7 +18,7 @@ import { invokeQueryBookmarks } from '@/lib/invoke';
 interface Props {
   categoryId: NavigationCategoryId | null;
   categoryName: string;
-  assigned: NavigationBookmark[];
+  assigned: NavigationPlacementCard[];
   pending: boolean;
   onOpenChange(open: boolean): void;
   onAdd(ids: BookmarkId[]): void;
@@ -44,8 +44,8 @@ export default function BookmarkPickerDialog({
       ),
     enabled: categoryId !== null,
   });
-  const assignedIds = useMemo(() => new Set(assigned.map((bookmark) => bookmark.id)), [assigned]);
-  const available = bookmarks.data?.items.filter((bookmark) => !assignedIds.has(bookmark.id)) ?? [];
+  const assignedIds = useMemo(() => new Set(assigned.map((card) => card.bookmark_id)), [assigned]);
+  const available = bookmarks.data?.items ?? [];
 
   useEffect(() => {
     if (categoryId === null) {
@@ -81,18 +81,20 @@ export default function BookmarkPickerDialog({
           {bookmarks.isLoading ? (
             <p className="p-3 text-sm text-muted-foreground">正在加载书签…</p>
           ) : available.length === 0 ? (
-            <p className="p-3 text-sm text-muted-foreground">没有可添加的书签</p>
+            <p className="p-3 text-sm text-muted-foreground">没有书签</p>
           ) : (
             available.map((bookmark) => (
               <label
                 key={bookmark.id}
-                className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 has-[:disabled]:text-muted-foreground hover:bg-accent"
               >
                 <Checkbox
                   checked={selected.has(bookmark.id)}
+                  disabled={assignedIds.has(bookmark.id)}
                   onCheckedChange={() => toggle(bookmark.id)}
                 />
                 <span className="min-w-0 truncate">{bookmark.title}</span>
+                {assignedIds.has(bookmark.id) && <span className="ml-auto text-xs">已添加</span>}
               </label>
             ))
           )}

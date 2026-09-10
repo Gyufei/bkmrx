@@ -4,6 +4,10 @@
 
 Issues are tracked in the `Gyufei/bkmrx` GitHub repository. See `docs/agents/issue-tracker.md`.
 
+### Triage labels
+
+Use the default triage labels. See `docs/agents/triage-labels.md`.
+
 ### Domain docs
 
 This repository uses a multi-context domain documentation layout. See `docs/agents/domain.md`.

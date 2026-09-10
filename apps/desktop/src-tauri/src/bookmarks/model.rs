@@ -74,33 +74,12 @@ pub struct UpdateBookmark {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct BookmarkExportV1 {
-    pub format_version: u32,
-    pub exported_at: String,
-    pub app_version: String,
-    pub bookmarks: Vec<BookmarkTransferRecord>,
+pub struct BookmarkInitializationStatus {
+    pub can_initialize: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct BookmarkTransferRecord {
-    pub url: String,
-    pub title: String,
-    pub description: String,
-    pub tags: Vec<String>,
-    pub access_count: i64,
-    pub created_at: String,
-    pub updated_at: String,
-    pub accessed_at: Option<String>,
-    pub starred_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ImportPreview {
-    pub file_hash: String,
-    pub total: usize,
-    pub create_count: usize,
-    pub update_count: usize,
-    pub skip_count: usize,
+pub struct BookmarkInitializationResult {
+    pub bookmark_count: usize,
+    pub navigation_category_count: usize,
 }

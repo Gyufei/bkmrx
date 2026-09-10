@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useHotkeys } from '@tanstack/react-hotkeys';
-import { open as openExternal } from '@tauri-apps/plugin-shell';
 import type { Bookmark } from '@/types';
 import { toast } from '@/components/ui/toast';
 import { invokeRecordBookmarkAccess } from '@/lib/invoke';
 import type { BookmarkId } from '@/identity';
+import { openBookmark as openBookmarkExternally } from './open-bookmark';
 
 interface Options {
   bookmarks: Bookmark[];
@@ -32,24 +32,13 @@ export function useBookmarkNavigation({ bookmarks, singleKeyLocked, searchInputR
     if (activeBookmarkId !== null)
       bookmarkElementsRef.current.get(activeBookmarkId)?.scrollIntoView?.({ block: 'nearest' });
   }, [activeBookmarkId]);
-  const recordAccess = useCallback(async (bookmark: Bookmark) => {
+  const openBookmark = useCallback(async (bookmark: Bookmark) => {
     try {
-      await invokeRecordBookmarkAccess(bookmark.id);
+      await openBookmarkExternally(bookmark);
     } catch {
-      console.error('Failed to record bookmark access');
+      toast.add({ type: 'error', title: '无法打开链接', description: bookmark.url });
     }
   }, []);
-  const openBookmark = useCallback(
-    async (bookmark: Bookmark) => {
-      try {
-        await openExternal(bookmark.url);
-        void recordAccess(bookmark);
-      } catch {
-        toast.add({ type: 'error', title: '无法打开链接', description: bookmark.url });
-      }
-    },
-    [recordAccess],
-  );
   const previewBookmarkFrom = useCallback(
     async (bookmark: Bookmark, trigger: HTMLElement) => {
       let protocol = '';
@@ -61,12 +50,18 @@ export function useBookmarkNavigation({ bookmarks, singleKeyLocked, searchInputR
       if (protocol === 'http:' || protocol === 'https:') {
         previewTriggerRef.current = trigger;
         setPreviewBookmark(bookmark);
-        void recordAccess(bookmark);
+        void invokeRecordBookmarkAccess(bookmark.id).catch((error) =>
+          console.error('bookmark_operation_failed', {
+            operation: 'record_access',
+            bookmarkId: bookmark.id,
+            errorType: error instanceof Error ? error.name : typeof error,
+          }),
+        );
         return;
       }
       await openBookmark(bookmark);
     },
-    [openBookmark, recordAccess],
+    [openBookmark],
   );
   const setPreviewOpen = useCallback((open: boolean) => {
     if (open) return;

@@ -41,7 +41,7 @@ fn category_lifecycle_normalizes_names_and_appends_order() {
     assert_eq!(renamed.order, 0);
 
     store.delete_category(tools.id).unwrap();
-    assert_eq!(store.list_categories().unwrap(), vec![blogs]);
+    assert_eq!(store.list_sections().unwrap()[0].category, blogs);
 }
 
 #[test]
@@ -122,7 +122,10 @@ fn placements_are_ordered_unique_and_can_span_categories() {
         )
         .unwrap();
     assert_eq!(
-        placements.iter().map(|item| item.id).collect::<Vec<_>>(),
+        placements
+            .iter()
+            .map(|item| item.bookmark_id)
+            .collect::<Vec<_>>(),
         vec![first, second]
     );
     assert!(placements[0].placement_id < placements[1].placement_id);
@@ -134,7 +137,10 @@ fn placements_are_ordered_unique_and_can_span_categories() {
             },
         )
         .unwrap();
-    assert_eq!(store.list_categories().unwrap()[1].bookmarks[0].id, first);
+    assert_eq!(
+        store.list_sections().unwrap()[1].cards[0].bookmark_id,
+        first
+    );
 
     let duplicate = store
         .add_bookmarks(
@@ -146,7 +152,7 @@ fn placements_are_ordered_unique_and_can_span_categories() {
         .unwrap_err();
     assert_eq!(duplicate.code(), "validation_error");
     store.remove_bookmark(tools.id, first).unwrap();
-    assert_eq!(store.list_categories().unwrap()[0].bookmarks.len(), 1);
+    assert_eq!(store.list_sections().unwrap()[0].cards.len(), 1);
 }
 
 #[test]

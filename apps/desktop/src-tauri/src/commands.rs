@@ -1,14 +1,15 @@
 use tauri::State;
 
 use crate::bookmarks::{
-    Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, ImportPreview,
-    SharedBookmarkStore, TagQueryRequest, TagSummary, UpdateBookmark,
+    Bookmark, BookmarkInitializationResult, BookmarkInitializationStatus, BookmarkPage,
+    BookmarkPageRequest, CreateBookmark, SharedBookmarkStore, TagQueryRequest, TagSummary,
+    UpdateBookmark,
 };
 use crate::error::AppResult;
 use crate::identity::BookmarkId;
 use crate::navigation::{
-    AddNavigationBookmarks, CreateNavigationCategory, NavigationBookmark, NavigationCategory,
-    SharedNavigationStore, UpdateNavigationCategory,
+    AddNavigationBookmarks, CreateNavigationCategory, NavigationCategory, NavigationPlacementCard,
+    NavigationSection, SharedNavigationStore, UpdateNavigationCategory,
 };
 use crate::notes::SharedNotesWorkspace;
 use crate::preview::{BookmarkPreview, PrepareBookmarkPreviewRequest, SharedPreviewService};
@@ -21,10 +22,10 @@ use crate::todos::{
 };
 
 #[tauri::command]
-pub fn list_navigation_categories(
+pub fn list_navigation_sections(
     service: State<'_, SharedNavigationStore>,
-) -> AppResult<Vec<NavigationCategory>> {
-    service.list_categories()
+) -> AppResult<Vec<NavigationSection>> {
+    service.list_sections()
 }
 
 #[tauri::command]
@@ -57,7 +58,7 @@ pub fn add_navigation_bookmarks(
     service: State<'_, SharedNavigationStore>,
     category_id: crate::identity::NavigationCategoryId,
     input: AddNavigationBookmarks,
-) -> AppResult<Vec<NavigationBookmark>> {
+) -> AppResult<Vec<NavigationPlacementCard>> {
     service.add_bookmarks(category_id, input)
 }
 
@@ -303,7 +304,7 @@ pub fn export_todos(
 }
 
 #[tauri::command]
-pub fn export_bookmarks(
+pub fn export_bookmark_dataset(
     service: State<'_, SharedBookmarkStore>,
     path: String,
 ) -> AppResult<String> {
@@ -313,20 +314,18 @@ pub fn export_bookmarks(
 }
 
 #[tauri::command]
-pub fn preview_bookmark_import(
+pub fn get_bookmark_initialization_status(
     service: State<'_, SharedBookmarkStore>,
-    path: String,
-) -> AppResult<ImportPreview> {
-    service.preview_import(std::path::Path::new(&path))
+) -> AppResult<BookmarkInitializationStatus> {
+    service.initialization_status()
 }
 
 #[tauri::command]
-pub fn apply_bookmark_import(
+pub fn initialize_bookmarks(
     service: State<'_, SharedBookmarkStore>,
     path: String,
-    file_hash: String,
-) -> AppResult<ImportPreview> {
-    service.apply_import(std::path::Path::new(&path), &file_hash)
+) -> AppResult<BookmarkInitializationResult> {
+    service.initialize(std::path::Path::new(&path))
 }
 
 #[tauri::command]

@@ -13,8 +13,8 @@ use crate::{
 use super::{
     repository::{hydrate_ordered, SqliteBookmarkRepository},
     search::SqliteFtsSearch,
-    Bookmark, BookmarkPage, BookmarkPageRequest, CreateBookmark, ImportPreview, TagQueryRequest,
-    TagSummary, UpdateBookmark,
+    Bookmark, BookmarkInitializationResult, BookmarkInitializationStatus, BookmarkPage,
+    BookmarkPageRequest, CreateBookmark, TagQueryRequest, TagSummary, UpdateBookmark,
 };
 
 pub trait BookmarkEvents: Send + Sync {
@@ -137,25 +137,20 @@ impl BookmarkStore {
 
     pub fn export(&self, destination: impl AsRef<Path>) -> AppResult<PathBuf> {
         observe_database("bookmarks", "export", || {
-            super::transfer::export_bookmarks(&self.database, destination.as_ref())
+            super::dataset::export(&self.database, destination.as_ref())
         })
     }
 
-    pub fn preview_import(&self, source: impl AsRef<Path>) -> AppResult<ImportPreview> {
-        observe_database("bookmarks", "preview_import", || {
-            super::transfer::preview_import(&self.database, source.as_ref())
+    pub fn initialization_status(&self) -> AppResult<BookmarkInitializationStatus> {
+        observe_database("bookmarks", "initialization_status", || {
+            super::dataset::initialization_status(&self.database)
         })
     }
 
-    pub fn apply_import(
-        &self,
-        source: impl AsRef<Path>,
-        expected_hash: &str,
-    ) -> AppResult<ImportPreview> {
-        observe_database("bookmarks", "apply_import", || {
-            let outcome =
-                super::transfer::apply_import(&self.database, source.as_ref(), expected_hash)?;
-            if outcome.total > 0 {
+    pub fn initialize(&self, source: impl AsRef<Path>) -> AppResult<BookmarkInitializationResult> {
+        observe_database("bookmarks", "initialize", || {
+            let outcome = super::dataset::initialize(&self.database, source.as_ref())?;
+            if outcome.bookmark_count > 0 || outcome.navigation_category_count > 0 {
                 self.events.changed();
             }
             Ok(outcome)
