@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { BookOpen, Pencil, Plus } from 'lucide-react';
+import { ArrowUpDown, BookOpen, Pencil, Plus } from 'lucide-react';
 import type { NavigationCategory, NavigationSection } from '@/types';
 import { Button } from '@/components/ui/button';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import BookmarkPickerDialog from './BookmarkPickerDialog';
 import NavigationCategoryDialog from './NavigationCategoryDialog';
+import NavigationCategorySortDialog from './NavigationCategorySortDialog';
 import NavigationSectionView from './NavigationSectionView';
 import { useNavigationController } from './use-navigation-controller';
 
@@ -14,6 +15,7 @@ export default function NavigationPage() {
   const [addingTo, setAddingTo] = useState<NavigationSection | null>(null);
   const [deleting, setDeleting] = useState<NavigationSection | null>(null);
   const [categoryEditor, setCategoryEditor] = useState<NavigationCategory | 'new' | null>(null);
+  const [sorting, setSorting] = useState(false);
   const manageable = mode === 'edit';
   const editingCategory =
     categoryEditor === 'new' || categoryEditor === null ? null : categoryEditor;
@@ -25,10 +27,24 @@ export default function NavigationPage() {
     setAddingTo(null);
     setDeleting(null);
     setCategoryEditor(null);
+    setSorting(false);
   };
 
   return (
     <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      {manageable ? (
+        <Button
+          variant="outline"
+          size="icon-sm"
+          className="absolute right-4 bottom-14 z-10"
+          aria-label="排序分类"
+          title="排序分类"
+          disabled={(controller.sections.data?.length ?? 0) < 2}
+          onClick={() => setSorting(true)}
+        >
+          <ArrowUpDown aria-hidden="true" />
+        </Button>
+      ) : null}
       <Button
         variant="outline"
         size="icon-sm"
@@ -60,6 +76,13 @@ export default function NavigationPage() {
           }
           setCategoryEditor(null);
         }}
+      />
+      <NavigationCategorySortDialog
+        open={sorting}
+        categories={(controller.sections.data ?? []).map((section) => section.category)}
+        pending={controller.reorder.isPending}
+        onOpenChange={setSorting}
+        onSubmit={(categoryIds) => controller.reorder.mutateAsync(categoryIds)}
       />
       <BookmarkPickerDialog
         categoryId={addingTo?.category.id ?? null}

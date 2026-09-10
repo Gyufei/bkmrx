@@ -36,9 +36,15 @@ const bookmark: Bookmark = {
   starred_at: null,
 };
 
-function section(assigned: boolean): NavigationSection {
+function section(assigned: boolean, sequence = 1, name = '工具'): NavigationSection {
   return {
-    category: { id: navigationCategoryId(1), name: '工具', order: 0, created_at: 1, updated_at: 1 },
+    category: {
+      id: navigationCategoryId(sequence),
+      name,
+      order: sequence - 1,
+      created_at: 1,
+      updated_at: 1,
+    },
     cards: assigned
       ? [
           {
@@ -94,5 +100,21 @@ describe('AddBookmarkToNavigationDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '确定' }));
     expect(await screen.findByText('“Example”已在“工具”分类中')).toBeVisible();
     expect(mocks.add).not.toHaveBeenCalled();
+  });
+
+  it('lays category choices out inline and wraps when space is limited', async () => {
+    mocks.list.mockResolvedValue([
+      section(false, 1, '工具'),
+      section(false, 2, '博客'),
+      section(false, 3, '导航站'),
+    ]);
+    renderDialog();
+
+    const group = await screen.findByRole('radiogroup', { name: '导航分类' });
+    expect(group).toHaveClass('flex-row', 'flex-wrap', 'gap-2');
+    expect(group).not.toHaveClass('overflow-y-auto');
+    expect(screen.getByRole('radio', { name: '工具' }).closest('[data-slot="field"]')).toHaveClass(
+      'w-auto',
+    );
   });
 });

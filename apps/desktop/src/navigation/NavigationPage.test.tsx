@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
+  reorder: vi.fn(),
   addBookmarks: vi.fn(),
   removeBookmark: vi.fn(),
   open: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('./navigation.api', () => ({
   createNavigationCategoryApi: mocks.create,
   updateNavigationCategoryApi: mocks.update,
   deleteNavigationCategoryApi: mocks.remove,
+  reorderNavigationCategoriesApi: mocks.reorder,
   addNavigationBookmarksApi: mocks.addBookmarks,
   removeNavigationBookmarkApi: mocks.removeBookmark,
   invalidateNavigationSections: (client: QueryClient) =>
@@ -89,6 +91,12 @@ describe('NavigationPage category lifecycle', () => {
     });
     mocks.remove.mockImplementation(async (id: NavigationCategory['id']) => {
       sections = sections.filter((section) => section.category.id !== id);
+    });
+    mocks.reorder.mockImplementation(async (ids: NavigationCategory['id'][]) => {
+      sections = ids.map((id, order) => {
+        const section = sections.find((value) => value.category.id === id)!;
+        return { ...section, category: { ...section.category, order } };
+      });
     });
   });
 
@@ -209,6 +217,7 @@ describe('NavigationPage category lifecycle', () => {
     await waitFor(() => expect(mocks.open).toHaveBeenCalledWith(bookmark.url));
 
     await enterEditMode();
+    expect(screen.getByRole('button', { name: '排序分类' })).toBeDisabled();
     expect(screen.queryByRole('textbox', { name: '分类名称' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '新建分类' })).toHaveClass('h-[82px]');
     expect(screen.getByRole('button', { name: /添加书签/ })).toBeVisible();
@@ -221,6 +230,43 @@ describe('NavigationPage category lifecycle', () => {
     expect(screen.queryByRole('button', { name: '新建分类' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /添加书签/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Example Docs' })).toBeVisible();
+  });
+
+  it('shows category sorting only in edit mode and persists the dragged order', async () => {
+    sections = ['工具', '博客', '文档'].map((name, index) => ({
+      category: {
+        id: navigationCategoryId(index + 1),
+        name,
+        order: index,
+        created_at: 1,
+        updated_at: 1,
+      },
+      cards: [],
+    }));
+    renderPage();
+    expect(await screen.findByRole('heading', { name: '工具' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: '排序分类' })).not.toBeInTheDocument();
+
+    await enterEditMode();
+    fireEvent.click(screen.getByRole('button', { name: '排序分类' }));
+    const source = screen.getByRole('listitem', { name: '文档' });
+    const target = screen.getByRole('listitem', { name: '工具' });
+    fireEvent(
+      source,
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 20, clientY: 20 }),
+    );
+    fireEvent.pointerEnter(target, { pointerId: 1 });
+    fireEvent.pointerUp(target, { pointerId: 1 });
+    fireEvent.click(screen.getByRole('button', { name: '保存排序' }));
+
+    await waitFor(() => expect(mocks.reorder).toHaveBeenCalledOnce());
+    expect(mocks.reorder.mock.calls[0][0]).toEqual([
+      navigationCategoryId(3),
+      navigationCategoryId(1),
+      navigationCategoryId(2),
+    ]);
+    const headings = await screen.findAllByRole('heading');
+    expect(headings.map((heading) => heading.textContent)).toEqual(['文档', '工具', '博客']);
   });
 
   it('shows empty states and supports create, rename, and confirmed delete', async () => {

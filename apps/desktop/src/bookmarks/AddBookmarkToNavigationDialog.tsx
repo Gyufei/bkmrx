@@ -89,9 +89,12 @@ function CategoryChoices({
   if (sections.length === 0)
     return <p className="text-sm text-muted-foreground">还没有导航分类，请先在导航页创建分类。</p>;
   return (
-    <FieldGroup role="radiogroup" aria-label="导航分类" className="max-h-72 overflow-y-auto">
+    <FieldGroup role="radiogroup" aria-label="导航分类" className="flex-row flex-wrap gap-2">
       {sections.map((section) => (
-        <Field key={section.category.id} className="flex-row items-center rounded-xl border p-3">
+        <Field
+          key={section.category.id}
+          className="w-auto flex-row items-center rounded-xl border px-3 py-2"
+        >
           <input
             id={`navigation-category-${section.category.id}`}
             type="radio"
@@ -103,7 +106,7 @@ function CategoryChoices({
           />
           <FieldLabel
             htmlFor={`navigation-category-${section.category.id}`}
-            className="min-w-0 flex-1 cursor-pointer truncate"
+            className="max-w-48 cursor-pointer truncate"
           >
             {section.category.name}
           </FieldLabel>

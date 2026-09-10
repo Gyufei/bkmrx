@@ -5,7 +5,8 @@ use bkmrx_lib::{
     database::Database,
     identity::NavigationCategoryId,
     navigation::{
-        AddNavigationBookmarks, CreateNavigationCategory, NavigationStore, UpdateNavigationCategory,
+        AddNavigationBookmarks, CreateNavigationCategory, NavigationStore,
+        ReorderNavigationCategories, UpdateNavigationCategory,
     },
 };
 
@@ -58,6 +59,75 @@ fn category_names_are_unique_after_trim_and_case_normalization() {
         })
         .unwrap_err();
     assert_eq!(error.code(), "navigation_category_conflict");
+}
+
+#[test]
+fn categories_can_be_reordered_as_one_complete_sequence() {
+    let store = store();
+    let first = store
+        .create_category(CreateNavigationCategory { name: "一".into() })
+        .unwrap();
+    let second = store
+        .create_category(CreateNavigationCategory { name: "二".into() })
+        .unwrap();
+    let third = store
+        .create_category(CreateNavigationCategory { name: "三".into() })
+        .unwrap();
+
+    store
+        .reorder_categories(ReorderNavigationCategories {
+            category_ids: vec![third.id, first.id, second.id],
+        })
+        .unwrap();
+
+    let categories = store
+        .list_sections()
+        .unwrap()
+        .into_iter()
+        .map(|section| section.category)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        categories
+            .iter()
+            .map(|category| category.id)
+            .collect::<Vec<_>>(),
+        vec![third.id, first.id, second.id]
+    );
+    assert_eq!(
+        categories
+            .iter()
+            .map(|category| category.order)
+            .collect::<Vec<_>>(),
+        vec![0, 1, 2]
+    );
+}
+
+#[test]
+fn reorder_rejects_incomplete_and_duplicate_category_ids_without_changes() {
+    let store = store();
+    let first = store
+        .create_category(CreateNavigationCategory { name: "一".into() })
+        .unwrap();
+    let second = store
+        .create_category(CreateNavigationCategory { name: "二".into() })
+        .unwrap();
+
+    for category_ids in [vec![first.id], vec![first.id, first.id]] {
+        assert_eq!(
+            store
+                .reorder_categories(ReorderNavigationCategories { category_ids })
+                .unwrap_err()
+                .code(),
+            "validation_error"
+        );
+    }
+    let ids = store
+        .list_sections()
+        .unwrap()
+        .into_iter()
+        .map(|section| section.category.id)
+        .collect::<Vec<_>>();
+    assert_eq!(ids, vec![first.id, second.id]);
 }
 
 #[test]

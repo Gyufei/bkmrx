@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension, Row};
@@ -12,7 +12,7 @@ use crate::{
 
 use super::{
     AddNavigationBookmarks, CreateNavigationCategory, NavigationCategory, NavigationPlacementCard,
-    NavigationSection, UpdateNavigationCategory,
+    NavigationSection, ReorderNavigationCategories, UpdateNavigationCategory,
 };
 
 type ChangeNotifier = Arc<dyn Fn() + Send + Sync>;
@@ -111,6 +111,32 @@ impl NavigationStore {
         self.changed(result)
     }
 
+    pub fn reorder_categories(&self, input: ReorderNavigationCategories) -> AppResult<()> {
+        let result = observe_database("navigation", "reorder_categories", || {
+            self.database.write(|transaction| {
+                let current = list_category_ids(transaction)?;
+                validate_reorder(&current, &input.category_ids)?;
+                let offset = reorder_offset(transaction, input.category_ids.len())?;
+                transaction.execute(
+                    "UPDATE navigation_categories SET \"order\"=\"order\"+?1",
+                    [offset],
+                )?;
+                let now = Utc::now().timestamp_millis();
+                for (order, id) in input.category_ids.into_iter().enumerate() {
+                    let order = i64::try_from(order).map_err(|_| {
+                        AppError::internal_error("Navigation category order overflow")
+                    })?;
+                    transaction.execute(
+                        "UPDATE navigation_categories SET \"order\"=?1,updated_at=?2 WHERE id=?3",
+                        params![order, now, id],
+                    )?;
+                }
+                Ok(())
+            })
+        });
+        self.changed(result)
+    }
+
     pub fn add_bookmarks(
         &self,
         category_id: NavigationCategoryId,
@@ -172,6 +198,44 @@ fn normalized_name(value: &str) -> AppResult<String> {
         ));
     }
     Ok(value.to_owned())
+}
+
+fn list_category_ids(connection: &rusqlite::Connection) -> AppResult<Vec<NavigationCategoryId>> {
+    let mut statement = connection.prepare("SELECT id FROM navigation_categories")?;
+    let ids = statement
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ids)
+}
+
+fn validate_reorder(
+    current: &[NavigationCategoryId],
+    requested: &[NavigationCategoryId],
+) -> AppResult<()> {
+    let unique = requested.iter().copied().collect::<HashSet<_>>();
+    if requested.len() != current.len()
+        || unique.len() != requested.len()
+        || current.iter().any(|id| !unique.contains(id))
+    {
+        return Err(AppError::validation_error(
+            "Navigation category order must contain every category exactly once",
+        ));
+    }
+    Ok(())
+}
+
+fn reorder_offset(connection: &rusqlite::Connection, count: usize) -> AppResult<i64> {
+    let maximum: i64 = connection.query_row(
+        "SELECT COALESCE(max(\"order\"),-1) FROM navigation_categories",
+        [],
+        |row| row.get(0),
+    )?;
+    let count = i64::try_from(count)
+        .map_err(|_| AppError::internal_error("Navigation category count overflow"))?;
+    maximum
+        .checked_add(count)
+        .and_then(|value| value.checked_add(1))
+        .ok_or_else(|| AppError::internal_error("Navigation category order overflow"))
 }
 
 fn get(

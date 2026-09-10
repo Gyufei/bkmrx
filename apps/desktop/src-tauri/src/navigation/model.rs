@@ -37,6 +37,11 @@ pub struct UpdateNavigationCategory {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReorderNavigationCategories {
+    pub category_ids: Vec<NavigationCategoryId>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AddNavigationBookmarks {
     pub bookmark_ids: Vec<BookmarkId>,
 }

@@ -46,6 +46,8 @@ export const invokeUpdateNavigationCategory = (id: NavigationCategoryId, name: s
   invoke<NavigationCategory>('update_navigation_category', { id, input: { name } });
 export const invokeDeleteNavigationCategory = (id: NavigationCategoryId) =>
   invoke<void>('delete_navigation_category', { id });
+export const invokeReorderNavigationCategories = (categoryIds: NavigationCategoryId[]) =>
+  invoke<void>('reorder_navigation_categories', { input: { category_ids: categoryIds } });
 export const invokeAddNavigationBookmarks = (
   categoryId: NavigationCategoryId,
   bookmarkIds: BookmarkId[],

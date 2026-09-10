@@ -184,6 +184,7 @@ fn main() {
             bkmrx_lib::commands::create_navigation_category,
             bkmrx_lib::commands::update_navigation_category,
             bkmrx_lib::commands::delete_navigation_category,
+            bkmrx_lib::commands::reorder_navigation_categories,
             bkmrx_lib::commands::add_navigation_bookmarks,
             bkmrx_lib::commands::remove_navigation_bookmark,
             bkmrx_lib::commands::query_bookmarks,

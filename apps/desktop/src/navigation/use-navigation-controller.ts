@@ -12,6 +12,7 @@ import {
   listNavigationSectionsApi,
   NAVIGATION_SECTIONS_KEY,
   removeNavigationBookmarkApi,
+  reorderNavigationCategoriesApi,
   updateNavigationCategoryApi,
 } from './navigation.api';
 
@@ -47,6 +48,11 @@ export function useNavigationController() {
     onSuccess: refresh,
     onError: report,
   });
+  const reorder = useMutation({
+    mutationFn: reorderNavigationCategoriesApi,
+    onSuccess: refresh,
+    onError: report,
+  });
   const addCards = useMutation({
     mutationFn: ({
       categoryId,
@@ -59,7 +65,16 @@ export function useNavigationController() {
     onError: report,
   });
   const removeCard = useRemoveCard(refresh, addCards.mutate);
-  return { sections, create, rename, removeCategory, addCards, removeCard, open: openCard };
+  return {
+    sections,
+    create,
+    rename,
+    removeCategory,
+    reorder,
+    addCards,
+    removeCard,
+    open: openCard,
+  };
 }
 
 function useRemoveCard(

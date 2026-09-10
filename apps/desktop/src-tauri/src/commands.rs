@@ -9,7 +9,8 @@ use crate::error::AppResult;
 use crate::identity::BookmarkId;
 use crate::navigation::{
     AddNavigationBookmarks, CreateNavigationCategory, NavigationCategory, NavigationPlacementCard,
-    NavigationSection, SharedNavigationStore, UpdateNavigationCategory,
+    NavigationSection, ReorderNavigationCategories, SharedNavigationStore,
+    UpdateNavigationCategory,
 };
 use crate::notes::SharedNotesWorkspace;
 use crate::preview::{BookmarkPreview, PrepareBookmarkPreviewRequest, SharedPreviewService};
@@ -51,6 +52,14 @@ pub fn delete_navigation_category(
     id: crate::identity::NavigationCategoryId,
 ) -> AppResult<()> {
     service.delete_category(id)
+}
+
+#[tauri::command]
+pub fn reorder_navigation_categories(
+    service: State<'_, SharedNavigationStore>,
+    input: ReorderNavigationCategories,
+) -> AppResult<()> {
+    service.reorder_categories(input)
 }
 
 #[tauri::command]

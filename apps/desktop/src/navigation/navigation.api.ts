@@ -5,6 +5,7 @@ import {
   invokeListNavigationSections,
   invokeAddNavigationBookmarks,
   invokeRemoveNavigationBookmark,
+  invokeReorderNavigationCategories,
   invokeUpdateNavigationCategory,
 } from '@/lib/invoke';
 
@@ -13,6 +14,7 @@ export const listNavigationSectionsApi = invokeListNavigationSections;
 export const createNavigationCategoryApi = invokeCreateNavigationCategory;
 export const updateNavigationCategoryApi = invokeUpdateNavigationCategory;
 export const deleteNavigationCategoryApi = invokeDeleteNavigationCategory;
+export const reorderNavigationCategoriesApi = invokeReorderNavigationCategories;
 export const addNavigationBookmarksApi = invokeAddNavigationBookmarks;
 export const removeNavigationBookmarkApi = invokeRemoveNavigationBookmark;
 export const invalidateNavigationSections = (client: QueryClient) =>
