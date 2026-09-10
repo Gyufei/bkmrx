@@ -54,6 +54,11 @@ function renderPage() {
   );
 }
 
+async function enterEditMode() {
+  fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+  expect(await screen.findByRole('button', { name: '查看' })).toBeVisible();
+}
+
 describe('NavigationPage category lifecycle', () => {
   beforeEach(() => {
     sections = [];
@@ -129,6 +134,7 @@ describe('NavigationPage category lifecycle', () => {
     });
 
     renderPage();
+    await enterEditMode();
     fireEvent.click(await screen.findByRole('button', { name: /添加书签/ }));
     fireEvent.click(await screen.findByText('Example Docs'));
     fireEvent.click(screen.getByRole('button', { name: '添加（1）' }));
@@ -154,27 +160,96 @@ describe('NavigationPage category lifecycle', () => {
   });
   afterEach(cleanup);
 
+  it('opens cards in view mode and hides management until edit is enabled', async () => {
+    const bookmark = {
+      id: bookmarkId(1),
+      url: 'https://example.com/docs',
+      title: 'Example Docs',
+      description: '',
+      tags: [],
+      access_count: 0,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      accessed_at: null,
+      starred_at: null,
+    };
+    sections = [
+      {
+        category: {
+          id: navigationCategoryId(1),
+          name: '工具',
+          order: 0,
+          created_at: 1,
+          updated_at: 1,
+        },
+        cards: [
+          {
+            placement_id: navigationPlacementId(1),
+            bookmark_id: bookmark.id,
+            title: bookmark.title,
+            url: bookmark.url,
+            created_at: 1,
+          },
+        ],
+      },
+    ];
+
+    renderPage();
+    expect(await screen.findByRole('heading', { name: '工具' })).toBeVisible();
+    expect(screen.queryByRole('textbox', { name: '分类名称' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /新建分类/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /添加书签/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重命名 工具' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '删除 工具' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '从分类移除 Example Docs' }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Example Docs' }));
+    await waitFor(() => expect(mocks.open).toHaveBeenCalledWith(bookmark.url));
+
+    await enterEditMode();
+    expect(screen.queryByRole('textbox', { name: '分类名称' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '新建分类' })).toBeVisible();
+    expect(screen.getByRole('button', { name: /添加书签/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: '重命名 工具' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '删除 工具' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '从分类移除 Example Docs' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: '查看' }));
+    expect(await screen.findByRole('button', { name: '编辑' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: '新建分类' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /添加书签/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Example Docs' })).toBeVisible();
+  });
+
   it('shows empty states and supports create, rename, and confirmed delete', async () => {
     renderPage();
     expect(await screen.findByText('还没有导航分类，先创建一个常用分类吧。')).toBeVisible();
+    await enterEditMode();
+    fireEvent.click(screen.getByRole('button', { name: '新建分类' }));
+    expect(screen.getByRole('heading', { name: '新建分类' })).toBeVisible();
     fireEvent.change(screen.getByRole('textbox', { name: '分类名称' }), {
       target: { value: ' 工具 ' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /新建分类/ }));
+    fireEvent.click(screen.getByRole('button', { name: '确定' }));
     expect(await screen.findByRole('heading', { name: '工具' })).toBeVisible();
-    expect(screen.getByText('该分类暂无书签')).toBeVisible();
+    expect(screen.getByText('该分类暂无书签')).toHaveClass('h-7');
 
     fireEvent.click(screen.getByRole('button', { name: '重命名 工具' }));
-    fireEvent.change(screen.getByRole('textbox', { name: '重命名 工具' }), {
+    expect(screen.getByRole('heading', { name: '编辑分类' })).toBeVisible();
+    fireEvent.change(screen.getByRole('textbox', { name: '分类名称' }), {
       target: { value: '常用工具' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    fireEvent.click(screen.getByRole('button', { name: '确定' }));
     expect(await screen.findByRole('heading', { name: '常用工具' })).toBeVisible();
 
     fireEvent.click(screen.getByRole('button', { name: '删除 常用工具' }));
     expect(screen.getByText('将删除“常用工具”及其中 0 个导航关联，不会删除书签。')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: '删除' }));
     await waitFor(() => expect(mocks.remove).toHaveBeenCalledOnce());
+    expect(await screen.findByRole('button', { name: '新建分类' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '查看' }));
     expect(await screen.findByText('还没有导航分类，先创建一个常用分类吧。')).toBeVisible();
   });
 });

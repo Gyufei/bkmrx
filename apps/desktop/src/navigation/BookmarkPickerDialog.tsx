@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { BookmarkId, NavigationCategoryId } from '@/identity';
 import type { NavigationPlacementCard } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { invokeQueryBookmarks } from '@/lib/invoke';
+
+const SEARCH_DELAY = 200;
 
 interface Props {
   categoryId: NavigationCategoryId | null;
@@ -33,23 +35,32 @@ export default function BookmarkPickerDialog({
   onAdd,
 }: Props) {
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selected, setSelected] = useState<Set<BookmarkId>>(new Set());
   const bookmarks = useQuery({
-    queryKey: ['navigation-bookmark-picker', query],
+    queryKey: ['navigation-bookmark-picker', debouncedQuery],
     queryFn: () =>
       invokeQueryBookmarks(
-        query.trim()
-          ? { mode: 'search', query: query.trim(), tags: [], cursor: null, page_size: 100 }
+        debouncedQuery
+          ? { mode: 'search', query: debouncedQuery, tags: [], cursor: null, page_size: 100 }
           : { mode: 'browse', starred: false, cursor: null, page_size: 100 },
       ),
     enabled: categoryId !== null,
+    placeholderData: keepPreviousData,
   });
   const assignedIds = useMemo(() => new Set(assigned.map((card) => card.bookmark_id)), [assigned]);
   const available = bookmarks.data?.items ?? [];
+  const showLoading = !bookmarks.data && bookmarks.isPending;
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DELAY);
+    return () => window.clearTimeout(timeout);
+  }, [query]);
 
   useEffect(() => {
     if (categoryId === null) {
       setQuery('');
+      setDebouncedQuery('');
       setSelected(new Set());
     }
   }, [categoryId]);
@@ -77,8 +88,13 @@ export default function BookmarkPickerDialog({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <div className="max-h-72 space-y-1 overflow-y-auto">
-          {bookmarks.isLoading ? (
+        <div
+          role="list"
+          aria-label="书签搜索结果"
+          aria-busy={bookmarks.isFetching}
+          className="flex h-72 flex-col gap-1 overflow-y-auto"
+        >
+          {showLoading ? (
             <p className="p-3 text-sm text-muted-foreground">正在加载书签…</p>
           ) : available.length === 0 ? (
             <p className="p-3 text-sm text-muted-foreground">没有书签</p>
@@ -86,6 +102,7 @@ export default function BookmarkPickerDialog({
             available.map((bookmark) => (
               <label
                 key={bookmark.id}
+                role="listitem"
                 className="flex items-center gap-3 rounded-lg px-3 py-2 has-[:disabled]:text-muted-foreground hover:bg-accent"
               >
                 <Checkbox

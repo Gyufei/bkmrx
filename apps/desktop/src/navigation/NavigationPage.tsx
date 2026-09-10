@@ -1,22 +1,66 @@
 import { useState } from 'react';
-import type { NavigationSection } from '@/types';
+import { BookOpen, Pencil, Plus } from 'lucide-react';
+import type { NavigationCategory, NavigationSection } from '@/types';
+import { Button } from '@/components/ui/button';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import BookmarkPickerDialog from './BookmarkPickerDialog';
-import NavigationCategoryComposer from './NavigationCategoryComposer';
+import NavigationCategoryDialog from './NavigationCategoryDialog';
 import NavigationSectionView from './NavigationSectionView';
 import { useNavigationController } from './use-navigation-controller';
 
 export default function NavigationPage() {
   const controller = useNavigationController();
+  const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [addingTo, setAddingTo] = useState<NavigationSection | null>(null);
   const [deleting, setDeleting] = useState<NavigationSection | null>(null);
+  const [categoryEditor, setCategoryEditor] = useState<NavigationCategory | 'new' | null>(null);
+  const manageable = mode === 'edit';
+  const editingCategory =
+    categoryEditor === 'new' || categoryEditor === null ? null : categoryEditor;
+  const categoryPending =
+    categoryEditor === 'new' ? controller.create.isPending : controller.rename.isPending;
+
+  const leaveEditMode = () => {
+    setMode('view');
+    setAddingTo(null);
+    setDeleting(null);
+    setCategoryEditor(null);
+  };
+
   return (
-    <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <NavigationCategoryComposer
-        pending={controller.create.isPending}
-        onCreate={(name) => controller.create.mutateAsync(name)}
+    <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <Button
+        variant="outline"
+        size="icon-sm"
+        className="absolute top-4 right-4 z-10"
+        aria-label={manageable ? '查看' : '编辑'}
+        title={manageable ? '查看' : '编辑'}
+        onClick={() => (manageable ? leaveEditMode() : setMode('edit'))}
+      >
+        {manageable ? <BookOpen aria-hidden="true" /> : <Pencil aria-hidden="true" />}
+      </Button>
+      <NavigationSections
+        controller={controller}
+        manageable={manageable}
+        onAdd={setAddingTo}
+        onEdit={setCategoryEditor}
+        onCreate={() => setCategoryEditor('new')}
+        onDelete={setDeleting}
       />
-      <NavigationSections controller={controller} onAdd={setAddingTo} onDelete={setDeleting} />
+      <NavigationCategoryDialog
+        open={categoryEditor !== null}
+        category={editingCategory}
+        pending={categoryPending}
+        onOpenChange={(open) => !open && setCategoryEditor(null)}
+        onSubmit={async (name) => {
+          if (categoryEditor === 'new') {
+            await controller.create.mutateAsync(name);
+          } else if (categoryEditor) {
+            await controller.rename.mutateAsync({ id: categoryEditor.id, name });
+          }
+          setCategoryEditor(null);
+        }}
+      />
       <BookmarkPickerDialog
         categoryId={addingTo?.category.id ?? null}
         categoryName={addingTo?.category.name ?? ''}
@@ -65,48 +109,53 @@ type Controller = ReturnType<typeof useNavigationController>;
 
 function NavigationSections({
   controller,
+  manageable,
   onAdd,
+  onEdit,
+  onCreate,
   onDelete,
 }: {
   controller: Controller;
+  manageable: boolean;
   onAdd(section: NavigationSection): void;
+  onEdit(category: NavigationCategory): void;
+  onCreate(): void;
   onDelete(section: NavigationSection): void;
 }) {
   if (controller.sections.isLoading)
     return (
-      <div className="flex-1 p-5">
+      <div className="flex-1 p-5 pr-14">
         <p>正在加载导航分类…</p>
       </div>
     );
   if (controller.sections.isError)
     return (
-      <div className="flex-1 p-5">
+      <div className="flex-1 p-5 pr-14">
         <p role="alert">加载导航分类失败</p>
       </div>
     );
-  if (controller.sections.data?.length === 0)
+  const sections = controller.sections.data ?? [];
+  if (sections.length === 0 && !manageable)
     return (
-      <div className="flex-1 p-5">
+      <div className="flex-1 p-5 pr-14">
         <p className="text-muted-foreground">还没有导航分类，先创建一个常用分类吧。</p>
       </div>
     );
   return (
-    <div className="flex-1 overflow-y-auto p-5">
-      <div className="space-y-6">
-        {controller.sections.data?.map((section) => (
+    <div className="flex-1 overflow-y-auto p-5 pr-14">
+      <div className="flex flex-wrap content-start items-start gap-4">
+        {sections.map((section) => (
           <NavigationSectionView
             key={section.category.id}
             section={section}
-            renaming={
-              controller.rename.isPending && controller.rename.variables?.id === section.category.id
-            }
+            manageable={manageable}
             removing={
               controller.removeCard.isPending &&
               controller.removeCard.variables?.categoryId === section.category.id
                 ? controller.removeCard.variables.card
                 : undefined
             }
-            onRename={(category, name) => controller.rename.mutateAsync({ id: category.id, name })}
+            onEdit={onEdit}
             onAdd={() => onAdd(section)}
             onDelete={() => onDelete(section)}
             onOpen={(card) => void controller.open(card)}
@@ -115,7 +164,21 @@ function NavigationSections({
             }
           />
         ))}
+        {manageable ? <AddCategoryCard onClick={onCreate} /> : null}
       </div>
     </div>
+  );
+}
+
+function AddCategoryCard({ onClick }: { onClick(): void }) {
+  return (
+    <button
+      type="button"
+      aria-label="新建分类"
+      onClick={onClick}
+      className="flex h-16 w-[200px] items-center justify-center rounded-lg border text-muted-foreground transition-transform hover:-translate-px hover:border-ring hover:text-foreground"
+    >
+      <Plus aria-hidden="true" />
+    </button>
   );
 }
