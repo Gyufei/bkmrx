@@ -241,7 +241,10 @@ fn log_database_failure(action: &str, operation: Operation, error: &AppError) {
 #[cfg(test)]
 mod interface_tests {
     use super::Database;
-    use crate::error::{AppError, AppResult};
+    use crate::{
+        error::{AppError, AppResult},
+        identity::BookmarkTagId,
+    };
 
     #[test]
     fn read_returns_values_and_maps_sqlite_errors() {
@@ -274,14 +277,20 @@ mod interface_tests {
         let database = Database::open_in_memory().unwrap();
         database
             .write(|transaction| {
-                transaction.execute("INSERT INTO tags(name) VALUES ('committed')", [])?;
+                transaction.execute(
+                    "INSERT INTO tags(id,name) VALUES (?1,'committed')",
+                    [BookmarkTagId::new()],
+                )?;
                 Ok(())
             })
             .unwrap();
 
         let error = database
             .write(|transaction| {
-                transaction.execute("INSERT INTO tags(name) VALUES ('rolled-back')", [])?;
+                transaction.execute(
+                    "INSERT INTO tags(id,name) VALUES (?1,'rolled-back')",
+                    [BookmarkTagId::new()],
+                )?;
                 Err::<(), _>(AppError::validation_error("stop"))
             })
             .unwrap_err();
@@ -305,7 +314,10 @@ mod interface_tests {
 
         let value = database
             .snapshot(|transaction| {
-                transaction.execute("INSERT INTO tags(name) VALUES ('temporary')", [])?;
+                transaction.execute(
+                    "INSERT INTO tags(id,name) VALUES (?1,'temporary')",
+                    [BookmarkTagId::new()],
+                )?;
                 transaction
                     .query_row("SELECT 7", [], |row| row.get::<_, i64>(0))
                     .map_err(AppError::from)
@@ -331,7 +343,10 @@ mod interface_tests {
 
         database
             .read(|connection| {
-                connection.execute("INSERT INTO tags(name) VALUES ('temporary')", [])?;
+                connection.execute(
+                    "INSERT INTO tags(id,name) VALUES (?1,'temporary')",
+                    [BookmarkTagId::new()],
+                )?;
                 Ok(())
             })
             .unwrap();
@@ -354,7 +369,10 @@ mod interface_tests {
 
         let error = database
             .write(|transaction| {
-                transaction.execute("INSERT INTO tags(name) VALUES ('rolled-back')", [])?;
+                transaction.execute(
+                    "INSERT INTO tags(id,name) VALUES (?1,'rolled-back')",
+                    [BookmarkTagId::new()],
+                )?;
                 transaction.execute("INVALID SQL", [])?;
                 Ok(())
             })
