@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
@@ -16,6 +17,10 @@ vi.mock('@/components/ui/toast', () => ({
 }));
 vi.mock('./DeleteBkDialog', () => ({ default: () => null }));
 vi.mock('./EditBookmarkDialog', () => ({ default: () => null }));
+vi.mock('./AddBookmarkToNavigationDialog', () => ({
+  default: ({ bookmark }: { bookmark: Bookmark | null }) =>
+    bookmark ? <span>导航弹窗：{bookmark.title}</span> : null,
+}));
 
 let intersectionCallback: IntersectionObserverCallback;
 
@@ -307,6 +312,25 @@ it('locks page shortcuts while a bookmark dialog target is active', () => {
   fireEvent.click(screen.getByTitle('删除书签'));
 
   expect(onInteractionLockChange).toHaveBeenLastCalledWith(true);
+});
+
+it('opens the navigation category dialog from the bookmark context menu', async () => {
+  const bookmark: Bookmark = {
+    id: bookmarkId(1),
+    url: 'https://example.com',
+    title: 'Example',
+    description: '',
+    tags: [],
+    access_count: 0,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    accessed_at: null,
+    starred_at: null,
+  };
+  renderList({ bookmark, starredView: false, onToggleStarred: vi.fn() });
+  fireEvent.contextMenu(screen.getByText(bookmark.url));
+  fireEvent.click(await screen.findByText('添加到导航分类'));
+  expect(screen.getByText('导航弹窗：Example')).toBeInTheDocument();
 });
 
 it('distinguishes the active bookmark from the lighter hover state', () => {

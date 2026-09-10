@@ -1,23 +1,14 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
-import { ExternalLink, Link, Code, Pencil, Star, Trash2 } from 'lucide-react';
-import {
-  ContextMenu,
-  ContextMenuTrigger,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-} from '@/components/ui/context-menu';
-import EditBookmarkDialog from './EditBookmarkDialog';
-import { tagColor } from '../lib/tagColor';
-import type { Bookmark } from '../types';
-import DeleteBkDialog from './DeleteBkDialog';
-import { toast } from '@/components/ui/toast';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { BookmarkId } from '@/identity';
+import type { Bookmark } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
-import type { BookmarkId } from '@/identity';
+import AddBookmarkToNavigationDialog from './AddBookmarkToNavigationDialog';
+import BookmarkResultItem from './BookmarkResultItem';
+import DeleteBkDialog from './DeleteBkDialog';
+import EditBookmarkDialog from './EditBookmarkDialog';
 
 interface Props {
   bookmarks: Bookmark[];
@@ -26,309 +17,167 @@ interface Props {
   hasMore: boolean;
   isFetchingNextPage: boolean;
   nextPageError: string | null;
-  onLoadMore: () => void;
-  onRetryNextPage: () => void;
+  onLoadMore(): void;
+  onRetryNextPage(): void;
   starredView: boolean;
   emptyMessage: string;
   starPendingId: BookmarkId | null;
-  onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
-  onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
-  onOpenBookmark: (bookmark: Bookmark) => void;
+  onToggleStarred(bookmark: Bookmark, starred: boolean): void;
+  onPreviewBookmark(bookmark: Bookmark, trigger: HTMLElement): void;
+  onOpenBookmark(bookmark: Bookmark): void;
   activeBookmarkId: BookmarkId | null;
-  onActiveBookmarkChange: (id: BookmarkId) => void;
-  onBookmarkElementChange: (id: BookmarkId, element: HTMLElement | null) => void;
-  onInteractionLockChange: (locked: boolean) => void;
+  onActiveBookmarkChange(id: BookmarkId): void;
+  onBookmarkElementChange(id: BookmarkId, element: HTMLElement | null): void;
+  onInteractionLockChange(locked: boolean): void;
 }
 
-export default function ResultList({
-  bookmarks,
-  initialLoading,
-  initialError,
-  hasMore,
-  isFetchingNextPage,
-  nextPageError,
-  onLoadMore,
-  onRetryNextPage,
-  starredView,
-  emptyMessage,
-  starPendingId,
-  onToggleStarred,
-  onPreviewBookmark,
-  onOpenBookmark,
-  activeBookmarkId,
-  onActiveBookmarkChange,
-  onBookmarkElementChange,
-  onInteractionLockChange,
-}: Props) {
+export default function ResultList(props: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const targets = useDialogTargets(props.onInteractionLockChange);
+  useInfiniteScroll(sentinelRef, props);
+  if (props.initialError) return <InitialError message={props.initialError} />;
+  if (props.initialLoading) return <InitialLoading />;
+  if (props.bookmarks.length === 0)
+    return (
+      <Empty className="h-48">
+        <EmptyDescription>{props.emptyMessage}</EmptyDescription>
+      </Empty>
+    );
+  return <BookmarkResults props={props} targets={targets} sentinelRef={sentinelRef} />;
+}
 
-  const [deleteTarget, setDeleteTarget] = useState<Bookmark | null>(null);
-  const [editTarget, setEditTarget] = useState<Bookmark | null>(null);
-
-  useEffect(() => {
-    onInteractionLockChange(deleteTarget !== null || editTarget !== null);
-    return () => onInteractionLockChange(false);
-  }, [deleteTarget, editTarget, onInteractionLockChange]);
-
+function useInfiniteScroll(sentinelRef: React.RefObject<HTMLDivElement | null>, props: Props) {
   const handleIntersect = useCallback(
     (entries: IntersectionObserverEntry[]) => {
-      if (entries[0]?.isIntersecting && hasMore && !isFetchingNextPage && !nextPageError) {
-        onLoadMore();
-      }
+      if (
+        entries[0]?.isIntersecting &&
+        props.hasMore &&
+        !props.isFetchingNextPage &&
+        !props.nextPageError
+      )
+        props.onLoadMore();
     },
-    [hasMore, isFetchingNextPage, nextPageError, onLoadMore],
+    [props.hasMore, props.isFetchingNextPage, props.nextPageError, props.onLoadMore],
   );
-
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
-
-    const observer = new IntersectionObserver(handleIntersect, {
-      rootMargin: '200px',
-    });
+    const observer = new IntersectionObserver(handleIntersect, { rootMargin: '200px' });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [handleIntersect]);
+  }, [handleIntersect, sentinelRef]);
+}
 
-  if (initialError) {
-    return (
-      <div className="flex h-48 items-center justify-center px-4">
-        <Alert variant="destructive" className="max-w-md text-center">
-          <AlertDescription>{initialError}</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+function useDialogTargets(onInteractionLockChange: Props['onInteractionLockChange']) {
+  const [deleteTarget, setDeleteTarget] = useState<Bookmark | null>(null);
+  const [editTarget, setEditTarget] = useState<Bookmark | null>(null);
+  const [navigationTarget, setNavigationTarget] = useState<Bookmark | null>(null);
+  useEffect(() => {
+    onInteractionLockChange(Boolean(deleteTarget || editTarget || navigationTarget));
+    return () => onInteractionLockChange(false);
+  }, [deleteTarget, editTarget, navigationTarget, onInteractionLockChange]);
+  return {
+    deleteTarget,
+    setDeleteTarget,
+    editTarget,
+    setEditTarget,
+    navigationTarget,
+    setNavigationTarget,
+  };
+}
 
-  if (initialLoading) {
+type Targets = ReturnType<typeof useDialogTargets>;
+
+function BookmarkResults({
+  props,
+  targets,
+  sentinelRef,
+}: {
+  props: Props;
+  targets: Targets;
+  sentinelRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      {props.bookmarks.map((bookmark) => (
+        <BookmarkResultItem
+          key={bookmark.id}
+          bookmark={bookmark}
+          starredView={props.starredView}
+          starPending={props.starPendingId === bookmark.id}
+          active={props.activeBookmarkId === bookmark.id}
+          onToggleStarred={props.onToggleStarred}
+          onPreviewBookmark={props.onPreviewBookmark}
+          onOpenBookmark={props.onOpenBookmark}
+          onActiveBookmarkChange={props.onActiveBookmarkChange}
+          onElementChange={props.onBookmarkElementChange}
+          onRequestNavigation={targets.setNavigationTarget}
+          onRequestEdit={targets.setEditTarget}
+          onRequestDelete={targets.setDeleteTarget}
+        />
+      ))}
+      <DeleteBkDialog
+        deleteTarget={targets.deleteTarget}
+        setDeleteTarget={targets.setDeleteTarget}
+      />
+      <EditBookmarkDialog editTarget={targets.editTarget} setEditTarget={targets.setEditTarget} />
+      <AddBookmarkToNavigationDialog
+        bookmark={targets.navigationTarget}
+        onOpenChange={(open) => !open && targets.setNavigationTarget(null)}
+      />
+      <div ref={sentinelRef} className="h-4" />
+      <PaginationStatus {...props} />
+    </div>
+  );
+}
+
+function InitialError({ message }: { message: string }) {
+  return (
+    <div className="flex h-48 items-center justify-center px-4">
+      <Alert variant="destructive" className="max-w-md text-center">
+        <AlertDescription>{message}</AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+
+function InitialLoading() {
+  return (
+    <div
+      role="status"
+      className="flex h-48 items-center justify-center gap-2 text-sm text-muted-foreground"
+    >
+      <Spinner />
+      加载中...
+    </div>
+  );
+}
+
+function PaginationStatus(props: Props) {
+  if (props.isFetchingNextPage)
     return (
       <div
         role="status"
-        className="flex h-48 items-center justify-center gap-2 text-sm text-muted-foreground"
+        className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground"
       >
         <Spinner />
         加载中...
       </div>
     );
-  }
-
-  if (bookmarks.length === 0) {
+  if (props.nextPageError)
     return (
-      <Empty className="h-48">
-        <EmptyDescription>{emptyMessage}</EmptyDescription>
-      </Empty>
+      <Alert variant="destructive" className="flex items-center justify-center gap-2 border-0 py-2">
+        <AlertDescription>{props.nextPageError}</AlertDescription>
+        <Button variant="link" size="xs" onClick={props.onRetryNextPage}>
+          重试
+        </Button>
+      </Alert>
     );
-  }
-
-  return (
-    <div className="space-y-1">
-      {bookmarks.map((bm) => (
-        <ContextMenu key={bm.id}>
-          <ContextMenuTrigger>
-            <BookmarkRow
-              bookmark={bm}
-              starredView={starredView}
-              starPending={starPendingId === bm.id}
-              onToggleStarred={onToggleStarred}
-              onRequestDelete={setDeleteTarget}
-              onPreviewBookmark={onPreviewBookmark}
-              onOpenBookmark={onOpenBookmark}
-              active={activeBookmarkId === bm.id}
-              onActiveBookmarkChange={onActiveBookmarkChange}
-              onElementChange={onBookmarkElementChange}
-            />
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onClick={() => onOpenBookmark(bm)}>
-              <ExternalLink className="h-4 w-4" />
-              <span>打开链接</span>
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => {
-                navigator.clipboard.writeText(bm.url).catch(() => {});
-              }}
-            >
-              <Link className="h-4 w-4" />
-              <span>复制链接</span>
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => {
-                const text = bm.title ? `[${bm.title}](${bm.url})` : bm.url;
-                navigator.clipboard.writeText(text).catch(() => {});
-              }}
-            >
-              <Code className="h-4 w-4" />
-              <span>复制为 Markdown</span>
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={() => setEditTarget(bm)}>
-              <Pencil className="h-4 w-4" />
-              <span>编辑</span>
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => setDeleteTarget(bm)}>
-              <Trash2 className="h-4 w-4" />
-              <span className="text-destructive">删除</span>
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      ))}
-
-      <DeleteBkDialog deleteTarget={deleteTarget} setDeleteTarget={setDeleteTarget} />
-
-      <EditBookmarkDialog editTarget={editTarget} setEditTarget={setEditTarget} />
-
-      {/* Sentinel for infinite scroll */}
-      <div ref={sentinelRef} className="h-4" />
-
-      {/* Loading indicator */}
-      {isFetchingNextPage && (
-        <div
-          role="status"
-          className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground"
-        >
-          <Spinner />
-          加载中...
-        </div>
-      )}
-
-      {nextPageError && (
-        <Alert
-          variant="destructive"
-          className="flex items-center justify-center gap-2 border-0 py-2"
-        >
-          <AlertDescription>{nextPageError}</AlertDescription>
-          <Button variant="link" size="xs" onClick={onRetryNextPage}>
-            重试
-          </Button>
-        </Alert>
-      )}
-
-      {/* All loaded */}
-      {!hasMore && !nextPageError && bookmarks.length > 0 && (
-        <div className="text-center py-4 text-sm text-muted-foreground">
-          已显示全部 {bookmarks.length} 条结果
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BookmarkRow({
-  bookmark,
-  starredView,
-  starPending,
-  onToggleStarred,
-  onRequestDelete,
-  onPreviewBookmark,
-  onOpenBookmark,
-  active,
-  onActiveBookmarkChange,
-  onElementChange,
-}: {
-  bookmark: Bookmark;
-  starredView: boolean;
-  starPending: boolean;
-  onToggleStarred: (bookmark: Bookmark, starred: boolean) => void;
-  onRequestDelete: (bm: Bookmark) => void;
-  onPreviewBookmark: (bookmark: Bookmark, trigger: HTMLElement) => void;
-  onOpenBookmark: (bookmark: Bookmark) => void;
-  active: boolean;
-  onActiveBookmarkChange: (id: BookmarkId) => void;
-  onElementChange: (id: BookmarkId, element: HTMLElement | null) => void;
-}) {
-  const handleClickStar = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    const nextStarred = bookmark.starred_at === null;
-    onToggleStarred(bookmark, nextStarred);
-
-    if (!starredView || nextStarred) return;
-
-    const titleText = bookmark.title || bookmark.url;
-    const cancleTipText = titleText.length > 10 ? titleText.substring(0, 10) + '...' : titleText;
-    const id = toast.add({
-      title: '已取消星标',
-      description: `“${cancleTipText}”已从星标列表移除`,
-      actionProps: {
-        children: '撤销',
-        onClick() {
-          onToggleStarred(bookmark, true);
-          toast.close(id);
-        },
-      },
-    });
-  };
-
-  return (
-    <div className="group relative">
-      <div
-        ref={(element) => onElementChange(bookmark.id, element)}
-        tabIndex={-1}
-        aria-current={active ? 'true' : undefined}
-        onClick={(event) => {
-          onActiveBookmarkChange(bookmark.id);
-          onPreviewBookmark(bookmark, event.currentTarget);
-        }}
-        className={`block cursor-pointer rounded-md px-4 py-3 transition-colors ${
-          active ? 'bg-accent' : 'hover:bg-accent/40 dark:hover:bg-accent/50'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onActiveBookmarkChange(bookmark.id);
-            onOpenBookmark(bookmark);
-          }}
-          className="block max-w-full text-left text-base font-medium text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors truncate pr-6 cursor-pointer"
-        >
-          {bookmark.title || bookmark.url}
-        </button>
-        <div className="text-xs text-muted-foreground truncate mt-0.5">{bookmark.url}</div>
-        {bookmark.description && (
-          <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-            {bookmark.description}
-          </div>
-        )}
-        {bookmark.access_count > 0 && (
-          <div className="text-xs text-muted-foreground opacity-60 mt-1">
-            {bookmark.access_count} 次访问
-          </div>
-        )}
-        {bookmark.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1.5">
-            {bookmark.tags.map((tag) => (
-              <Badge key={tag} style={tagColor(tag)}>
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )}
+  if (!props.hasMore)
+    return (
+      <div className="text-center py-4 text-sm text-muted-foreground">
+        已显示全部 {props.bookmarks.length} 条结果
       </div>
-      <button
-        type="button"
-        disabled={starPending}
-        aria-busy={starPending}
-        onClick={handleClickStar}
-        className={`absolute right-2 top-2 p-1.5 rounded-md transition-colors disabled:cursor-wait disabled:opacity-50 ${
-          bookmark.starred_at
-            ? 'text-amber-500 hover:bg-amber-500/10'
-            : 'text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-amber-500 hover:bg-amber-500/10'
-        }`}
-        title={bookmark.starred_at ? '取消星标' : '添加星标'}
-        aria-label={bookmark.starred_at ? '取消星标' : '添加星标'}
-      >
-        <Star className="h-4 w-4" fill={bookmark.starred_at ? 'currentColor' : 'none'} />
-      </button>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onRequestDelete(bookmark);
-        }}
-        className="absolute right-10 top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1.5 rounded-md text-muted-foreground hover:text-destructive dark:hover:text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/10"
-        title="删除书签"
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
-    </div>
-  );
+    );
+  return null;
 }
