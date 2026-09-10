@@ -210,7 +210,7 @@ describe('NavigationPage category lifecycle', () => {
 
     await enterEditMode();
     expect(screen.queryByRole('textbox', { name: '分类名称' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '新建分类' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '新建分类' })).toHaveClass('h-[82px]');
     expect(screen.getByRole('button', { name: /添加书签/ })).toBeVisible();
     expect(screen.getByRole('button', { name: '重命名 工具' })).toBeVisible();
     expect(screen.getByRole('button', { name: '删除 工具' })).toBeVisible();
@@ -225,9 +225,8 @@ describe('NavigationPage category lifecycle', () => {
 
   it('shows empty states and supports create, rename, and confirmed delete', async () => {
     renderPage();
-    expect(await screen.findByText('还没有导航分类，先创建一个常用分类吧。')).toBeVisible();
-    await enterEditMode();
-    fireEvent.click(screen.getByRole('button', { name: '新建分类' }));
+    expect(await screen.findByText(/还没有导航分类，先/)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '创建' }));
     expect(screen.getByRole('heading', { name: '新建分类' })).toBeVisible();
     fireEvent.change(screen.getByRole('textbox', { name: '分类名称' }), {
       target: { value: ' 工具 ' },
@@ -236,6 +235,7 @@ describe('NavigationPage category lifecycle', () => {
     expect(await screen.findByRole('heading', { name: '工具' })).toBeVisible();
     expect(screen.getByText('该分类暂无书签')).toHaveClass('h-7');
 
+    await enterEditMode();
     fireEvent.click(screen.getByRole('button', { name: '重命名 工具' }));
     expect(screen.getByRole('heading', { name: '编辑分类' })).toBeVisible();
     fireEvent.change(screen.getByRole('textbox', { name: '分类名称' }), {
@@ -250,6 +250,7 @@ describe('NavigationPage category lifecycle', () => {
     await waitFor(() => expect(mocks.remove).toHaveBeenCalledOnce());
     expect(await screen.findByRole('button', { name: '新建分类' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: '查看' }));
-    expect(await screen.findByText('还没有导航分类，先创建一个常用分类吧。')).toBeVisible();
+    expect(await screen.findByRole('button', { name: '创建' })).toBeVisible();
+    expect(screen.getByText(/还没有导航分类，先/)).toBeVisible();
   });
 });

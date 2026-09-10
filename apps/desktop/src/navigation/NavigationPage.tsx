@@ -32,7 +32,7 @@ export default function NavigationPage() {
       <Button
         variant="outline"
         size="icon-sm"
-        className="absolute top-4 right-4 z-10"
+        className="absolute bottom-4 right-4 z-10"
         aria-label={manageable ? '查看' : '编辑'}
         title={manageable ? '查看' : '编辑'}
         onClick={() => (manageable ? leaveEditMode() : setMode('edit'))}
@@ -124,21 +124,27 @@ function NavigationSections({
 }) {
   if (controller.sections.isLoading)
     return (
-      <div className="flex-1 p-5 pr-14">
+      <div className="flex-1 p-5">
         <p>正在加载导航分类…</p>
       </div>
     );
   if (controller.sections.isError)
     return (
-      <div className="flex-1 p-5 pr-14">
+      <div className="flex-1 p-5">
         <p role="alert">加载导航分类失败</p>
       </div>
     );
   const sections = controller.sections.data ?? [];
   if (sections.length === 0 && !manageable)
     return (
-      <div className="flex-1 p-5 pr-14">
-        <p className="text-muted-foreground">还没有导航分类，先创建一个常用分类吧。</p>
+      <div className="flex-1 p-5">
+        <div className="flex flex-wrap items-center gap-1 text-muted-foreground">
+          <span>还没有导航分类，先</span>
+          <Button size="xs" onClick={onCreate}>
+            创建
+          </Button>
+          <span>一个常用分类吧。</span>
+        </div>
       </div>
     );
   return (
@@ -176,7 +182,7 @@ function AddCategoryCard({ onClick }: { onClick(): void }) {
       type="button"
       aria-label="新建分类"
       onClick={onClick}
-      className="flex h-16 w-[200px] items-center justify-center rounded-lg border text-muted-foreground transition-transform hover:-translate-px hover:border-ring hover:text-foreground"
+      className="flex h-[82px] w-12 items-center justify-center rounded-lg border text-muted-foreground transition-transform hover:-translate-px hover:border-ring hover:text-foreground"
     >
       <Plus aria-hidden="true" />
     </button>

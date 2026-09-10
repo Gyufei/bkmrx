@@ -26,8 +26,8 @@ export default function NavigationSectionView({
 }: Props) {
   return (
     <section className="w-max max-w-full rounded-lg border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">{section.category.name}</h2>
+      <div className="flex h-6 items-center justify-between gap-2">
+        <h2 className="text-sm leading-none font-semibold">{section.category.name}</h2>
         {manageable ? (
           <div className="flex shrink-0 gap-1">
             <Button
