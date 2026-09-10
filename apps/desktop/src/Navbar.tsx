@@ -13,6 +13,8 @@ export enum PATHS {
   SETTINGS = 'settings',
 }
 
+export type BookmarkSubpage = 'navigation' | 'bookmarks';
+
 const TABS = [
   { id: PATHS.BOOKMARKS, label: '书签', icon: <Bookmark /> },
   { id: PATHS.NOTES, label: '笔记', icon: <Notebook /> },
@@ -23,9 +25,13 @@ const TABS = [
 export default function NavBar({
   currentPath,
   onCurrentPathChange,
+  bookmarkSubpage = 'navigation',
+  onBookmarkSubpageChange = () => {},
 }: {
   currentPath: PATHS;
   onCurrentPathChange: (path: PATHS) => void;
+  bookmarkSubpage?: BookmarkSubpage;
+  onBookmarkSubpageChange?: (page: BookmarkSubpage) => void;
 }) {
   const [isMac, setIsMac] = useState(false);
   const [serverRunning, setServerRunning] = useState(false);
@@ -85,6 +91,15 @@ export default function NavBar({
             </TabsList>
           </Tabs>
         </div>
+
+        {currentPath === PATHS.BOOKMARKS && (
+          <Tabs value={bookmarkSubpage} onValueChange={onBookmarkSubpageChange}>
+            <TabsList>
+              <TabsTrigger value="navigation">导航</TabsTrigger>
+              <TabsTrigger value="bookmarks">书签</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
 
         {currentPath === PATHS.BOOKMARKS && (
           <div

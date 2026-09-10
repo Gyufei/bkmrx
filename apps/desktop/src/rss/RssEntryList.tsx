@@ -1,11 +1,12 @@
 import { Circle, CircleCheck } from 'lucide-react';
 import type { RssEntry, RssEntryScope } from '@/types';
+import type { RssEntryId } from '@/identity';
 import { cn } from '@/lib/utils';
 
 interface Props {
   scope: RssEntryScope;
   items: RssEntry[];
-  selectedId: number | null;
+  selectedId: RssEntryId | null;
   loading: boolean;
   fetchingNext: boolean;
   hasNextPage: boolean;

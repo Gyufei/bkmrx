@@ -77,6 +77,22 @@ impl AppError {
         Self::new("todo_export_empty", "当前标签下没有可导出的待办。", None)
     }
 
+    pub fn navigation_category_conflict() -> Self {
+        Self::new(
+            "navigation_category_conflict",
+            "Navigation category name already exists",
+            None,
+        )
+    }
+
+    pub fn navigation_category_not_found(id: crate::identity::NavigationCategoryId) -> Self {
+        Self::new(
+            "navigation_category_not_found",
+            "Navigation category not found",
+            Some(serde_json::json!({ "id": id })),
+        )
+    }
+
     pub fn export_write_failed() -> Self {
         Self::new(
             "export_write_failed",
@@ -151,7 +167,7 @@ impl AppError {
         Self::new(code, message, None)
     }
 
-    pub fn rss_feed_conflict(id: i64) -> Self {
+    pub fn rss_feed_conflict(id: crate::identity::RssFeedId) -> Self {
         Self::new(
             "rss_feed_conflict",
             "This RSS subscription already exists",

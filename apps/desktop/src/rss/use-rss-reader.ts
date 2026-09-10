@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RssEntry, RssEntryScope } from '@/types';
+import type { RssEntryId } from '@/identity';
 import { toast } from '@/components/ui/toast';
 import { getErrorMessage } from '@/lib/error';
 import {
@@ -19,7 +20,7 @@ import {
 export function useRssReader() {
   const queryClient = useQueryClient();
   const [scope, setScope] = useState<RssEntryScope>({ mode: 'all' });
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<RssEntryId | null>(null);
   const feeds = useQuery({ queryKey: RSS_FEEDS_KEY, queryFn: listFeedsApi });
   const entries = useInfiniteQuery({
     queryKey: rssEntriesKey(scope),
@@ -38,7 +39,8 @@ export function useRssReader() {
     toast.add({ type: 'error', title: getErrorMessage(error, 'RSS 操作失败') });
   };
   const markRead = useMutation({
-    mutationFn: ({ id, isRead }: { id: number; isRead: boolean }) => markEntryReadApi(id, isRead),
+    mutationFn: ({ id, isRead }: { id: RssEntryId; isRead: boolean }) =>
+      markEntryReadApi(id, isRead),
     onSuccess: (updated) => {
       updateRssEntryQueries(queryClient, updated);
       void queryClient.invalidateQueries({ queryKey: RSS_FEEDS_KEY });

@@ -1,4 +1,22 @@
-import type { BookmarkId, TodoId, TodoTagId } from './identity';
+import type { BookmarkId, RssEntryId, RssFeedId, TodoId, TodoTagId } from './identity';
+import type { NavigationCategoryId, NavigationPlacementId } from './identity';
+
+export interface NavigationBookmark {
+  placement_id: NavigationPlacementId;
+  id: BookmarkId;
+  title: string;
+  url: string;
+  created_at: number;
+}
+
+export interface NavigationCategory {
+  id: NavigationCategoryId;
+  name: string;
+  order: number;
+  created_at: number;
+  updated_at: number;
+  bookmarks: NavigationBookmark[];
+}
 
 export interface Bookmark {
   id: BookmarkId;
@@ -114,7 +132,7 @@ export interface AppError {
 }
 
 export interface RssFeed {
-  id: number;
+  id: RssFeedId;
   source_url: string;
   feed_url: string;
   site_url: string | null;
@@ -130,8 +148,8 @@ export interface RssFeed {
 }
 
 export interface RssEntry {
-  id: number;
-  feed_id: number;
+  id: RssEntryId;
+  feed_id: RssFeedId;
   feed_title: string;
   title: string;
   link: string | null;
@@ -144,7 +162,7 @@ export interface RssEntry {
 }
 
 export type RssEntryScope =
-  { mode: 'all' } | { mode: 'unread' } | { mode: 'feed'; feed_id: number };
+  { mode: 'all' } | { mode: 'unread' } | { mode: 'feed'; feed_id: RssFeedId };
 export interface RssEntryPage {
   entries: RssEntry[];
   next_cursor: string | null;

@@ -6,6 +6,7 @@ pub mod fsutil;
 pub mod http_server;
 pub mod identity;
 pub mod logging;
+pub mod navigation;
 pub mod notes;
 pub mod preview;
 pub mod providers;

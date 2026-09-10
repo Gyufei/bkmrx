@@ -80,7 +80,7 @@ fn fixture() -> Fixture {
     for (position, id) in ids.iter().enumerate() {
         database
             .execute_batch_for_test(&format!(
-                "UPDATE bookmarks SET updated_at = {}, starred_at = {} WHERE uuid = '{}'",
+                "UPDATE bookmarks SET updated_at = {}, starred_at = {} WHERE id = '{}'",
                 1_700_000_000 + position,
                 1_700_000_000 + position,
                 id
@@ -138,8 +138,8 @@ fn empty_query_without_tags_only_pages_starred_by_starred_at_then_id() {
         .database
         .execute_batch_for_test(&format!(
             "UPDATE bookmarks SET starred_at = NULL;
-             UPDATE bookmarks SET starred_at = 100 WHERE uuid IN ('{}', '{}');
-             UPDATE bookmarks SET starred_at = 200 WHERE uuid = '{}';",
+             UPDATE bookmarks SET starred_at = 100 WHERE id IN ('{}', '{}');
+             UPDATE bookmarks SET starred_at = 200 WHERE id = '{}';",
             fixture.ids[1], fixture.ids[2], fixture.ids[4]
         ))
         .unwrap();

@@ -2,11 +2,12 @@
 
 import { describe, expect, it } from 'vitest';
 import type { RssEntry } from '@/types';
+import { rssEntryId, rssFeedId } from '@/test-utils/identity';
 import { rssEntryToBookmarkValues } from './rss-bookmark';
 
 const entry: RssEntry = {
-  id: 1,
-  feed_id: 2,
+  id: rssEntryId(1),
+  feed_id: rssFeedId(2),
   feed_title: 'Feed',
   title: '  Article title  ',
   link: '  https://example.com/post  ',

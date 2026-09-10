@@ -3,6 +3,7 @@ use std::sync::Arc;
 use bkmrx_lib::{
     bookmarks::{Bookmark, BookmarkEvents, BookmarkStore},
     database::Database,
+    navigation::NavigationStore,
     preview::PreviewService,
     rss::{RssRepository, RssService},
     todos::TodoStore,
@@ -89,6 +90,18 @@ fn main() {
                 })),
             );
             app.manage(todo_service);
+            let navigation_handle = handle.clone();
+            app.manage(Arc::new(
+                NavigationStore::new(Arc::clone(&database)).with_change_notifier(Arc::new(
+                    move || {
+                        if let Err(error) = navigation_handle.emit("navigation-changed", ()) {
+                            log::warn!(
+                                "frontend_event_emit_failed event=navigation-changed error={error}"
+                            );
+                        }
+                    },
+                )),
+            ));
             let settings_path = runtime_paths.settings_path().to_path_buf();
             let http_client = reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(10))
@@ -167,6 +180,12 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            bkmrx_lib::commands::list_navigation_categories,
+            bkmrx_lib::commands::create_navigation_category,
+            bkmrx_lib::commands::update_navigation_category,
+            bkmrx_lib::commands::delete_navigation_category,
+            bkmrx_lib::commands::add_navigation_bookmarks,
+            bkmrx_lib::commands::remove_navigation_bookmark,
             bkmrx_lib::commands::query_bookmarks,
             bkmrx_lib::commands::create_bookmark,
             bkmrx_lib::commands::update_bookmark,

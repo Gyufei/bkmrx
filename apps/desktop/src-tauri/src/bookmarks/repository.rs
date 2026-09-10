@@ -34,7 +34,7 @@ impl SqliteBookmarkRepository {
         self.database.write(|transaction| {
             if let Err(error) = transaction.execute(
                 "INSERT INTO bookmarks (
-                uuid, url, title, description, access_count, created_at, updated_at
+                id, url, title, description, access_count, created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5)",
                 params![id, url, title, input.description, now],
             ) {
@@ -73,7 +73,7 @@ impl SqliteBookmarkRepository {
             if let Err(error) = transaction.execute(
                 "UPDATE bookmarks
              SET url = ?1, title = ?2, description = ?3, updated_at = ?4
-             WHERE uuid = ?5",
+             WHERE id = ?5",
                 params![url, title, description, now, id],
             ) {
                 return Err(write_error(error, &url));
@@ -101,7 +101,7 @@ impl SqliteBookmarkRepository {
                 params_from_iter(ids.iter()),
             )?;
             let deleted = transaction.execute(
-                &format!("DELETE FROM bookmarks WHERE uuid IN ({placeholders})"),
+                &format!("DELETE FROM bookmarks WHERE id IN ({placeholders})"),
                 params_from_iter(ids.iter()),
             )?;
             remove_unused_tags(transaction)?;
@@ -112,7 +112,7 @@ impl SqliteBookmarkRepository {
     pub(super) fn delete(&self, id: BookmarkId) -> AppResult<()> {
         self.database.write(|transaction| {
             let exists = transaction.query_row(
-                "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE uuid = ?1)",
+                "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE id = ?1)",
                 [id],
                 |row| row.get::<_, bool>(0),
             )?;
@@ -120,7 +120,7 @@ impl SqliteBookmarkRepository {
                 return Err(AppError::bookmark_not_found(id));
             }
             transaction.execute("DELETE FROM bookmarks_fts WHERE bookmark_uuid = ?1", [id])?;
-            transaction.execute("DELETE FROM bookmarks WHERE uuid = ?1", [id])?;
+            transaction.execute("DELETE FROM bookmarks WHERE id = ?1", [id])?;
             remove_unused_tags(transaction)?;
             Ok(())
         })
@@ -134,7 +134,7 @@ impl SqliteBookmarkRepository {
         let url = normalize_url(url)?;
         self.database.read(|connection| {
             let id = connection
-                .query_row("SELECT uuid FROM bookmarks WHERE url = ?1", [&url], |row| {
+                .query_row("SELECT id FROM bookmarks WHERE url = ?1", [&url], |row| {
                     row.get::<_, BookmarkId>(0)
                 })
                 .optional()
@@ -167,9 +167,9 @@ impl SqliteBookmarkRepository {
             let mut statement = connection.prepare(
                 "SELECT t.name, count(bt.bookmark_id) AS bookmark_count
                  FROM tags t
-                 JOIN bookmark_tags bt ON bt.tag_id = t.uuid
+                 JOIN bookmark_tags bt ON bt.tag_id = t.id
                  WHERE ?1 = '' OR t.name LIKE ?2 ESCAPE '\\' COLLATE NOCASE
-                 GROUP BY t.uuid, t.name
+                 GROUP BY t.id, t.name
                  ORDER BY bookmark_count DESC, t.name ASC
                  LIMIT COALESCE(?3, -1)",
             )?;
@@ -188,7 +188,7 @@ impl SqliteBookmarkRepository {
             let changed = transaction.execute(
                 "UPDATE bookmarks
                  SET access_count = access_count + 1, accessed_at = ?1
-                 WHERE uuid = ?2",
+                 WHERE id = ?2",
                 params![Utc::now().timestamp_millis(), id],
             )?;
             if changed == 0 {
@@ -208,7 +208,7 @@ impl SqliteBookmarkRepository {
         let starred_at = starred.then(|| Utc::now().timestamp_millis());
         self.database.write(|transaction| {
             let changed = transaction.execute(
-                "UPDATE bookmarks SET starred_at = ?1 WHERE uuid = ?2",
+                "UPDATE bookmarks SET starred_at = ?1 WHERE id = ?2",
                 params![starred_at, id],
             )?;
             if changed == 0 {
@@ -234,10 +234,10 @@ pub(crate) fn hydrate_ordered(
     }
     let placeholders = placeholders(ids.len());
     let mut statement = connection.prepare(&format!(
-        "SELECT uuid, url, title, description, access_count,
+        "SELECT id, url, title, description, access_count,
                     created_at, updated_at, accessed_at, starred_at
              FROM bookmarks
-             WHERE uuid IN ({placeholders})"
+             WHERE id IN ({placeholders})"
     ))?;
     let rows = statement.query_map(params_from_iter(ids.iter()), bookmark_from_row)?;
     let mut bookmarks = HashMap::new();
@@ -250,7 +250,7 @@ pub(crate) fn hydrate_ordered(
     let mut tag_statement = connection.prepare(&format!(
         "SELECT bt.bookmark_id, t.name
              FROM bookmark_tags bt
-             JOIN tags t ON t.uuid = bt.tag_id
+             JOIN tags t ON t.id = bt.tag_id
              WHERE bt.bookmark_id IN ({placeholders})
              ORDER BY t.name"
     ))?;
@@ -324,13 +324,13 @@ fn replace_tags(
     for tag in tags {
         let tag_id = BookmarkTagId::new();
         transaction.execute(
-            "INSERT INTO tags(uuid, name) VALUES (?1, ?2)
+            "INSERT INTO tags(id, name) VALUES (?1, ?2)
                  ON CONFLICT(name) DO NOTHING",
             params![tag_id, tag],
         )?;
         transaction.execute(
             "INSERT INTO bookmark_tags(bookmark_id, tag_id)
-                 SELECT ?1, uuid FROM tags WHERE name = ?2",
+                 SELECT ?1, id FROM tags WHERE name = ?2",
             params![bookmark_id, tag],
         )?;
     }
@@ -358,7 +358,7 @@ pub(crate) fn remove_unused_tags(transaction: &Transaction<'_>) -> AppResult<()>
     transaction.execute(
         "DELETE FROM tags
              WHERE NOT EXISTS (
-                 SELECT 1 FROM bookmark_tags WHERE tag_id = tags.uuid
+                 SELECT 1 FROM bookmark_tags WHERE tag_id = tags.id
              )",
         [],
     )?;

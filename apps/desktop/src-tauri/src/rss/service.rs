@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::{AppError, AppResult},
+    identity::{RssEntryId, RssFeedId},
     logging::observe_database,
 };
 
@@ -22,7 +23,7 @@ const STALE_AFTER: Duration = Duration::from_secs(15 * 60);
 
 pub type SharedRssService = Arc<RssService>;
 type SharedRefresh = futures_util::future::Shared<BoxFuture<'static, AppResult<FeedRefreshResult>>>;
-type InflightRefreshes = Arc<Mutex<HashMap<i64, SharedRefresh>>>;
+type InflightRefreshes = Arc<Mutex<HashMap<RssFeedId, SharedRefresh>>>;
 
 #[derive(Clone)]
 pub struct RssService {
@@ -93,7 +94,7 @@ impl RssService {
         })
     }
 
-    pub async fn refresh_feed(&self, id: i64) -> AppResult<FeedRefreshResult> {
+    pub async fn refresh_feed(&self, id: RssFeedId) -> AppResult<FeedRefreshResult> {
         let future = {
             let mut inflight = self
                 .inflight
@@ -119,7 +120,7 @@ impl RssService {
         future.await
     }
 
-    async fn refresh_feed_once(&self, id: i64) -> AppResult<FeedRefreshResult> {
+    async fn refresh_feed_once(&self, id: RssFeedId) -> AppResult<FeedRefreshResult> {
         let feed = observe_database("rss", "get_feed", || self.repository.get_feed(id))?
             .ok_or_else(|| feed_not_found(id))?;
         let settings = self.rss_settings();
@@ -179,26 +180,26 @@ impl RssService {
         })
     }
 
-    pub fn mark_entry_read(&self, id: i64, is_read: bool) -> AppResult<RssEntry> {
+    pub fn mark_entry_read(&self, id: RssEntryId, is_read: bool) -> AppResult<RssEntry> {
         let entry = observe_database("rss", "mark_entry_read", || {
             self.repository.mark_entry_read(id, is_read)
         })?;
         Ok(entry)
     }
 
-    pub fn rename_feed(&self, id: i64, custom_title: Option<&str>) -> AppResult<RssFeed> {
+    pub fn rename_feed(&self, id: RssFeedId, custom_title: Option<&str>) -> AppResult<RssFeed> {
         let feed = observe_database("rss", "rename_feed", || {
             self.repository.rename(id, custom_title)
         })?;
         Ok(feed)
     }
 
-    pub fn delete_feed(&self, id: i64) -> AppResult<()> {
+    pub fn delete_feed(&self, id: RssFeedId) -> AppResult<()> {
         observe_database("rss", "delete_feed", || self.repository.delete(id))?;
         Ok(())
     }
 }
 
-fn feed_not_found(id: i64) -> AppError {
+fn feed_not_found(id: RssFeedId) -> AppError {
     AppError::rss_error("rss_feed_not_found", format!("Feed {id} was not found"))
 }

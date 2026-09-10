@@ -106,8 +106,8 @@ fn exported_starred_at_preserves_milliseconds_and_import_order() {
     let earlier = source.find_by_url("https://z.example").unwrap().unwrap();
     source_database
         .execute_batch_for_test(&format!(
-            "UPDATE bookmarks SET starred_at = 1767225600456 WHERE uuid = '{}';
-             UPDATE bookmarks SET starred_at = 1767225600123 WHERE uuid = '{}';",
+            "UPDATE bookmarks SET starred_at = 1767225600456 WHERE id = '{}';
+             UPDATE bookmarks SET starred_at = 1767225600123 WHERE id = '{}';",
             later.id, earlier.id
         ))
         .unwrap();

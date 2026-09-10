@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { RssFeed } from '@/types';
+import { rssFeedId } from '@/test-utils/identity';
 import RenameFeedDialog from './RenameFeedDialog';
 import { renameFeedApi } from './rss.api';
 
@@ -24,7 +25,7 @@ vi.mock('@/components/ui/dialog', () => ({
 }));
 
 const feed: RssFeed = {
-  id: 1,
+  id: rssFeedId(1),
   source_url: 'https://example.com',
   feed_url: 'https://example.com/feed.xml',
   site_url: 'https://example.com',
@@ -73,7 +74,11 @@ it('clears a previous rename error when another feed is opened', async () => {
   );
   view.rerender(
     <QueryClientProvider client={queryClient}>
-      <RenameFeedDialog key={2} feed={{ ...feed, id: 2, title: 'Next' }} onClose={vi.fn()} />
+      <RenameFeedDialog
+        key={rssFeedId(2)}
+        feed={{ ...feed, id: rssFeedId(2), title: 'Next' }}
+        onClose={vi.fn()}
+      />
     </QueryClientProvider>,
   );
 

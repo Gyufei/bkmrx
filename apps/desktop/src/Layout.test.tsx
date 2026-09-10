@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,9 +10,22 @@ vi.mock('./Navbar', async (importOriginal) => {
   const original = await importOriginal<typeof import('./Navbar')>();
   return {
     ...original,
-    default: () => <input aria-label="导航测试输入框" />,
+    default: ({
+      onBookmarkSubpageChange,
+    }: {
+      onBookmarkSubpageChange: (page: 'navigation' | 'bookmarks') => void;
+    }) => (
+      <div>
+        <input aria-label="导航测试输入框" />
+        <button onClick={() => onBookmarkSubpageChange('navigation')}>导航子页</button>
+        <button onClick={() => onBookmarkSubpageChange('bookmarks')}>书签子页</button>
+      </div>
+    ),
   };
 });
+vi.mock('./navigation/NavigationPage', () => ({
+  default: () => <input aria-label="导航临时状态" defaultValue="导航工作区" />,
+}));
 vi.mock('./bookmarks/BookmarkView', () => ({
   default: () => <input aria-label="书签临时状态" defaultValue="书签工作区" />,
 }));
@@ -41,7 +54,7 @@ describe('AppHome workspace hotkeys', () => {
 
   it('switches between bookmark, note, and Todo workspaces with Mod+1/2/3', () => {
     render(<AppHome />);
-    expect(screen.getByRole('textbox', { name: '书签临时状态' })).toBeVisible();
+    expect(screen.getByRole('textbox', { name: '导航临时状态' })).toBeVisible();
 
     expect(dispatchModKey('2').defaultPrevented).toBe(true);
     expect(screen.getByRole('textbox', { name: '笔记临时状态' })).toBeVisible();
@@ -50,7 +63,7 @@ describe('AppHome workspace hotkeys', () => {
     expect(screen.getByText('Todo 工作区')).toBeTruthy();
 
     expect(dispatchModKey('1').defaultPrevented).toBe(true);
-    expect(screen.getByRole('textbox', { name: '书签临时状态' })).toBeVisible();
+    expect(screen.getByRole('textbox', { name: '导航临时状态' })).toBeVisible();
   });
 
   it('keeps workspace hotkeys active while an input is focused', () => {
@@ -64,7 +77,8 @@ describe('AppHome workspace hotkeys', () => {
 
   it('preserves each workspace DOM state while switching tabs', () => {
     render(<AppHome />);
-    const bookmarkInput = screen.getByRole('textbox', { name: '书签临时状态' });
+    fireEvent.click(screen.getByRole('button', { name: '书签子页' }));
+    const bookmarkInput = screen.getByLabelText('书签临时状态');
     act(() => {
       bookmarkInput.setAttribute('data-temporary-state', 'preserved');
     });
@@ -76,6 +90,21 @@ describe('AppHome workspace hotkeys', () => {
     dispatchModKey('1');
     expect(bookmarkInput).toBeVisible();
     expect(bookmarkInput).toHaveAttribute('data-temporary-state', 'preserved');
+  });
+
+  it('defaults to navigation and preserves both bookmark subpages while switching', () => {
+    render(<AppHome />);
+    const navigationInput = screen.getByRole('textbox', { name: '导航临时状态' });
+    expect(navigationInput).toBeVisible();
+    navigationInput.setAttribute('data-temporary-state', 'kept');
+    fireEvent.click(screen.getByRole('button', { name: '书签子页' }));
+    const bookmarkInput = screen.getByLabelText('书签临时状态');
+    expect(bookmarkInput).toBeVisible();
+    bookmarkInput.setAttribute('data-temporary-state', 'kept');
+    fireEvent.click(screen.getByRole('button', { name: '导航子页' }));
+    expect(navigationInput).toBeVisible();
+    expect(navigationInput).toHaveAttribute('data-temporary-state', 'kept');
+    expect(bookmarkInput).not.toBeVisible();
   });
 
   it('removes workspace hotkeys on unmount', () => {

@@ -88,7 +88,7 @@ impl SqliteFtsSearch {
     fn search_random(&self, connection: &Connection, limit: u32) -> AppResult<SearchPage> {
         validate_page_size(limit)?;
         let mut statement =
-            connection.prepare("SELECT uuid FROM bookmarks ORDER BY RANDOM() LIMIT ?")?;
+            connection.prepare("SELECT id FROM bookmarks ORDER BY RANDOM() LIMIT ?")?;
         let rows = statement.query_map(params![limit], |row| row.get::<_, BookmarkId>(0))?;
         let bookmark_ids = rows.collect::<Result<Vec<_>, _>>()?;
         Ok(SearchPage {
@@ -105,18 +105,18 @@ impl SqliteFtsSearch {
         cursor: Option<CursorMode>,
     ) -> AppResult<SearchPage> {
         let mut sql =
-            String::from("SELECT uuid, starred_at FROM bookmarks WHERE starred_at IS NOT NULL");
+            String::from("SELECT id, starred_at FROM bookmarks WHERE starred_at IS NOT NULL");
         let mut values = Vec::new();
         if let Some(cursor) = cursor {
             let CursorMode::Starred { starred_at, id } = cursor else {
                 return Err(AppError::invalid_cursor());
             };
-            sql.push_str(" AND (starred_at < ? OR (starred_at = ? AND uuid < ?))");
+            sql.push_str(" AND (starred_at < ? OR (starred_at = ? AND id < ?))");
             values.push(Value::Integer(starred_at));
             values.push(Value::Integer(starred_at));
             values.push(Value::Text(id.to_string()));
         }
-        sql.push_str(" ORDER BY starred_at DESC, uuid DESC LIMIT ?");
+        sql.push_str(" ORDER BY starred_at DESC, id DESC LIMIT ?");
         values.push(Value::Integer(i64::from(page_size) + 1));
 
         let mut statement = connection.prepare(&sql)?;
@@ -157,7 +157,7 @@ impl SqliteFtsSearch {
         cursor: Option<CursorMode>,
     ) -> AppResult<SearchPage> {
         let mut sql = String::from(
-            "SELECT b.uuid, b.updated_at
+            "SELECT b.id, b.updated_at
              FROM bookmarks b
              WHERE 1 = 1",
         );
@@ -167,12 +167,12 @@ impl SqliteFtsSearch {
             let CursorMode::Recent { updated_at, id } = cursor else {
                 return Err(AppError::invalid_cursor());
             };
-            sql.push_str(" AND (b.updated_at < ? OR (b.updated_at = ? AND b.uuid < ?))");
+            sql.push_str(" AND (b.updated_at < ? OR (b.updated_at = ? AND b.id < ?))");
             values.push(Value::Integer(updated_at));
             values.push(Value::Integer(updated_at));
             values.push(Value::Text(id.to_string()));
         }
-        sql.push_str(" ORDER BY b.updated_at DESC, b.uuid DESC LIMIT ?");
+        sql.push_str(" ORDER BY b.updated_at DESC, b.id DESC LIMIT ?");
         values.push(Value::Integer(i64::from(page_size) + 1));
 
         let mut statement = connection.prepare(&sql)?;
@@ -216,7 +216,7 @@ impl SqliteFtsSearch {
     ) -> AppResult<SearchPage> {
         let offset = search_offset(cursor)?;
         let mut sql = String::from(
-            "SELECT b.uuid
+            "SELECT b.id
              FROM bookmarks b
              WHERE (
                  b.url LIKE ? ESCAPE char(92)
@@ -225,8 +225,8 @@ impl SqliteFtsSearch {
                  OR EXISTS (
                      SELECT 1
                      FROM bookmark_tags search_bt
-                     JOIN tags search_t ON search_t.uuid = search_bt.tag_id
-                     WHERE search_bt.bookmark_id = b.uuid
+                     JOIN tags search_t ON search_t.id = search_bt.tag_id
+                     WHERE search_bt.bookmark_id = b.id
                        AND search_t.name LIKE ? ESCAPE char(92)
                  )
              )",
@@ -239,7 +239,7 @@ impl SqliteFtsSearch {
             Value::Text(pattern),
         ];
         add_tag_filter(&mut sql, &mut values, tags);
-        sql.push_str(" ORDER BY b.updated_at DESC, b.uuid DESC LIMIT ? OFFSET ?");
+        sql.push_str(" ORDER BY b.updated_at DESC, b.id DESC LIMIT ? OFFSET ?");
         values.push(Value::Integer(i64::from(page_size) + 1));
         values.push(Value::Integer(offset as i64));
         self.text_page(connection, sql, values, page_size, offset, query_hash)
@@ -256,15 +256,15 @@ impl SqliteFtsSearch {
     ) -> AppResult<SearchPage> {
         let offset = search_offset(cursor)?;
         let mut sql = String::from(
-            "SELECT b.uuid
+            "SELECT b.id
              FROM bookmarks_fts
-             JOIN bookmarks b ON b.uuid = bookmarks_fts.bookmark_uuid
+             JOIN bookmarks b ON b.id = bookmarks_fts.bookmark_uuid
              WHERE bookmarks_fts MATCH ?",
         );
         let mut values = vec![Value::Text(fts_literal_phrase(query))];
         add_tag_filter(&mut sql, &mut values, tags);
         sql.push_str(
-            " ORDER BY bm25(bookmarks_fts), b.updated_at DESC, b.uuid DESC
+            " ORDER BY bm25(bookmarks_fts), b.updated_at DESC, b.id DESC
               LIMIT ? OFFSET ?",
         );
         values.push(Value::Integer(i64::from(page_size) + 1));
@@ -373,17 +373,17 @@ fn add_tag_filter(sql: &mut String, values: &mut Vec<Value>, tags: &[String]) {
         return;
     }
     sql.push_str(
-        " AND b.uuid IN (
+        " AND b.id IN (
             SELECT filter_bt.bookmark_id
             FROM bookmark_tags filter_bt
-            JOIN tags filter_t ON filter_t.uuid = filter_bt.tag_id
+            JOIN tags filter_t ON filter_t.id = filter_bt.tag_id
             WHERE filter_t.name IN (",
     );
     sql.push_str(&placeholders(tags.len()));
     sql.push_str(
         ")
             GROUP BY filter_bt.bookmark_id
-            HAVING count(DISTINCT filter_t.uuid) = ?
+            HAVING count(DISTINCT filter_t.id) = ?
         )",
     );
     values.extend(tags.iter().cloned().map(Value::Text));

@@ -6,8 +6,8 @@ use rusqlite::{Connection, Transaction};
 use crate::error::{AppError, AppResult};
 use crate::logging::{sanitize_error, Operation};
 
-pub mod cutover;
-mod migrations;
+mod schema;
+mod schema_version;
 
 #[derive(Debug)]
 pub struct Database {
@@ -138,16 +138,7 @@ impl Database {
             )
             .map_err(database_error)?;
 
-        let version =
-            connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))?;
-        if version == 1 {
-            return Err(AppError::unsupported_schema_version(
-                version,
-                migrations::LATEST_SCHEMA_VERSION,
-            ));
-        }
-
-        migrations::run(&mut connection)?;
+        schema_version::initialize(&mut connection)?;
         Ok(Self {
             connection: Mutex::new(connection),
         })

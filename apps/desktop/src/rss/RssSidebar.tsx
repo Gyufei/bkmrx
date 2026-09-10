@@ -1,5 +1,6 @@
 import { Pencil, Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
 import type { RssEntryScope, RssFeed } from '@/types';
+import type { RssFeedId } from '@/identity';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +18,7 @@ interface Props {
   total: number;
   unread: number;
   refreshPending: boolean;
-  refreshingFeedId: number | null;
+  refreshingFeedId: RssFeedId | null;
   onScopeChange: (scope: RssEntryScope) => void;
   onAdd: () => void;
   onRefreshAll: () => void;

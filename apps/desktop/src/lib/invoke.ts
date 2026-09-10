@@ -24,8 +24,38 @@ import type {
   FeedPreview,
   FeedRefreshResult,
   RefreshResult,
+  NavigationCategory,
+  NavigationBookmark,
 } from '../types';
-import type { BookmarkId, TodoId, TodoTagId } from '../identity';
+import type {
+  BookmarkId,
+  NavigationCategoryId,
+  RssEntryId,
+  RssFeedId,
+  TodoId,
+  TodoTagId,
+} from '../identity';
+
+export const invokeListNavigationCategories = () =>
+  invoke<NavigationCategory[]>('list_navigation_categories');
+export const invokeCreateNavigationCategory = (name: string) =>
+  invoke<NavigationCategory>('create_navigation_category', { input: { name } });
+export const invokeUpdateNavigationCategory = (id: NavigationCategoryId, name: string) =>
+  invoke<NavigationCategory>('update_navigation_category', { id, input: { name } });
+export const invokeDeleteNavigationCategory = (id: NavigationCategoryId) =>
+  invoke<void>('delete_navigation_category', { id });
+export const invokeAddNavigationBookmarks = (
+  categoryId: NavigationCategoryId,
+  bookmarkIds: BookmarkId[],
+) =>
+  invoke<NavigationBookmark[]>('add_navigation_bookmarks', {
+    categoryId,
+    input: { bookmark_ids: bookmarkIds },
+  });
+export const invokeRemoveNavigationBookmark = (
+  categoryId: NavigationCategoryId,
+  bookmarkId: BookmarkId,
+) => invoke<void>('remove_navigation_bookmark', { categoryId, bookmarkId });
 
 /* ───── Bookmarks ───── */
 
@@ -80,15 +110,15 @@ export const invokeCreateRssFeed = (input: {
 export const invokeListRssFeeds = () => invoke<RssFeed[]>('list_rss_feeds');
 export const invokeListRssEntries = (scope: RssEntryScope, cursor: string | null) =>
   invoke<RssEntryPage>('list_rss_entries', { request: { scope, cursor } });
-export const invokeRefreshRssFeed = (id: number) =>
+export const invokeRefreshRssFeed = (id: RssFeedId) =>
   invoke<FeedRefreshResult>('refresh_rss_feed', { id });
 export const invokeRefreshAllRssFeeds = (staleOnly: boolean) =>
   invoke<RefreshResult>('refresh_all_rss_feeds', { staleOnly });
-export const invokeMarkRssEntryRead = (id: number, isRead: boolean) =>
+export const invokeMarkRssEntryRead = (id: RssEntryId, isRead: boolean) =>
   invoke<RssEntry>('mark_rss_entry_read', { id, isRead });
-export const invokeRenameRssFeed = (id: number, customTitle: string | null) =>
+export const invokeRenameRssFeed = (id: RssFeedId, customTitle: string | null) =>
   invoke<RssFeed>('rename_rss_feed', { id, customTitle });
-export const invokeDeleteRssFeed = (id: number) => invoke<void>('delete_rss_feed', { id });
+export const invokeDeleteRssFeed = (id: RssFeedId) => invoke<void>('delete_rss_feed', { id });
 export const invokeDownloadRssImage = (url: string, referer: string | null, destination: string) =>
   invoke<void>('download_rss_image', { url, referer, destination });
 

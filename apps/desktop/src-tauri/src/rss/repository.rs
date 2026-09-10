@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     database::Database,
     error::{AppError, AppResult},
+    identity::{RssEntryId, RssFeedId},
 };
 
 use super::model::{
@@ -45,7 +46,7 @@ impl RssRepository {
         })
     }
 
-    pub fn get_feed(&self, id: i64) -> AppResult<Option<RssFeed>> {
+    pub fn get_feed(&self, id: RssFeedId) -> AppResult<Option<RssFeed>> {
         self.database.read(|connection| {
             connection
                 .query_row(
@@ -65,6 +66,7 @@ impl RssRepository {
 
     pub fn create(&self, input: &CreateFeed, parsed: &ParsedFeed) -> AppResult<RssFeed> {
         let now = Utc::now().timestamp();
+        let id = RssFeedId::new();
         let id = self.database.write(|transaction| {
             if let Some(id) =
                 find_conflicting_feed(transaction, &input.source_url, &input.feed_url)?
@@ -74,10 +76,11 @@ impl RssRepository {
             transaction
                 .execute(
                     "INSERT INTO rss_feeds (
-                source_url, feed_url, site_url, title, custom_title, last_successful_fetched_at,
+                id, source_url, feed_url, site_url, title, custom_title, last_successful_fetched_at,
                 created_at, updated_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?6)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?7)",
                     params![
+                        id,
                         input.source_url,
                         input.feed_url,
                         parsed.site_url,
@@ -87,11 +90,10 @@ impl RssRepository {
                             .as_deref()
                             .map(str::trim)
                             .filter(|value| !value.is_empty()),
-                        now
+                        now,
                     ],
                 )
                 .map_err(|error| feed_write_error(error, &input.feed_url))?;
-            let id = transaction.last_insert_rowid();
             upsert_entries(transaction, id, &parsed.entries, now)?;
             Ok(id)
         })?;
@@ -101,7 +103,7 @@ impl RssRepository {
 
     pub fn apply_refresh(
         &self,
-        id: i64,
+        id: RssFeedId,
         feed_url: &str,
         parsed: &ParsedFeed,
     ) -> AppResult<(RssFeed, u32)> {
@@ -126,7 +128,7 @@ impl RssRepository {
             .ok_or_else(|| AppError::internal_error("refreshed feed could not be reloaded"))
     }
 
-    pub fn record_failure(&self, id: i64, message: &str) -> AppResult<()> {
+    pub fn record_failure(&self, id: RssFeedId, message: &str) -> AppResult<()> {
         let changed = self.database.write(|transaction| {
             transaction.execute(
                 "UPDATE rss_feeds SET last_failed_at = ?1, last_error = ?2, updated_at = ?1 WHERE id = ?3",
@@ -139,7 +141,7 @@ impl RssRepository {
         Ok(())
     }
 
-    pub fn rename(&self, id: i64, custom_title: Option<&str>) -> AppResult<RssFeed> {
+    pub fn rename(&self, id: RssFeedId, custom_title: Option<&str>) -> AppResult<RssFeed> {
         let title = custom_title
             .map(str::trim)
             .filter(|value| !value.is_empty());
@@ -158,7 +160,7 @@ impl RssRepository {
             .ok_or_else(|| AppError::internal_error("renamed feed could not be reloaded"))
     }
 
-    pub fn delete(&self, id: i64) -> AppResult<()> {
+    pub fn delete(&self, id: RssFeedId) -> AppResult<()> {
         let changed = self.database.write(|transaction| {
             transaction
                 .execute("DELETE FROM rss_feeds WHERE id = ?1", [id])
@@ -170,7 +172,7 @@ impl RssRepository {
         Ok(())
     }
 
-    pub fn mark_entry_read(&self, id: i64, is_read: bool) -> AppResult<RssEntry> {
+    pub fn mark_entry_read(&self, id: RssEntryId, is_read: bool) -> AppResult<RssEntry> {
         let changed = self.database.write(|transaction| {
             transaction
                 .execute(
@@ -242,7 +244,7 @@ impl RssRepository {
         })
     }
 
-    fn get_entry(&self, id: i64) -> AppResult<Option<RssEntry>> {
+    fn get_entry(&self, id: RssEntryId) -> AppResult<Option<RssEntry>> {
         self.database.read(|connection| {
             connection
                 .query_row(
@@ -260,15 +262,15 @@ impl RssRepository {
 
 fn upsert_entries(
     transaction: &Transaction<'_>,
-    feed_id: i64,
+    feed_id: RssFeedId,
     entries: &[ParsedEntry],
     now: i64,
 ) -> AppResult<u32> {
     let mut insert = transaction.prepare(
         "INSERT INTO rss_entries (
-            feed_id, dedupe_key, guid, title, link, author, content_html, summary,
+            id, feed_id, dedupe_key, guid, title, link, author, content_html, summary,
             published_at, fetched_at, created_at, updated_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)
          ON CONFLICT(feed_id, dedupe_key) DO NOTHING",
     )?;
     let mut update = transaction.prepare(
@@ -279,7 +281,9 @@ fn upsert_entries(
     )?;
     let mut added = 0;
     for entry in entries {
+        let entry_id = RssEntryId::new();
         let values = params![
+            entry_id,
             feed_id,
             entry.dedupe_key,
             entry.guid,
@@ -317,7 +321,7 @@ fn find_conflicting_feed(
     transaction: &Transaction<'_>,
     source_url: &str,
     feed_url: &str,
-) -> AppResult<Option<i64>> {
+) -> AppResult<Option<RssFeedId>> {
     transaction
         .query_row(
             "SELECT id FROM rss_feeds
@@ -367,7 +371,7 @@ fn entry_from_row(row: &Row<'_>) -> rusqlite::Result<RssEntry> {
 #[derive(Serialize, Deserialize)]
 struct Cursor {
     sort_at: i64,
-    id: i64,
+    id: RssEntryId,
     scope: EntryQueryScope,
 }
 
@@ -385,10 +389,10 @@ fn decode_cursor(value: &str) -> AppResult<Cursor> {
         .ok_or_else(AppError::invalid_cursor)
 }
 
-fn feed_not_found(id: i64) -> AppError {
+fn feed_not_found(id: RssFeedId) -> AppError {
     AppError::rss_error("rss_feed_not_found", format!("Feed {id} was not found"))
 }
-fn entry_not_found(id: i64) -> AppError {
+fn entry_not_found(id: RssEntryId) -> AppError {
     AppError::rss_error("rss_entry_not_found", format!("Entry {id} was not found"))
 }
 fn feed_write_error(error: rusqlite::Error, feed_url: &str) -> AppError {

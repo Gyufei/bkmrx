@@ -364,7 +364,7 @@ fn export_omits_the_date_when_completed_at_is_missing() {
     store.set_status(id, TodoStatus::Completed).unwrap();
     database
         .execute_batch_for_test(&format!(
-            "UPDATE todos SET completed_at = NULL WHERE uuid = '{id}'"
+            "UPDATE todos SET completed_at = NULL WHERE id = '{id}'"
         ))
         .unwrap();
     let tag_id = work_tag_id(&store);

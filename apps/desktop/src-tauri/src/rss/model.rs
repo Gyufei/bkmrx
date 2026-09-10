@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::identity::{RssEntryId, RssFeedId};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ParsedFeed {
     pub title: String,
@@ -42,7 +44,7 @@ pub struct FeedPreview {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RssFeed {
-    pub id: i64,
+    pub id: RssFeedId,
     pub source_url: String,
     pub feed_url: String,
     pub site_url: Option<String>,
@@ -65,8 +67,8 @@ impl RssFeed {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RssEntry {
-    pub id: i64,
-    pub feed_id: i64,
+    pub id: RssEntryId,
+    pub feed_id: RssFeedId,
     pub feed_title: String,
     pub title: String,
     pub link: Option<String>,
@@ -83,7 +85,7 @@ pub struct RssEntry {
 pub enum EntryQueryScope {
     All,
     Unread,
-    Feed { feed_id: i64 },
+    Feed { feed_id: RssFeedId },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

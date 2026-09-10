@@ -1,18 +1,20 @@
 use bkmrx_lib::bookmarks::{BookmarkStore, CreateBookmark, TagQueryRequest, UpdateBookmark};
 use bkmrx_lib::database::Database;
-use bkmrx_lib::identity::BookmarkId;
+use bkmrx_lib::identity::{BookmarkId, RssEntryId, RssFeedId};
 use std::sync::Arc;
 
 #[test]
 fn creates_latest_schema_and_enables_fts5_trigram() {
     let db = Database::open_in_memory().unwrap();
 
-    assert_eq!(db.schema_version().unwrap(), 3);
+    assert_eq!(db.schema_version().unwrap(), 7);
     for table in [
         "bookmarks",
         "tags",
         "bookmark_tags",
         "bookmarks_fts",
+        "navigation_categories",
+        "navigation_placements",
         "todos",
         "todo_tags",
         "todo_tag_relations",
@@ -25,14 +27,10 @@ fn creates_latest_schema_and_enables_fts5_trigram() {
         "idx_bookmark_tags_tag_bookmark",
         "idx_bookmarks_starred",
         "idx_bookmarks_updated",
-        "idx_bookmarks_starred_uuid",
-        "idx_bookmarks_updated_uuid",
-        "idx_bookmarks_uuid",
-        "idx_tags_uuid",
+        "idx_navigation_categories_order",
+        "idx_navigation_placements_category",
+        "idx_navigation_placements_bookmark",
         "idx_todos_status_sort",
-        "idx_todos_status_uuid_sort",
-        "idx_todos_uuid",
-        "idx_todo_tags_uuid",
         "idx_todo_tag_relations_tag_todo",
         "idx_rss_entries_feed_sort",
         "idx_rss_entries_unread_sort",
@@ -49,12 +47,12 @@ fn creates_latest_schema_and_enables_fts5_trigram() {
     assert_eq!(
         db.query_i64_for_test("SELECT count(*) FROM pragma_table_info('bookmarks')")
             .unwrap(),
-        10
+        9
     );
     assert_eq!(
         db.query_i64_for_test("SELECT count(*) FROM pragma_table_info('todos')")
             .unwrap(),
-        9
+        8
     );
     assert_eq!(
         db.query_i64_for_test("SELECT count(*) FROM pragma_foreign_key_list('bookmark_tags')")
@@ -91,20 +89,18 @@ fn reopens_existing_database_without_changing_data() {
     database
         .execute_batch_for_test(&format!(
             "INSERT INTO bookmarks
-                 (id, uuid, url, title, description, access_count, created_at, updated_at)
-                 VALUES (7, '{id}', 'https://example.com', 'Existing', '', 0, 1, 1);"
+                 (id, url, title, description, access_count, created_at, updated_at)
+                 VALUES ('{id}', 'https://example.com', 'Existing', '', 0, 1, 1);"
         ))
         .unwrap();
     drop(database);
 
     let database = Database::open(&path).unwrap();
 
-    assert_eq!(database.schema_version().unwrap(), 3);
+    assert_eq!(database.schema_version().unwrap(), 7);
     assert_eq!(
         database
-            .query_i64_for_test(&format!(
-                "SELECT count(*) FROM bookmarks WHERE uuid = '{id}'"
-            ))
+            .query_i64_for_test(&format!("SELECT count(*) FROM bookmarks WHERE id = '{id}'"))
             .unwrap(),
         1
     );
@@ -112,7 +108,7 @@ fn reopens_existing_database_without_changing_data() {
 
 #[test]
 fn rejects_every_newer_schema_version() {
-    for version in [4, 5, 6] {
+    for version in [8, 9, 10] {
         let directory = tempfile::TempDir::new().unwrap();
         let path = directory.path().join("bookmarks.db");
         let connection = rusqlite::Connection::open(&path).unwrap();
@@ -126,7 +122,7 @@ fn rejects_every_newer_schema_version() {
         assert_eq!(error.code(), "unsupported_schema_version");
         assert_eq!(
             error.details,
-            Some(serde_json::json!({ "found": version, "supported": 3 }))
+            Some(serde_json::json!({ "found": version, "supported": 7 }))
         );
     }
 }
@@ -167,27 +163,30 @@ fn rejects_an_uncut_legacy_database_without_mutating_it() {
 #[test]
 fn rss_schema_enforces_uniqueness_and_cascade_delete() {
     let database = Database::open_in_memory().unwrap();
+    let feed_id = RssFeedId::new();
+    let entry_id = RssEntryId::new();
     database
-        .execute_batch_for_test(
+        .execute_batch_for_test(&format!(
             "INSERT INTO rss_feeds
              (id, source_url, feed_url, title, created_at, updated_at)
-             VALUES (1, 'https://example.com', 'https://example.com/feed.xml', 'Example', 1, 1);
+             VALUES ('{feed_id}', 'https://example.com', 'https://example.com/feed.xml', 'Example', 1, 1);
              INSERT INTO rss_entries
-             (feed_id, dedupe_key, title, fetched_at, created_at, updated_at)
-             VALUES (1, 'guid:one', 'Entry', 1, 1, 1);",
-        )
+             (id, feed_id, dedupe_key, title, fetched_at, created_at, updated_at)
+             VALUES ('{entry_id}', '{feed_id}', 'guid:one', 'Entry', 1, 1, 1);"
+        ))
         .unwrap();
 
     assert!(database
-        .execute_batch_for_test(
+        .execute_batch_for_test(&format!(
             "INSERT INTO rss_entries
-             (feed_id, dedupe_key, title, fetched_at, created_at, updated_at)
-             VALUES (1, 'guid:one', 'Duplicate', 2, 2, 2);"
-        )
+             (id, feed_id, dedupe_key, title, fetched_at, created_at, updated_at)
+             VALUES ('{}', '{feed_id}', 'guid:one', 'Duplicate', 2, 2, 2);",
+            RssEntryId::new()
+        ))
         .is_err());
 
     database
-        .execute_batch_for_test("DELETE FROM rss_feeds WHERE id = 1;")
+        .execute_batch_for_test(&format!("DELETE FROM rss_feeds WHERE id = '{feed_id}';"))
         .unwrap();
     assert_eq!(
         database

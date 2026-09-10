@@ -54,7 +54,7 @@ pub(crate) fn apply_import(
         for record in &validated.records {
             let existing = transaction
                 .query_row(
-                    "SELECT uuid, title, description, access_count,
+                    "SELECT id, title, description, access_count,
                         created_at, updated_at, accessed_at, starred_at
                  FROM bookmarks WHERE url = ?1",
                     [&record.url],
@@ -78,7 +78,7 @@ pub(crate) fn apply_import(
                     let id = BookmarkId::new();
                     transaction.execute(
                         "INSERT INTO bookmarks (
-                            uuid, url, title, description, access_count,
+                            id, url, title, description, access_count,
                             created_at, updated_at, accessed_at, starred_at
                          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                         params![
@@ -130,7 +130,7 @@ pub(crate) fn apply_import(
                              updated_at = ?5,
                              accessed_at = ?6,
                              starred_at = ?7
-                         WHERE uuid = ?8",
+                         WHERE id = ?8",
                         params![
                             title,
                             description,
@@ -163,7 +163,7 @@ pub(crate) fn apply_import(
 fn snapshot(database: &Database) -> AppResult<BookmarkExportV1> {
     database.snapshot(|transaction| {
         let mut statement = transaction.prepare(
-            "SELECT uuid, url, title, description, access_count,
+            "SELECT id, url, title, description, access_count,
                     created_at, updated_at, accessed_at, starred_at
              FROM bookmarks
              ORDER BY url",
@@ -202,7 +202,7 @@ fn snapshot(database: &Database) -> AppResult<BookmarkExportV1> {
         let mut tag_statement = transaction.prepare(
             "SELECT bt.bookmark_id, t.name
              FROM bookmark_tags bt
-             JOIN tags t ON t.uuid = bt.tag_id
+             JOIN tags t ON t.id = bt.tag_id
              ORDER BY bt.bookmark_id, t.name",
         )?;
         let tags = tag_statement.query_map([], |row| {

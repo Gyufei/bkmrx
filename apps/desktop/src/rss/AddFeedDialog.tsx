@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import type { AppError, FeedCandidate } from '@/types';
+import type { RssFeedId } from '@/identity';
 import { createFeedApi, invalidateRssQueries, previewFeedApi } from './rss.api';
 
 export default function AddFeedDialog({
@@ -22,7 +23,7 @@ export default function AddFeedDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onExistingFeed: (id: number) => void;
+  onExistingFeed: (id: RssFeedId) => void;
 }) {
   const client = useQueryClient();
   const [url, setUrl] = useState('');
@@ -69,7 +70,7 @@ export default function AddFeedDialog({
     },
     onError: (error) => {
       const appError = error as unknown as AppError;
-      const id = (appError.details as { id?: number } | null)?.id;
+      const id = (appError.details as { id?: RssFeedId } | null)?.id;
       if (appError.code === 'rss_feed_conflict' && id !== undefined) {
         onExistingFeed(id);
         onOpenChange(false);

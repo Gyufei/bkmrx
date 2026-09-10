@@ -6,6 +6,10 @@ use crate::bookmarks::{
 };
 use crate::error::AppResult;
 use crate::identity::BookmarkId;
+use crate::navigation::{
+    AddNavigationBookmarks, CreateNavigationCategory, NavigationBookmark, NavigationCategory,
+    SharedNavigationStore, UpdateNavigationCategory,
+};
 use crate::notes::SharedNotesWorkspace;
 use crate::preview::{BookmarkPreview, PrepareBookmarkPreviewRequest, SharedPreviewService};
 use crate::rss::{
@@ -15,6 +19,56 @@ use crate::rss::{
 use crate::todos::{
     CreateTodo, SharedTodoStore, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
 };
+
+#[tauri::command]
+pub fn list_navigation_categories(
+    service: State<'_, SharedNavigationStore>,
+) -> AppResult<Vec<NavigationCategory>> {
+    service.list_categories()
+}
+
+#[tauri::command]
+pub fn create_navigation_category(
+    service: State<'_, SharedNavigationStore>,
+    input: CreateNavigationCategory,
+) -> AppResult<NavigationCategory> {
+    service.create_category(input)
+}
+
+#[tauri::command]
+pub fn update_navigation_category(
+    service: State<'_, SharedNavigationStore>,
+    id: crate::identity::NavigationCategoryId,
+    input: UpdateNavigationCategory,
+) -> AppResult<NavigationCategory> {
+    service.update_category(id, input)
+}
+
+#[tauri::command]
+pub fn delete_navigation_category(
+    service: State<'_, SharedNavigationStore>,
+    id: crate::identity::NavigationCategoryId,
+) -> AppResult<()> {
+    service.delete_category(id)
+}
+
+#[tauri::command]
+pub fn add_navigation_bookmarks(
+    service: State<'_, SharedNavigationStore>,
+    category_id: crate::identity::NavigationCategoryId,
+    input: AddNavigationBookmarks,
+) -> AppResult<Vec<NavigationBookmark>> {
+    service.add_bookmarks(category_id, input)
+}
+
+#[tauri::command]
+pub fn remove_navigation_bookmark(
+    service: State<'_, SharedNavigationStore>,
+    category_id: crate::identity::NavigationCategoryId,
+    bookmark_id: BookmarkId,
+) -> AppResult<()> {
+    service.remove_bookmark(category_id, bookmark_id)
+}
 
 #[tauri::command]
 pub fn query_bookmarks(
@@ -123,7 +177,7 @@ pub fn list_rss_entries(
 #[tauri::command]
 pub async fn refresh_rss_feed(
     service: State<'_, SharedRssService>,
-    id: i64,
+    id: crate::identity::RssFeedId,
 ) -> AppResult<FeedRefreshResult> {
     service.refresh_feed(id).await
 }
@@ -139,7 +193,7 @@ pub async fn refresh_all_rss_feeds(
 #[tauri::command]
 pub fn mark_rss_entry_read(
     service: State<'_, SharedRssService>,
-    id: i64,
+    id: crate::identity::RssEntryId,
     is_read: bool,
 ) -> AppResult<RssEntry> {
     service.mark_entry_read(id, is_read)
@@ -148,14 +202,17 @@ pub fn mark_rss_entry_read(
 #[tauri::command]
 pub fn rename_rss_feed(
     service: State<'_, SharedRssService>,
-    id: i64,
+    id: crate::identity::RssFeedId,
     custom_title: Option<String>,
 ) -> AppResult<RssFeed> {
     service.rename_feed(id, custom_title.as_deref())
 }
 
 #[tauri::command]
-pub fn delete_rss_feed(service: State<'_, SharedRssService>, id: i64) -> AppResult<()> {
+pub fn delete_rss_feed(
+    service: State<'_, SharedRssService>,
+    id: crate::identity::RssFeedId,
+) -> AppResult<()> {
     service.delete_feed(id)
 }
 

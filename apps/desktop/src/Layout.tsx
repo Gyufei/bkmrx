@@ -5,11 +5,13 @@ import SettingsPage from './settings/SettingsPage';
 import BookmarkView from './bookmarks/BookmarkView';
 import TodoPage from './todos/TodoPage';
 import RssPage from './rss/RssPage';
+import NavigationPage from './navigation/NavigationPage';
 
-import NavBar, { PATHS } from './Navbar';
+import NavBar, { PATHS, type BookmarkSubpage } from './Navbar';
 
 export default function AppHome() {
   const [currentPath, setCurrentPath] = useState<PATHS>(PATHS.BOOKMARKS);
+  const [bookmarkSubpage, setBookmarkSubpage] = useState<BookmarkSubpage>('navigation');
 
   useHotkeys([
     {
@@ -36,9 +38,25 @@ export default function AppHome() {
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
-      <NavBar currentPath={currentPath} onCurrentPathChange={setCurrentPath} />
+      <NavBar
+        currentPath={currentPath}
+        onCurrentPathChange={setCurrentPath}
+        bookmarkSubpage={bookmarkSubpage}
+        onBookmarkSubpageChange={setBookmarkSubpage}
+      />
 
-      <Activity mode={currentPath === PATHS.BOOKMARKS ? 'visible' : 'hidden'}>
+      <Activity
+        mode={
+          currentPath === PATHS.BOOKMARKS && bookmarkSubpage === 'navigation' ? 'visible' : 'hidden'
+        }
+      >
+        <NavigationPage />
+      </Activity>
+      <Activity
+        mode={
+          currentPath === PATHS.BOOKMARKS && bookmarkSubpage === 'bookmarks' ? 'visible' : 'hidden'
+        }
+      >
         <BookmarkView />
       </Activity>
       <Activity mode={currentPath === PATHS.NOTES ? 'visible' : 'hidden'}>

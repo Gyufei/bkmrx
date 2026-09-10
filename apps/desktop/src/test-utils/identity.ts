@@ -1,4 +1,5 @@
-import type { BookmarkId, TodoId, TodoTagId } from '@/identity';
+import type { BookmarkId, RssEntryId, RssFeedId, TodoId, TodoTagId } from '@/identity';
+import type { NavigationCategoryId, NavigationPlacementId } from '@/identity';
 
 function entityUuid(sequence: number) {
   const suffix = sequence.toString(16).padStart(12, '0');
@@ -15,4 +16,20 @@ export function todoId(sequence: number): TodoId {
 
 export function todoTagId(sequence: number): TodoTagId {
   return entityUuid(sequence) as TodoTagId;
+}
+
+export function rssFeedId(sequence: number): RssFeedId {
+  return entityUuid(sequence) as RssFeedId;
+}
+
+export function rssEntryId(sequence: number): RssEntryId {
+  return entityUuid(sequence) as RssEntryId;
+}
+
+export function navigationCategoryId(sequence: number): NavigationCategoryId {
+  return entityUuid(sequence) as NavigationCategoryId;
+}
+
+export function navigationPlacementId(sequence: number): NavigationPlacementId {
+  return entityUuid(sequence) as NavigationPlacementId;
 }
