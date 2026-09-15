@@ -1,33 +1,27 @@
-import { useMemo } from 'react';
-
-import type { NoteFile } from '../types';
-import { buildFolderTree } from './buildFolderTree';
+import type { WorkspaceDirectory } from '../types';
 import FolderTree from './FolderTree';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 
 interface NotesSidebarProps {
-  notes: NoteFile[];
-  selectedFolder: string | null;
-  onSelectFolder: (path: string | null) => void;
+  workspaceKey: string;
+  root: WorkspaceDirectory;
+  selectedFolder: string;
+  onSelectFolder: (path: string) => void;
   onDeleteFolder: (folder: { path: string; name: string }) => void;
 }
 
 export default function NotesSidebar({
-  notes,
+  workspaceKey,
+  root,
   selectedFolder,
   onSelectFolder,
   onDeleteFolder,
 }: NotesSidebarProps) {
-  const folderTree = useMemo(() => buildFolderTree(notes), [notes]);
-
   return (
-    <CollapsibleSidebar
-      title={`共 ${notes.length} 篇笔记`}
-      className="w-48"
-      contentClassName="flex flex-col px-2 pb-2"
-    >
+    <CollapsibleSidebar title="笔记" className="w-48" contentClassName="flex flex-col px-2 pb-2">
       <FolderTree
-        tree={folderTree}
+        key={workspaceKey}
+        root={root}
         selectedPath={selectedFolder}
         onSelect={onSelectFolder}
         onDelete={onDeleteFolder}

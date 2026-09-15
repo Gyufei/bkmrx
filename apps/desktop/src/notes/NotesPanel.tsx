@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { FileText } from 'lucide-react';
-import type { NoteFile } from '../types';
+import type { NoteFile, WorkspaceDirectory } from '../types';
 import NoteEditor from './NoteEditor';
 import NoteNameDialog from './NoteNameDialog';
 import NotesList from './NotesList';
@@ -39,8 +39,26 @@ function writeSelectedFolder(notesDir: string, path: string | null) {
   }
 }
 
+function findDirectory(root: WorkspaceDirectory, path: string): WorkspaceDirectory | null {
+  if (root.relative_path === path) return root;
+  for (const directory of root.directories) {
+    const found = findDirectory(directory, path);
+    if (found) return found;
+  }
+  return null;
+}
+
+function nearestExistingDirectory(root: WorkspaceDirectory, path: string) {
+  let candidate = path;
+  while (candidate) {
+    if (findDirectory(root, candidate)) return candidate;
+    candidate = candidate.split('/').slice(0, -1).join('/');
+  }
+  return '';
+}
+
 export default function NotesPanel() {
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState('');
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
   const [deletingNote, setDeletingNote] = useState<NoteFile | null>(null);
@@ -52,6 +70,7 @@ export default function NotesPanel() {
   const {
     notesDir,
     workspaceRevision,
+    root,
     notes,
     loading,
     error,
@@ -74,16 +93,21 @@ export default function NotesPanel() {
 
   useEffect(() => {
     if (!notesDir) return;
-    setSelectedFolder(readSelectedFolder(notesDir));
+    setSelectedFolder(readSelectedFolder(notesDir) ?? '');
   }, [notesDir]);
 
   useEffect(() => {
-    if (!notesDir || loading || !selectedFolder) return;
-    const folderExists = notes.some((note) => note.relative_path.startsWith(`${selectedFolder}/`));
-    if (folderExists) return;
-    setSelectedFolder(null);
-    writeSelectedFolder(notesDir, null);
-  }, [loading, notes, notesDir, selectedFolder]);
+    if (!notesDir || loading || !root) return;
+    const fallback = nearestExistingDirectory(root, selectedFolder);
+    if (fallback === selectedFolder) return;
+    setSelectedFolder(fallback);
+    writeSelectedFolder(notesDir, fallback);
+  }, [loading, notesDir, root, selectedFolder]);
+
+  const selectedDirectory = useMemo(
+    () => (root ? (findDirectory(root, selectedFolder) ?? root) : null),
+    [root, selectedFolder],
+  );
 
   if (!notesDir) {
     return (
@@ -100,8 +124,12 @@ export default function NotesPanel() {
   const submitName = async (name: string) => {
     if (nameDialog?.mode === 'rename') {
       const note = nameDialog.note;
-      const fileName = name.endsWith('.md') ? name : `${name}.md`;
       const currentName = note.relative_path.split('/').pop();
+      const currentExtension = currentName?.toLowerCase().endsWith('.markdown')
+        ? '.markdown'
+        : '.md';
+      const withoutMarkdownExtension = name.replace(/\.(?:md|markdown)$/i, '');
+      const fileName = `${withoutMarkdownExtension}${currentExtension}`;
       if (fileName === currentName) {
         setNameDialog(null);
         return;
@@ -132,7 +160,7 @@ export default function NotesPanel() {
       return;
     }
 
-    const filePath = await createNote.mutateAsync({ directory: selectedFolder ?? '', name });
+    const filePath = await createNote.mutateAsync({ directory: selectedFolder, name });
     setSelectedFilePath(filePath);
     setNameDialog(null);
   };
@@ -151,31 +179,35 @@ export default function NotesPanel() {
       )}
 
       <div className="flex-1 flex overflow-hidden">
-        <NotesSidebar
-          notes={notes}
-          selectedFolder={selectedFolder}
-          onSelectFolder={(path) => {
-            void leaveActiveDocument(() => {
-              setSelectedFolder(path);
-              writeSelectedFolder(notesDir, path);
-              setSelectedFilePath(null);
-            });
-          }}
-          onDeleteFolder={(folder) => {
-            deleteFolder.reset();
-            setDeletingFolder(folder);
-          }}
-        />
+        {root && (
+          <NotesSidebar
+            workspaceKey={notesDir}
+            root={root}
+            selectedFolder={selectedFolder}
+            onSelectFolder={(path) => {
+              void leaveActiveDocument(() => {
+                setSelectedFolder(path);
+                writeSelectedFolder(notesDir, path);
+                setSelectedFilePath(null);
+              });
+            }}
+            onDeleteFolder={(folder) => {
+              deleteFolder.reset();
+              setDeletingFolder(folder);
+            }}
+          />
+        )}
         <NotesList
+          files={selectedDirectory?.files ?? []}
           notes={notes}
           loading={loading}
-          selectedFolder={selectedFolder}
           selectedFilePath={selectedFilePath}
-          onSelectNote={(note) => {
+          onSelectMarkdown={(note) => {
             void leaveActiveDocument(() => {
               setSelectedFilePath(note.relative_path);
             });
           }}
+          onOpenExternal={() => undefined}
           onCreateNote={() => {
             createNote.reset();
             setNameDialog({ mode: 'create' });
@@ -269,9 +301,17 @@ export default function NotesPanel() {
           if (!deletingFolder) return;
           deleteFolder.mutate(deletingFolder.path, {
             onSuccess: () => {
-              setSelectedFolder(null);
-              writeSelectedFolder(notesDir, null);
-              setSelectedFilePath(null);
+              const deletedPath = deletingFolder.path;
+              const parentPath = deletedPath.split('/').slice(0, -1).join('/');
+              setSelectedFolder((current) => {
+                if (current !== deletedPath && !current.startsWith(`${deletedPath}/`))
+                  return current;
+                writeSelectedFolder(notesDir, parentPath);
+                return parentPath;
+              });
+              setSelectedFilePath((current) =>
+                current?.startsWith(`${deletedPath}/`) ? null : current,
+              );
               setDeletingFolder(null);
             },
           });

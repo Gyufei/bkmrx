@@ -87,6 +87,7 @@ export function useNotesWorkspace() {
   return {
     notesDir,
     workspaceRevision,
+    root: notesQuery.data?.root ?? null,
     notes: notesQuery.data?.notes ?? [],
     loading: notesQuery.isLoading,
     error: notesQuery.error,

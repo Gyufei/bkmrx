@@ -5,7 +5,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import type { NoteChangedEvent, NoteFile, NoteRemovedEvent } from '../types';
+import type { NoteChangedEvent, NoteFile, NoteRemovedEvent, WorkspaceDirectory } from '../types';
 import { useNotesWorkspace } from './use-notes-workspace';
 
 const eventHandlers = vi.hoisted(
@@ -55,6 +55,12 @@ const firstNote: NoteFile = {
   modified: 0,
   size: 0,
 };
+const root: WorkspaceDirectory = {
+  name: 'notes',
+  relative_path: '',
+  directories: [],
+  files: [{ name: 'first.md', relative_path: 'first.md', kind: 'markdown' }],
+};
 
 function createWrapper(queryClient: QueryClient) {
   return function Wrapper({ children }: PropsWithChildren) {
@@ -63,12 +69,13 @@ function createWrapper(queryClient: QueryClient) {
 }
 
 it('synchronizes note watcher events into the notes query cache', async () => {
-  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote] });
+  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote], root });
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { result } = renderHook(() => useNotesWorkspace(), {
     wrapper: createWrapper(queryClient),
   });
   await waitFor(() => expect(result.current.notes).toEqual([firstNote]));
+  expect(result.current.root).toEqual(root);
 
   const changedNote = { ...firstNote, title: '外部修改' };
   act(() => eventHandlers.get('note-changed')?.({ payload: { revision: 1, note: changedNote } }));
@@ -83,7 +90,7 @@ it('synchronizes note watcher events into the notes query cache', async () => {
 });
 
 it('exposes create, rename, and delete mutations through the workspace hook', async () => {
-  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote] });
+  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote], root });
   createNoteApi.mockResolvedValue('new.md');
   renameNoteFileApi.mockResolvedValue('renamed.md');
   deleteNoteFileApi.mockResolvedValue(undefined);
@@ -121,7 +128,7 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
 });
 
 it('does not turn successful mutations into failures when cache invalidation fails', async () => {
-  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote] });
+  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote], root });
   renameNoteFileApi.mockResolvedValue('renamed.md');
   deleteNoteFileApi.mockResolvedValue(undefined);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });

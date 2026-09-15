@@ -58,6 +58,41 @@ vi.mock('./notes.api', () => ({
         size: 0,
       },
     ],
+    root: {
+      name: 'notes',
+      relative_path: '',
+      files: [
+        { name: '第一篇笔记.md', relative_path: 'first.md', kind: 'markdown' },
+        { name: '第二篇笔记.md', relative_path: 'second.md', kind: 'markdown' },
+        { name: 'reference.HTML', relative_path: 'reference.HTML', kind: 'external' },
+        { name: 'data.json', relative_path: 'data.json', kind: 'external' },
+        { name: 'script.mjs', relative_path: 'script.mjs', kind: 'external' },
+        { name: 'component.jsx', relative_path: 'component.jsx', kind: 'external' },
+      ],
+      directories: [
+        {
+          name: '空目录',
+          relative_path: '空目录',
+          files: [],
+          directories: [],
+        },
+        {
+          name: '资料',
+          relative_path: '资料',
+          files: [{ name: '资料笔记.md', relative_path: '资料/nested.md', kind: 'markdown' }],
+          directories: [
+            {
+              name: '二级',
+              relative_path: '资料/二级',
+              files: [
+                { name: 'deep.json', relative_path: '资料/二级/deep.json', kind: 'external' },
+              ],
+              directories: [],
+            },
+          ],
+        },
+      ],
+    },
   }),
   createNoteApi: vi.fn(),
   deleteNoteFileApi,
@@ -106,8 +141,8 @@ it('uses sidebar backgrounds for both navigation columns and the content backgro
     </QueryClientProvider>,
   );
 
-  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
-  const folderColumn = screen.getByText('共 3 篇笔记').closest('.bg-sidebar');
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记.md' });
+  const folderColumn = screen.getByText('笔记').closest('.bg-sidebar');
   const noteColumn = firstNote.closest('.bg-sidebar');
 
   expect(folderColumn).not.toBeNull();
@@ -117,6 +152,123 @@ it('uses sidebar backgrounds for both navigation columns and the content backgro
   expect(
     (await screen.findByText('笔记内容')).parentElement?.classList.contains('bg-background'),
   ).toBe(true);
+});
+
+it('shows the real root and only the selected directory direct files', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByRole('button', { name: 'notes' })).toBeTruthy();
+  expect(screen.getByText('共 6 个文件')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'reference.HTML' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: '空目录' })).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: '资料' }));
+
+  expect(await screen.findByText('共 1 个文件')).toBeTruthy();
+  expect(screen.getByRole('button', { name: '资料笔记.md' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'deep.json' })).toBeNull();
+});
+
+it('keeps the active Markdown document when an external file is clicked', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: '第一篇笔记.md' }));
+  await screen.findByTestId('note-editor');
+
+  fireEvent.click(screen.getByRole('button', { name: 'reference.HTML' }));
+
+  expect(screen.getByTestId('note-editor').getAttribute('data-file-path')).toBe('first.md');
+  expect(activeDocumentSession.flush).not.toHaveBeenCalled();
+});
+
+it('does not expose Markdown rename or delete actions for external files', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  const externalFile = await screen.findByRole('button', { name: 'reference.HTML' });
+
+  fireEvent.contextMenu(externalFile);
+
+  expect(await screen.findByRole('menuitem', { name: '复制文件路径' })).toBeTruthy();
+  expect(screen.queryByRole('menuitem', { name: '重命名' })).toBeNull();
+  expect(screen.queryByRole('menuitem', { name: '删除笔记' })).toBeNull();
+});
+
+it('falls back from a missing selected directory to its nearest existing parent', async () => {
+  localStorage.setItem('bkmrx:notes:selected-folder:/notes', '资料/已删除');
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  const folder = await screen.findByRole('button', { name: '资料' });
+  await waitFor(() => expect(folder.classList.contains('bg-primary/15')).toBe(true));
+  expect(screen.getByRole('button', { name: '资料笔记.md' })).toBeTruthy();
+  expect(localStorage.getItem('bkmrx:notes:selected-folder:/notes')).toBe('资料');
+});
+
+it('searches complete direct filenames while keeping extensions hidden', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  const externalFile = await screen.findByRole('button', { name: 'reference.HTML' });
+  expect(externalFile.textContent).toContain('reference');
+  expect(externalFile.textContent).not.toContain('.HTML');
+  expect(externalFile.querySelector('[data-file-kind="html"]')).not.toBeNull();
+
+  fireEvent.change(screen.getByPlaceholderText('搜索文件...'), { target: { value: 'html' } });
+
+  expect(screen.getByRole('button', { name: 'reference.HTML' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: '第一篇笔记.md' })).toBeNull();
+});
+
+it('distinguishes the supported file icon categories by extension', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  expect(
+    (await screen.findByRole('button', { name: '第一篇笔记.md' })).querySelector(
+      '[data-file-kind="markdown"]',
+    ),
+  ).not.toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'reference.HTML' }).querySelector('[data-file-kind="html"]'),
+  ).not.toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'data.json' }).querySelector('[data-file-kind="json"]'),
+  ).not.toBeNull();
+  expect(
+    screen
+      .getByRole('button', { name: 'script.mjs' })
+      .querySelector('[data-file-kind="javascript"]'),
+  ).not.toBeNull();
+  expect(
+    screen
+      .getByRole('button', { name: 'component.jsx' })
+      .querySelector('[data-file-kind="unknown"]'),
+  ).not.toBeNull();
+  const htmlIcon = screen
+    .getByRole('button', { name: 'reference.HTML' })
+    .querySelector('[data-file-kind="html"]');
+  const javascriptIcon = screen
+    .getByRole('button', { name: 'script.mjs' })
+    .querySelector('[data-file-kind="javascript"]');
+  expect(htmlIcon?.getAttribute('class')).not.toBe(javascriptIcon?.getAttribute('class'));
 });
 
 it('restores the selected folder when returning to the notes page', async () => {
@@ -150,8 +302,8 @@ it('uses the same primary-tinted selection background as the folder column', asy
       <NotesPanel />
     </QueryClientProvider>,
   );
-  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
-  const secondNote = screen.getByRole('button', { name: '第二篇笔记' });
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记.md' });
+  const secondNote = screen.getByRole('button', { name: '第二篇笔记.md' });
 
   fireEvent.click(firstNote);
 
@@ -166,8 +318,8 @@ it('keeps the active note selected and reports an error when navigation flush fa
       <NotesPanel />
     </QueryClientProvider>,
   );
-  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
-  const secondNote = screen.getByRole('button', { name: '第二篇笔记' });
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记.md' });
+  const secondNote = screen.getByRole('button', { name: '第二篇笔记.md' });
   fireEvent.click(firstNote);
   await screen.findByTestId('note-editor');
 
@@ -187,7 +339,7 @@ it('renames a note from its context menu using the file dialog', async () => {
       <NotesPanel />
     </QueryClientProvider>,
   );
-  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记.md' });
 
   fireEvent.contextMenu(firstNote);
   fireEvent.click(await screen.findByText('重命名'));
@@ -216,7 +368,7 @@ it('requires confirmation before deleting a note', async () => {
       <NotesPanel />
     </QueryClientProvider>,
   );
-  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记.md' });
 
   fireEvent.contextMenu(firstNote);
   fireEvent.click(await screen.findByText('删除笔记'));
@@ -275,14 +427,14 @@ it('clears a previous deletion error before opening another note', async () => {
     </QueryClientProvider>,
   );
 
-  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记.md' });
   fireEvent.contextMenu(firstNote);
   fireEvent.click(await screen.findByText('删除笔记'));
   fireEvent.click(screen.getByRole('button', { name: '删除' }));
   expect(await screen.findByText('删除失败：文件被占用')).toBeTruthy();
 
   fireEvent.click(screen.getByRole('button', { name: '取消' }));
-  const secondNote = screen.getByRole('button', { name: '第二篇笔记' });
+  const secondNote = screen.getByRole('button', { name: '第二篇笔记.md' });
   fireEvent.contextMenu(secondNote);
   fireEvent.click(await screen.findByText('删除笔记'));
 
@@ -298,7 +450,7 @@ it('shows an active document rename failure in the name dialog', async () => {
     </QueryClientProvider>,
   );
 
-  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记.md' });
   fireEvent.click(firstNote);
   fireEvent.contextMenu(firstNote);
   fireEvent.click(await screen.findByText('重命名'));
@@ -316,7 +468,7 @@ it('shows an active document deletion failure in the confirmation dialog', async
     </QueryClientProvider>,
   );
 
-  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记.md' });
   fireEvent.click(firstNote);
   fireEvent.contextMenu(firstNote);
   fireEvent.click(await screen.findByText('删除笔记'));
@@ -335,7 +487,7 @@ it('keeps a successful active rename when refreshing the note list fails', async
     </QueryClientProvider>,
   );
 
-  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记.md' });
   fireEvent.click(firstNote);
   fireEvent.contextMenu(firstNote);
   fireEvent.click(await screen.findByText('重命名'));
@@ -358,7 +510,7 @@ it('closes a successfully deleted active document when refreshing the note list 
     </QueryClientProvider>,
   );
 
-  const firstNote = await screen.findByRole('button', { name: '第一篇笔记' });
+  const firstNote = await screen.findByRole('button', { name: '第一篇笔记.md' });
   fireEvent.click(firstNote);
   fireEvent.contextMenu(firstNote);
   fireEvent.click(await screen.findByText('删除笔记'));

@@ -1,184 +1,151 @@
-import { Copy, Trash2 } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { Copy, Folder, FolderOpen, Trash2, Warehouse } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+
 import {
   ContextMenu,
-  ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-
-export interface FolderNode {
-  path: string;
-  name: string;
-  isExpanded: boolean;
-  children: FolderNode[];
-}
+import type { WorkspaceDirectory } from '../types';
 
 interface Props {
-  tree: FolderNode[];
-  selectedPath: string | null;
-  onSelect: (path: string | null) => void;
-  onDelete: (folder: Pick<FolderNode, 'path' | 'name'>) => void;
+  root: WorkspaceDirectory;
+  selectedPath: string;
+  onSelect: (path: string) => void;
+  onDelete: (folder: { path: string; name: string }) => void;
 }
 
-function FolderTreeItem({
-  node,
+function FolderRow({
+  directory,
   depth,
+  expanded,
   selectedPath,
   onSelect,
   onToggle,
   onDelete,
 }: {
-  node: FolderNode;
+  directory: WorkspaceDirectory;
   depth: number;
-  selectedPath: string | null;
-  onSelect: (path: string | null) => void;
+  expanded: Set<string>;
+  selectedPath: string;
+  onSelect: (path: string) => void;
   onToggle: (path: string) => void;
-  onDelete: (folder: Pick<FolderNode, 'path' | 'name'>) => void;
+  onDelete: (folder: { path: string; name: string }) => void;
 }) {
-  const isSelected = selectedPath === node.path;
-  const hasChildren = node.children.length > 0;
+  const isRoot = directory.relative_path === '';
+  const isExpanded = isRoot || expanded.has(directory.relative_path);
+  const hasChildren = directory.directories.length > 0;
+  const DirectoryIcon = isRoot ? Warehouse : isExpanded ? FolderOpen : Folder;
+  const row = (
+    <button
+      onClick={() => {
+        onSelect(directory.relative_path);
+        if (!isRoot && hasChildren) onToggle(directory.relative_path);
+      }}
+      aria-expanded={hasChildren ? isExpanded : undefined}
+      className={`flex w-full items-center gap-1 rounded-md px-2 py-1 text-left text-sm transition-colors ${
+        selectedPath === directory.relative_path
+          ? 'bg-primary/15'
+          : 'text-muted-foreground hover:bg-accent/20 hover:text-foreground dark:hover:text-foreground'
+      }`}
+      style={{ paddingLeft: `${8 + depth * 16}px` }}
+    >
+      {hasChildren && !isRoot ? (
+        <span
+          aria-hidden="true"
+          className={`w-3 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+        >
+          ›
+        </span>
+      ) : (
+        <span className="w-3 shrink-0" />
+      )}
+      <DirectoryIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
+      <span className="truncate">{directory.name}</span>
+    </button>
+  );
 
   return (
     <div>
-      <ContextMenu>
-        <ContextMenuTrigger>
-          <button
-            onClick={() => {
-              onSelect(node.path);
-              if (hasChildren) onToggle(node.path);
-            }}
-            className={`w-full flex items-center gap-1 px-2 py-1 text-sm rounded-md transition-colors text-left ${
-              isSelected
-                ? 'bg-primary/15'
-                : 'text-muted-foreground hover:bg-accent/20 hover:text-foreground dark:hover:text-foreground'
-            }`}
-            style={{ paddingLeft: `${8 + depth * 16}px` }}
-          >
-            {hasChildren ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={`shrink-0 transition-transform ${node.isExpanded ? 'rotate-90' : ''}`}
-              >
-                <path d="m9 18 6-6-6-6" />
-              </svg>
-            ) : (
-              <span className="w-3 shrink-0" />
-            )}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill={node.isExpanded ? 'currentColor' : 'none'}
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="shrink-0 opacity-60"
+      {isRoot ? (
+        row
+      ) : (
+        <ContextMenu>
+          <ContextMenuTrigger>{row}</ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem
+              onClick={() => navigator.clipboard.writeText(directory.relative_path).catch(() => {})}
             >
-              <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
-            </svg>
-            <span className="truncate">{node.name}</span>
-          </button>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem
-            onClick={() => {
-              navigator.clipboard.writeText(node.path).catch(() => {});
-            }}
-          >
-            <Copy className="h-4 w-4" />
-            <span>复制路径</span>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem variant="destructive" onClick={() => onDelete(node)}>
-            <Trash2 className="h-4 w-4" />
-            <span className="text-destructive">删除</span>
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-      {hasChildren && node.isExpanded && (
-        <div>
-          {node.children.map((child) => (
-            <FolderTreeItem
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              selectedPath={selectedPath}
-              onSelect={onSelect}
-              onToggle={onToggle}
-              onDelete={onDelete}
-            />
-          ))}
-        </div>
+              <Copy className="h-4 w-4" />
+              <span>复制路径</span>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              variant="destructive"
+              onClick={() => onDelete({ path: directory.relative_path, name: directory.name })}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="text-destructive">删除</span>
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       )}
+      {hasChildren &&
+        isExpanded &&
+        directory.directories.map((child) => (
+          <FolderRow
+            key={child.relative_path}
+            directory={child}
+            depth={depth + 1}
+            expanded={expanded}
+            selectedPath={selectedPath}
+            onSelect={onSelect}
+            onToggle={onToggle}
+            onDelete={onDelete}
+          />
+        ))}
     </div>
   );
 }
 
-export default function FolderTree({ tree, selectedPath, onSelect, onDelete }: Props) {
-  const [expanded, setExpanded] = useState<Set<string>>(() => {
-    // Expand first level by default
-    const init = new Set<string>();
-    for (const folder of tree) {
-      init.add(folder.path);
-    }
-    return init;
-  });
-
+export default function FolderTree({ root, selectedPath, onSelect, onDelete }: Props) {
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(root.directories.map((directory) => directory.relative_path)),
+  );
   const handleToggle = useCallback((path: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
       return next;
     });
   }, []);
 
-  const treeWithExpanded = tree.map((node) => ({
-    ...node,
-    isExpanded: expanded.has(node.path),
-    children: setExpandedRecursive(node.children, expanded),
-  }));
+  useEffect(() => {
+    const existingPaths = new Set<string>();
+    const collectPaths = (directory: WorkspaceDirectory) => {
+      for (const child of directory.directories) {
+        existingPaths.add(child.relative_path);
+        collectPaths(child);
+      }
+    };
+    collectPaths(root);
+    setExpanded((current) => new Set([...current].filter((path) => existingPaths.has(path))));
+  }, [root]);
 
   return (
     <div className="flex-1 overflow-y-auto py-1">
-      {treeWithExpanded.length === 0 ? (
-        <div className="px-3 py-4 text-xs text-muted-foreground">无文件夹</div>
-      ) : (
-        treeWithExpanded.map((node) => (
-          <FolderTreeItem
-            key={node.path}
-            node={node}
-            depth={0}
-            selectedPath={selectedPath}
-            onSelect={(p) => onSelect(p)}
-            onToggle={handleToggle}
-            onDelete={onDelete}
-          />
-        ))
-      )}
+      <FolderRow
+        directory={root}
+        depth={0}
+        expanded={expanded}
+        selectedPath={selectedPath}
+        onSelect={onSelect}
+        onToggle={handleToggle}
+        onDelete={onDelete}
+      />
     </div>
   );
-}
-
-function setExpandedRecursive(nodes: FolderNode[], expanded: Set<string>): FolderNode[] {
-  return nodes.map((node) => ({
-    ...node,
-    isExpanded: expanded.has(node.path),
-    children: setExpandedRecursive(node.children, expanded),
-  }));
 }
