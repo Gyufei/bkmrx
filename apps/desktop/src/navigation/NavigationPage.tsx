@@ -19,8 +19,6 @@ export default function NavigationPage() {
   const manageable = mode === 'edit';
   const editingCategory =
     categoryEditor === 'new' || categoryEditor === null ? null : categoryEditor;
-  const categoryPending =
-    categoryEditor === 'new' ? controller.create.isPending : controller.rename.isPending;
 
   const leaveEditMode = () => {
     setMode('view');
@@ -39,7 +37,7 @@ export default function NavigationPage() {
           className="absolute right-4 bottom-14 z-10"
           aria-label="排序分类"
           title="排序分类"
-          disabled={(controller.sections.data?.length ?? 0) < 2}
+          disabled={controller.sections.length < 2}
           onClick={() => setSorting(true)}
         >
           <ArrowUpDown aria-hidden="true" />
@@ -66,41 +64,36 @@ export default function NavigationPage() {
       <NavigationCategoryDialog
         open={categoryEditor !== null}
         category={editingCategory}
-        pending={categoryPending}
+        pending={controller.category.saving}
         onOpenChange={(open) => !open && setCategoryEditor(null)}
         onSubmit={async (name) => {
           if (categoryEditor === 'new') {
-            await controller.create.mutateAsync(name);
+            const result = await controller.category.create(name);
+            if (!result.ok) return;
           } else if (categoryEditor) {
-            await controller.rename.mutateAsync({ id: categoryEditor.id, name });
+            const result = await controller.category.rename(categoryEditor.id, name);
+            if (!result.ok) return;
           }
           setCategoryEditor(null);
         }}
       />
       <NavigationCategorySortDialog
         open={sorting}
-        categories={(controller.sections.data ?? []).map((section) => section.category)}
-        pending={controller.reorder.isPending}
+        categories={controller.sections.map((section) => section.category)}
+        pending={controller.category.reordering}
         onOpenChange={setSorting}
-        onSubmit={(categoryIds) => controller.reorder.mutateAsync(categoryIds)}
+        onSubmit={controller.category.reorder}
       />
       <BookmarkPickerDialog
         categoryId={addingTo?.category.id ?? null}
         categoryName={addingTo?.category.name ?? ''}
         assigned={addingTo?.cards ?? []}
-        pending={controller.addCards.isPending}
+        pending={controller.placement.adding}
         onOpenChange={(open) => !open && setAddingTo(null)}
         onAdd={async (bookmarkIds) => {
           if (!addingTo) return;
-          try {
-            await controller.addCards.mutateAsync({
-              categoryId: addingTo.category.id,
-              bookmarkIds,
-            });
-            setAddingTo(null);
-          } catch {
-            // The controller reports the error and the picker remains open for retry.
-          }
+          const result = await controller.placement.add(addingTo.category.id, bookmarkIds);
+          if (result.ok) setAddingTo(null);
         }}
       />
       <ConfirmDeleteDialog
@@ -111,17 +104,12 @@ export default function NavigationPage() {
             ? `将删除“${deleting.category.name}”及其中 ${deleting.cards.length} 个导航关联，不会删除书签。`
             : ''
         }
-        pending={controller.removeCategory.isPending}
-        error={controller.removeCategory.error}
+        pending={controller.category.deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
         onConfirm={async () => {
           if (!deleting) return;
-          try {
-            await controller.removeCategory.mutateAsync(deleting.category.id);
-            setDeleting(null);
-          } catch {
-            // The controller reports the error and the confirmation remains open for retry.
-          }
+          const result = await controller.category.remove(deleting.category.id);
+          if (result.ok) setDeleting(null);
         }}
       />
     </main>
@@ -145,19 +133,19 @@ function NavigationSections({
   onCreate(): void;
   onDelete(section: NavigationSection): void;
 }) {
-  if (controller.sections.isLoading)
+  if (controller.loadState === 'loading')
     return (
       <div className="flex-1 p-5">
         <p>正在加载导航分类…</p>
       </div>
     );
-  if (controller.sections.isError)
+  if (controller.loadState === 'error')
     return (
       <div className="flex-1 p-5">
         <p role="alert">加载导航分类失败</p>
       </div>
     );
-  const sections = controller.sections.data ?? [];
+  const sections = controller.sections;
   if (sections.length === 0 && !manageable)
     return (
       <div className="flex-1 p-5">
@@ -179,17 +167,16 @@ function NavigationSections({
             section={section}
             manageable={manageable}
             removing={
-              controller.removeCard.isPending &&
-              controller.removeCard.variables?.categoryId === section.category.id
-                ? controller.removeCard.variables.card
+              controller.placement.removing?.categoryId === section.category.id
+                ? controller.placement.removing.card
                 : undefined
             }
             onEdit={onEdit}
             onAdd={() => onAdd(section)}
             onDelete={() => onDelete(section)}
-            onOpen={(card) => void controller.open(card)}
+            onOpen={(card) => void controller.placement.open(card)}
             onRemove={(category, card) =>
-              controller.removeCard.mutate({ categoryId: category.id, card })
+              void controller.placement.remove({ categoryId: category.id, card })
             }
           />
         ))}

@@ -12,6 +12,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Spinner } from '@/components/ui/spinner';
+import type { NavigationCommandResult } from './use-navigation-controller';
 
 interface DragState {
   id: NavigationCategoryId;
@@ -28,7 +29,7 @@ interface Props {
   categories: NavigationCategory[];
   pending: boolean;
   onOpenChange(open: boolean): void;
-  onSubmit(categoryIds: NavigationCategoryId[]): Promise<unknown>;
+  onSubmit(categoryIds: NavigationCategoryId[]): Promise<NavigationCommandResult>;
 }
 
 export default function NavigationCategorySortDialog({
@@ -77,12 +78,8 @@ export default function NavigationCategorySortDialog({
 
   const submit = async () => {
     if (!changed || pending) return;
-    try {
-      await onSubmit(ordered.map((category) => category.id));
-      onOpenChange(false);
-    } catch {
-      // The controller reports mutation errors and the dialog remains open for retry.
-    }
+    const result = await onSubmit(ordered.map((category) => category.id));
+    if (result.ok) onOpenChange(false);
   };
 
   return (

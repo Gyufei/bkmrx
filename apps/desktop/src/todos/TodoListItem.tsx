@@ -78,7 +78,7 @@ export default function TodoListItem({
             <StatusToggle todo={todo} disabled={statusPending} onToggle={toggleStatus} />
           </span>
           <div className="min-w-0 flex-1 text-left">
-            <div>
+            <div className="flex items-center gap-0.5">
               <button
                 type="button"
                 className={cn(
@@ -93,7 +93,7 @@ export default function TodoListItem({
                 <Tooltip>
                   <TooltipTrigger
                     aria-label="查看任务描述"
-                    className="ml-1.5 inline-flex cursor-help align-middle text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="ml-1.5 inline-flex align-middle text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <BookAlert className="size-4" aria-hidden="true" />
                   </TooltipTrigger>

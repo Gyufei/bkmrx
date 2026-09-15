@@ -21,6 +21,8 @@ export interface PlacementTarget {
   card: NavigationPlacementCard;
 }
 
+export type NavigationCommandResult = { ok: true } | { ok: false };
+
 function report(error: unknown) {
   toast.add({ type: 'error', title: getErrorMessage(error, '分类操作失败') });
 }
@@ -32,6 +34,21 @@ export function useNavigationController() {
     queryKey: NAVIGATION_SECTIONS_KEY,
     queryFn: listNavigationSectionsApi,
   });
+  const category = useCategoryCommands(refresh);
+  const placement = usePlacementCommands(refresh);
+  return {
+    sections: sections.data ?? [],
+    loadState: sections.isLoading
+      ? ('loading' as const)
+      : sections.isError
+        ? ('error' as const)
+        : ('ready' as const),
+    category,
+    placement,
+  };
+}
+
+function useCategoryCommands(refresh: () => Promise<void>) {
   const create = useMutation({
     mutationFn: createNavigationCategoryApi,
     onSuccess: refresh,
@@ -53,6 +70,20 @@ export function useNavigationController() {
     onSuccess: refresh,
     onError: report,
   });
+  return {
+    create: (name: string) => commandResult(create.mutateAsync(name)),
+    rename: (id: NavigationCategoryId, name: string) =>
+      commandResult(rename.mutateAsync({ id, name })),
+    remove: (id: NavigationCategoryId) => commandResult(removeCategory.mutateAsync(id)),
+    reorder: (categoryIds: NavigationCategoryId[]) =>
+      commandResult(reorder.mutateAsync(categoryIds)),
+    saving: create.isPending || rename.isPending,
+    deleting: removeCategory.isPending,
+    reordering: reorder.isPending,
+  };
+}
+
+function usePlacementCommands(refresh: () => Promise<void>) {
   const addCards = useMutation({
     mutationFn: ({
       categoryId,
@@ -66,15 +97,22 @@ export function useNavigationController() {
   });
   const removeCard = useRemoveCard(refresh, addCards.mutate);
   return {
-    sections,
-    create,
-    rename,
-    removeCategory,
-    reorder,
-    addCards,
-    removeCard,
+    add: (categoryId: NavigationCategoryId, bookmarkIds: BookmarkId[]) =>
+      commandResult(addCards.mutateAsync({ categoryId, bookmarkIds })),
+    remove: (target: PlacementTarget) => commandResult(removeCard.mutateAsync(target)),
     open: openCard,
+    adding: addCards.isPending,
+    removing: removeCard.isPending ? (removeCard.variables ?? null) : null,
   };
+}
+
+async function commandResult(operation: Promise<unknown>): Promise<NavigationCommandResult> {
+  try {
+    await operation;
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
 }
 
 function useRemoveCard(
@@ -106,10 +144,12 @@ function undoRemoval(
   toast.close(toastId);
 }
 
-async function openCard(card: NavigationPlacementCard) {
+async function openCard(card: NavigationPlacementCard): Promise<NavigationCommandResult> {
   try {
     await openBookmark({ id: card.bookmark_id, url: card.url });
+    return { ok: true };
   } catch {
     toast.add({ type: 'error', title: '无法打开链接', description: card.url });
+    return { ok: false };
   }
 }

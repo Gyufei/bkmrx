@@ -19,7 +19,7 @@ describe('NavigationCategorySortDialog', () => {
   afterEach(cleanup);
 
   it('submits the complete category id sequence after rows are dragged', async () => {
-    const submit = vi.fn().mockResolvedValue(undefined);
+    const submit = vi.fn().mockResolvedValue({ ok: true });
     render(
       <NavigationCategorySortDialog
         open
