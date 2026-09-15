@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { FileText } from 'lucide-react';
 import type { NoteFile, WorkspaceDirectory, WorkspaceFile } from '../types';
@@ -111,6 +112,17 @@ export default function NotesPanel() {
     [root, selectedFolder],
   );
 
+  const displayedError = navigationError
+    ? { message: `无法切换笔记：${navigationError.message}`, retryable: false }
+    : openExternalFile.error && openingExternalFile
+      ? {
+          message: `无法打开“${openingExternalFile.name}”：${openExternalFile.error.message}`,
+          retryable: false,
+        }
+      : error
+        ? { message: error.message, retryable: true }
+        : null;
+
   if (!notesDir) {
     return (
       <Empty className="flex-1 text-muted-foreground">
@@ -169,18 +181,22 @@ export default function NotesPanel() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {(error || navigationError || openExternalFile.error) && (
+      {displayedError && (
         <Alert
           variant="destructive"
           className="shrink-0 rounded-none border-x-0 border-t-0 px-4 py-2"
         >
-          <AlertDescription>
-            {navigationError
-              ? `无法切换笔记：${navigationError.message}`
-              : openExternalFile.error && openingExternalFile
-                ? `无法打开“${openingExternalFile.name}”：${openExternalFile.error.message}`
-                : error!.message}
-          </AlertDescription>
+          <AlertDescription>{displayedError.message}</AlertDescription>
+          {displayedError.retryable && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={() => void refreshNotes().catch(() => undefined)}
+            >
+              重试
+            </Button>
+          )}
         </Alert>
       )}
 

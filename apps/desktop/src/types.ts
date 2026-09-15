@@ -233,13 +233,8 @@ export interface NotesWorkspaceListing {
   root: WorkspaceDirectory;
 }
 
-export interface NoteChangedEvent {
+export interface NotesWorkspaceChangedEvent {
   revision: number;
-  note: NoteFile;
-}
-export interface NoteRemovedEvent {
-  revision: number;
-  relative_path: string;
 }
 
 export interface OpenedNoteDocument {

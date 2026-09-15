@@ -39,15 +39,8 @@ pub struct NotesWorkspaceListing {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct NoteChangedEvent {
+pub struct NotesWorkspaceChangedEvent {
     pub revision: u64,
-    pub note: NoteFile,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct NoteRemovedEvent {
-    pub revision: u64,
-    pub relative_path: String,
 }
 
 pub type DocumentReceipt = String;

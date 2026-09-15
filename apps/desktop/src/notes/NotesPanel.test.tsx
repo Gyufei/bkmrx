@@ -10,6 +10,7 @@ const renameNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFolderApi = vi.hoisted(() => vi.fn());
 const openExternalNoteFileApi = vi.hoisted(() => vi.fn());
+const scanNotesDirectoryApi = vi.hoisted(() => vi.fn());
 const activeDocumentSession = vi.hoisted(() => ({
   flush: vi.fn().mockResolvedValue(undefined),
   rename: vi.fn(),
@@ -31,76 +32,76 @@ vi.mock('@/settings/settings.api', () => ({
 
 vi.mock('./notes.api', () => ({
   NotesQueryApiKey: { NOTES: 'notes' },
-  scanNotesDirectoryApi: vi.fn().mockResolvedValue({
-    revision: 1,
-    notes: [
-      {
-        path: '/notes/first.md',
-        relative_path: 'first.md',
-        title: '第一篇笔记',
-        tags: [],
-        modified: 0,
-        size: 0,
-      },
-      {
-        path: '/notes/second.md',
-        relative_path: 'second.md',
-        title: '第二篇笔记',
-        tags: [],
-        modified: 0,
-        size: 0,
-      },
-      {
-        path: '/notes/资料/nested.md',
-        relative_path: '资料/nested.md',
-        title: '资料笔记',
-        tags: [],
-        modified: 0,
-        size: 0,
-      },
-    ],
-    root: {
-      name: 'notes',
-      relative_path: '',
-      files: [
-        { name: '第一篇笔记.md', relative_path: 'first.md', kind: 'markdown' },
-        { name: '第二篇笔记.md', relative_path: 'second.md', kind: 'markdown' },
-        { name: 'reference.HTML', relative_path: 'reference.HTML', kind: 'external' },
-        { name: 'data.json', relative_path: 'data.json', kind: 'external' },
-        { name: 'script.mjs', relative_path: 'script.mjs', kind: 'external' },
-        { name: 'component.jsx', relative_path: 'component.jsx', kind: 'external' },
-      ],
-      directories: [
-        {
-          name: '空目录',
-          relative_path: '空目录',
-          files: [],
-          directories: [],
-        },
-        {
-          name: '资料',
-          relative_path: '资料',
-          files: [{ name: '资料笔记.md', relative_path: '资料/nested.md', kind: 'markdown' }],
-          directories: [
-            {
-              name: '二级',
-              relative_path: '资料/二级',
-              files: [
-                { name: 'deep.json', relative_path: '资料/二级/deep.json', kind: 'external' },
-              ],
-              directories: [],
-            },
-          ],
-        },
-      ],
-    },
-  }),
+  scanNotesDirectoryApi,
   createNoteApi: vi.fn(),
   deleteNoteFileApi,
   deleteNoteFolderApi,
   openExternalNoteFileApi,
   renameNoteFileApi,
 }));
+
+scanNotesDirectoryApi.mockResolvedValue({
+  revision: 1,
+  notes: [
+    {
+      path: '/notes/first.md',
+      relative_path: 'first.md',
+      title: '第一篇笔记',
+      tags: [],
+      modified: 0,
+      size: 0,
+    },
+    {
+      path: '/notes/second.md',
+      relative_path: 'second.md',
+      title: '第二篇笔记',
+      tags: [],
+      modified: 0,
+      size: 0,
+    },
+    {
+      path: '/notes/资料/nested.md',
+      relative_path: '资料/nested.md',
+      title: '资料笔记',
+      tags: [],
+      modified: 0,
+      size: 0,
+    },
+  ],
+  root: {
+    name: 'notes',
+    relative_path: '',
+    files: [
+      { name: '第一篇笔记.md', relative_path: 'first.md', kind: 'markdown' },
+      { name: '第二篇笔记.md', relative_path: 'second.md', kind: 'markdown' },
+      { name: 'reference.HTML', relative_path: 'reference.HTML', kind: 'external' },
+      { name: 'data.json', relative_path: 'data.json', kind: 'external' },
+      { name: 'script.mjs', relative_path: 'script.mjs', kind: 'external' },
+      { name: 'component.jsx', relative_path: 'component.jsx', kind: 'external' },
+    ],
+    directories: [
+      {
+        name: '空目录',
+        relative_path: '空目录',
+        files: [],
+        directories: [],
+      },
+      {
+        name: '资料',
+        relative_path: '资料',
+        files: [{ name: '资料笔记.md', relative_path: '资料/nested.md', kind: 'markdown' }],
+        directories: [
+          {
+            name: '二级',
+            relative_path: '资料/二级',
+            files: [{ name: 'deep.json', relative_path: '资料/二级/deep.json', kind: 'external' }],
+            directories: [],
+          },
+        ],
+      },
+    ],
+  },
+});
 
 vi.mock('./NoteEditor', async () => {
   const { useEffect } = await import('react');
@@ -132,6 +133,24 @@ afterEach(() => {
   activeDocumentSession.rename.mockReset();
   activeDocumentSession.delete.mockReset();
   openExternalNoteFileApi.mockReset();
+  scanNotesDirectoryApi.mockClear();
+});
+
+it('offers a manual retry after the initial workspace scan fails', async () => {
+  scanNotesDirectoryApi.mockRejectedValueOnce(new Error('目录暂时不可读'));
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByText('目录暂时不可读')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: '重试' }));
+
+  expect(await screen.findByRole('button', { name: 'notes' })).toBeTruthy();
+  expect(scanNotesDirectoryApi).toHaveBeenCalledTimes(2);
 });
 
 it('uses sidebar backgrounds for both navigation columns and the content background for the editor', async () => {
@@ -204,6 +223,7 @@ it('reports an external open failure without exposing a path or changing the edi
   fireEvent.click(screen.getByRole('button', { name: 'reference.HTML' }));
 
   expect(await screen.findByText('无法打开“reference.HTML”：系统没有可用应用')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: '重试' })).toBeNull();
   expect(screen.getByTestId('note-editor').getAttribute('data-file-path')).toBe('first.md');
   expect(activeDocumentSession.flush).not.toHaveBeenCalled();
 
@@ -211,6 +231,27 @@ it('reports an external open failure without exposing a path or changing the edi
   await waitFor(() =>
     expect(screen.queryByText('无法打开“reference.HTML”：系统没有可用应用')).toBeNull(),
   );
+});
+
+it('hides the workspace retry action while an external open error is displayed', async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  await screen.findByRole('button', { name: 'reference.HTML' });
+
+  scanNotesDirectoryApi.mockRejectedValueOnce(new Error('目录暂时不可读'));
+  await queryClient.invalidateQueries({ queryKey: ['notes', '/notes', 1] });
+  expect(await screen.findByText('目录暂时不可读')).toBeTruthy();
+  expect(screen.getByRole('button', { name: '重试' })).toBeTruthy();
+
+  openExternalNoteFileApi.mockRejectedValueOnce(new Error('系统没有可用应用'));
+  fireEvent.click(screen.getByRole('button', { name: 'reference.HTML' }));
+
+  expect(await screen.findByText('无法打开“reference.HTML”：系统没有可用应用')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: '重试' })).toBeNull();
 });
 
 it('does not expose Markdown rename or delete actions for external files', async () => {

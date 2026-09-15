@@ -146,18 +146,9 @@ fn main() {
                 bkmrx_lib::notes::NotesWorkspace::new(
                     Arc::clone(&settings_store),
                     Arc::new(move |event| match event {
-                        bkmrx_lib::notes::NoteEvent::Changed(note) => {
-                            if let Err(error) = note_handle.emit("note-changed", note) {
-                                log::warn!(
-                                    "frontend_event_emit_failed event=note-changed error={error}"
-                                );
-                            }
-                        }
-                        bkmrx_lib::notes::NoteEvent::Removed(path) => {
-                            if let Err(error) = note_handle.emit("note-removed", path) {
-                                log::warn!(
-                                    "frontend_event_emit_failed event=note-removed error={error}"
-                                );
+                        bkmrx_lib::notes::NoteEvent::WorkspaceChanged(change) => {
+                            if let Err(error) = note_handle.emit("notes-workspace-changed", change) {
+                                log::warn!("frontend_event_emit_failed event=notes-workspace-changed error={error}");
                             }
                         }
                     }),

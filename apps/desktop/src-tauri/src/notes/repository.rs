@@ -92,12 +92,6 @@ fn scan_directory(root: &Path, current: &Path) -> io::Result<(WorkspaceDirectory
     ))
 }
 
-pub fn scan_note(root: &Path, path: &Path) -> Option<NoteFile> {
-    let meta = fs::metadata(path).ok()?;
-    let relative_path = relative_identity(root, path).ok()?;
-    note_from_metadata(path, relative_path, &meta).ok()
-}
-
 fn note_from_metadata(
     path: &Path,
     relative_path: String,

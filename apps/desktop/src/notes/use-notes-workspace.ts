@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useTauriEvent } from '@/lib/use-tauri-event';
 import { getSettingsApi, SettingsQueryApiKey } from '@/settings/settings.api';
-import type { NoteChangedEvent, NoteRemovedEvent, NotesWorkspaceListing } from '../types';
+import type { NotesWorkspaceChangedEvent } from '../types';
 import {
   createNoteApi,
   deleteNoteFolderApi,
@@ -29,35 +29,11 @@ export function useNotesWorkspace() {
 
   const workspaceRevision = notesQuery.data?.revision ?? null;
 
-  useTauriEvent<NoteChangedEvent>(
-    'note-changed',
+  useTauriEvent<NotesWorkspaceChangedEvent>(
+    'notes-workspace-changed',
     ({ payload }) => {
-      queryClient.setQueryData(notesQueryKey, (old: NotesWorkspaceListing | undefined) => {
-        if (!old || old.revision !== payload.revision) return old;
-        const index = old.notes.findIndex(
-          (note) => note.relative_path === payload.note.relative_path,
-        );
-        const notes =
-          index < 0
-            ? [payload.note, ...old.notes]
-            : old.notes.map((note, i) => (i === index ? payload.note : note));
-        return { ...old, notes };
-      });
-    },
-    !!notesDir,
-  );
-
-  useTauriEvent<NoteRemovedEvent>(
-    'note-removed',
-    ({ payload }) => {
-      queryClient.setQueryData(notesQueryKey, (old: NotesWorkspaceListing | undefined) =>
-        !old || old.revision !== payload.revision
-          ? old
-          : {
-              ...old,
-              notes: old.notes.filter((note) => note.relative_path !== payload.relative_path),
-            },
-      );
+      if (payload.revision !== workspaceRevision) return;
+      void queryClient.invalidateQueries({ queryKey: notesQueryKey }).catch(() => undefined);
     },
     !!notesDir,
   );

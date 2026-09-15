@@ -5,11 +5,11 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import type { NoteChangedEvent, NoteFile, NoteRemovedEvent, WorkspaceDirectory } from '../types';
+import type { NoteFile, NotesWorkspaceChangedEvent, WorkspaceDirectory } from '../types';
 import { useNotesWorkspace } from './use-notes-workspace';
 
 const eventHandlers = vi.hoisted(
-  () => new Map<string, (event: { payload: NoteChangedEvent | NoteRemovedEvent }) => void>(),
+  () => new Map<string, (event: { payload: NotesWorkspaceChangedEvent }) => void>(),
 );
 const createNoteApi = vi.hoisted(() => vi.fn());
 const deleteNoteFileApi = vi.hoisted(() => vi.fn());
@@ -21,7 +21,7 @@ const openExternalNoteFileApi = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/use-tauri-event', () => ({
   useTauriEvent: (
     eventName: string,
-    handler: (event: { payload: NoteChangedEvent | NoteRemovedEvent }) => void,
+    handler: (event: { payload: NotesWorkspaceChangedEvent }) => void,
   ) => eventHandlers.set(eventName, handler),
 }));
 
@@ -70,8 +70,14 @@ function createWrapper(queryClient: QueryClient) {
   };
 }
 
-it('synchronizes note watcher events into the notes query cache', async () => {
-  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote], root });
+it('reloads the complete workspace once for a matching structural event', async () => {
+  const updatedRoot = {
+    ...root,
+    files: [...root.files, { name: 'page.html', relative_path: 'page.html', kind: 'external' }],
+  } satisfies WorkspaceDirectory;
+  scanNotesDirectoryApi
+    .mockResolvedValueOnce({ revision: 1, notes: [firstNote], root })
+    .mockResolvedValueOnce({ revision: 1, notes: [firstNote], root: updatedRoot });
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { result } = renderHook(() => useNotesWorkspace(), {
     wrapper: createWrapper(queryClient),
@@ -79,16 +85,26 @@ it('synchronizes note watcher events into the notes query cache', async () => {
   await waitFor(() => expect(result.current.notes).toEqual([firstNote]));
   expect(result.current.root).toEqual(root);
 
-  const changedNote = { ...firstNote, title: '外部修改' };
-  act(() => eventHandlers.get('note-changed')?.({ payload: { revision: 1, note: changedNote } }));
-  await waitFor(() => expect(result.current.notes).toEqual([changedNote]));
+  act(() => eventHandlers.get('notes-workspace-changed')?.({ payload: { revision: 1 } }));
 
-  act(() =>
-    eventHandlers.get('note-removed')?.({
-      payload: { revision: 1, relative_path: firstNote.relative_path },
-    }),
-  );
-  await waitFor(() => expect(result.current.notes).toEqual([]));
+  await waitFor(() => expect(result.current.root).toEqual(updatedRoot));
+  expect(scanNotesDirectoryApi).toHaveBeenCalledTimes(2);
+});
+
+it('retains the last successful workspace when a structural reload fails', async () => {
+  scanNotesDirectoryApi
+    .mockResolvedValueOnce({ revision: 1, notes: [firstNote], root })
+    .mockRejectedValueOnce(new Error('目录暂时不可读'));
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { result } = renderHook(() => useNotesWorkspace(), {
+    wrapper: createWrapper(queryClient),
+  });
+  await waitFor(() => expect(result.current.root).toEqual(root));
+
+  act(() => eventHandlers.get('notes-workspace-changed')?.({ payload: { revision: 1 } }));
+
+  await waitFor(() => expect(result.current.error?.message).toBe('目录暂时不可读'));
+  expect(result.current.root).toEqual(root);
 });
 
 it('exposes create, rename, and delete mutations through the workspace hook', async () => {
