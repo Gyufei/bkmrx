@@ -19,14 +19,23 @@ use crate::{
 pub struct NotesWorkspace {
     settings: SharedSettingsStore,
     watcher: Option<NoteWatcher>,
+    external_file_opener: Arc<ExternalFileOpener>,
 }
+
+type ExternalFileOpener = dyn Fn(&Path) -> Result<(), String> + Send + Sync;
 
 impl NotesWorkspace {
     pub fn new(settings: SharedSettingsStore, emit: Arc<dyn Fn(NoteEvent) + Send + Sync>) -> Self {
         Self {
             settings,
             watcher: Some(NoteWatcher::new(emit)),
+            external_file_opener: Arc::new(|_| Err("external file opener is unavailable".into())),
         }
+    }
+
+    pub fn with_external_file_opener(mut self, opener: Arc<ExternalFileOpener>) -> Self {
+        self.external_file_opener = opener;
+        self
     }
 
     pub fn list(&self) -> AppResult<NotesWorkspaceListing> {
@@ -53,6 +62,22 @@ impl NotesWorkspace {
                 fingerprint: fingerprint(&content),
             })?,
             content,
+        })
+    }
+
+    pub fn open_external_file(&self, revision: u64, relative_path: &str) -> AppResult<()> {
+        validate_relative_path(relative_path)?;
+        let (_, root) = self.root_at(revision)?;
+        let candidate = authorize_visible_workspace_file(&root, relative_path)?;
+        let path = candidate.canonicalize().map_err(note_io_error)?;
+        if !path.starts_with(&root) || is_markdown(&path) || is_blocked_launcher(&path) {
+            return Err(external_file_not_allowed());
+        }
+        (self.external_file_opener)(&path).map_err(|_| {
+            AppError::note_error(
+                "external_file_open_failed",
+                "无法使用系统默认应用打开该文件",
+            )
         })
     }
 
@@ -261,6 +286,53 @@ fn validate_relative_path(path: &str) -> AppResult<()> {
 
 fn note_io_error(error: std::io::Error) -> AppError {
     AppError::note_error("note_io_error", error.to_string())
+}
+
+fn is_markdown(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("md") || extension.eq_ignore_ascii_case("markdown")
+        })
+}
+
+fn authorize_visible_workspace_file(root: &Path, relative_path: &str) -> AppResult<PathBuf> {
+    let mut candidate = root.to_path_buf();
+    let mut metadata = None;
+    for component in Path::new(relative_path).components() {
+        let Component::Normal(name) = component else {
+            return Err(external_file_not_allowed());
+        };
+        if name.to_string_lossy().starts_with('.') {
+            return Err(external_file_not_allowed());
+        }
+        candidate.push(name);
+        let current = std::fs::symlink_metadata(&candidate).map_err(note_io_error)?;
+        if current.file_type().is_symlink() {
+            return Err(external_file_not_allowed());
+        }
+        metadata = Some(current);
+    }
+    if !metadata.is_some_and(|metadata| metadata.is_file()) {
+        return Err(external_file_not_allowed());
+    }
+    Ok(candidate)
+}
+
+fn is_blocked_launcher(path: &Path) -> bool {
+    const BLOCKED_EXTENSIONS: [&str; 8] =
+        ["app", "command", "exe", "com", "bat", "cmd", "msi", "ps1"];
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            BLOCKED_EXTENSIONS
+                .iter()
+                .any(|blocked| extension.eq_ignore_ascii_case(blocked))
+        })
+}
+
+fn external_file_not_allowed() -> AppError {
+    AppError::note_error("external_file_not_allowed", "该文件不能从笔记工作区打开")
 }
 
 fn validate_note_name(name: &str) -> AppResult<()> {

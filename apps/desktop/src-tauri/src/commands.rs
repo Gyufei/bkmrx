@@ -354,6 +354,15 @@ pub async fn open_note_document(
 }
 
 #[tauri::command]
+pub async fn open_external_note_file(
+    workspace: State<'_, SharedNotesWorkspace>,
+    revision: u64,
+    relative_path: String,
+) -> crate::error::AppResult<()> {
+    workspace.open_external_file(revision, &relative_path)
+}
+
+#[tauri::command]
 pub async fn save_note_document(
     workspace: State<'_, SharedNotesWorkspace>,
     receipt: String,

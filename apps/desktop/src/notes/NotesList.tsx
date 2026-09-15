@@ -5,6 +5,7 @@ import {
   FileJson2,
   FileQuestion,
   FileText,
+  ExternalLink,
   Pencil,
   Plus,
   Trash2,
@@ -134,6 +135,10 @@ export default function NotesList({
                   <ContextMenu key={file.relative_path}>
                     <ContextMenuTrigger>{fileButton(file)}</ContextMenuTrigger>
                     <ContextMenuContent>
+                      <ContextMenuItem onClick={() => onOpenExternal(file)}>
+                        <ExternalLink className="h-4 w-4" />
+                        <span>系统打开</span>
+                      </ContextMenuItem>
                       <ContextMenuItem
                         onClick={() =>
                           navigator.clipboard.writeText(file.relative_path).catch(() => {})

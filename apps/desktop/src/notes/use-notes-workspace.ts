@@ -8,6 +8,7 @@ import {
   deleteNoteFolderApi,
   deleteNoteFileApi,
   NotesQueryApiKey,
+  openExternalNoteFileApi,
   renameNoteFileApi,
   scanNotesDirectoryApi,
 } from './notes.api';
@@ -83,6 +84,9 @@ export function useNotesWorkspace() {
       renameNoteFileApi({ revision: workspaceRevision!, ...input }),
     onSuccess: invalidateNotesAfterMutation,
   });
+  const openExternalFile = useMutation({
+    mutationFn: (relativePath: string) => openExternalNoteFileApi(workspaceRevision!, relativePath),
+  });
 
   return {
     notesDir,
@@ -95,6 +99,7 @@ export function useNotesWorkspace() {
     deleteNote,
     deleteFolder,
     renameNote,
+    openExternalFile,
     refreshNotes: invalidateNotes,
   };
 }

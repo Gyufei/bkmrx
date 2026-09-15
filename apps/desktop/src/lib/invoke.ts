@@ -291,6 +291,10 @@ export function invokeOpenNoteDocument(
   return invoke('open_note_document', { revision, relativePath });
 }
 
+export function invokeOpenExternalNoteFile(revision: number, relativePath: string): Promise<void> {
+  return invoke('open_external_note_file', { revision, relativePath });
+}
+
 export function invokeSaveNoteDocument(
   receipt: string,
   content: string,

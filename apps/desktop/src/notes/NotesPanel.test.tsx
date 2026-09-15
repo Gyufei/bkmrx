@@ -9,6 +9,7 @@ import NotesPanel from './NotesPanel';
 const renameNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFolderApi = vi.hoisted(() => vi.fn());
+const openExternalNoteFileApi = vi.hoisted(() => vi.fn());
 const activeDocumentSession = vi.hoisted(() => ({
   flush: vi.fn().mockResolvedValue(undefined),
   rename: vi.fn(),
@@ -97,6 +98,7 @@ vi.mock('./notes.api', () => ({
   createNoteApi: vi.fn(),
   deleteNoteFileApi,
   deleteNoteFolderApi,
+  openExternalNoteFileApi,
   renameNoteFileApi,
 }));
 
@@ -129,6 +131,7 @@ afterEach(() => {
   activeDocumentSession.flush.mockClear();
   activeDocumentSession.rename.mockReset();
   activeDocumentSession.delete.mockReset();
+  openExternalNoteFileApi.mockReset();
 });
 
 it('uses sidebar backgrounds for both navigation columns and the content background for the editor', async () => {
@@ -174,6 +177,7 @@ it('shows the real root and only the selected directory direct files', async () 
 });
 
 it('keeps the active Markdown document when an external file is clicked', async () => {
+  openExternalNoteFileApi.mockResolvedValue(undefined);
   render(
     <QueryClientProvider client={new QueryClient()}>
       <NotesPanel />
@@ -186,6 +190,27 @@ it('keeps the active Markdown document when an external file is clicked', async 
 
   expect(screen.getByTestId('note-editor').getAttribute('data-file-path')).toBe('first.md');
   expect(activeDocumentSession.flush).not.toHaveBeenCalled();
+  await waitFor(() => expect(openExternalNoteFileApi).toHaveBeenCalledWith(1, 'reference.HTML'));
+});
+
+it('reports an external open failure without exposing a path or changing the editor', async () => {
+  openExternalNoteFileApi.mockRejectedValueOnce(new Error('系统没有可用应用'));
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: '第一篇笔记.md' }));
+  fireEvent.click(screen.getByRole('button', { name: 'reference.HTML' }));
+
+  expect(await screen.findByText('无法打开“reference.HTML”：系统没有可用应用')).toBeTruthy();
+  expect(screen.getByTestId('note-editor').getAttribute('data-file-path')).toBe('first.md');
+  expect(activeDocumentSession.flush).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'data.json' }));
+  await waitFor(() =>
+    expect(screen.queryByText('无法打开“reference.HTML”：系统没有可用应用')).toBeNull(),
+  );
 });
 
 it('does not expose Markdown rename or delete actions for external files', async () => {

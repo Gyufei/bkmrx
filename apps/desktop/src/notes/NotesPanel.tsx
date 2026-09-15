@@ -4,7 +4,7 @@ import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { FileText } from 'lucide-react';
-import type { NoteFile, WorkspaceDirectory } from '../types';
+import type { NoteFile, WorkspaceDirectory, WorkspaceFile } from '../types';
 import NoteEditor from './NoteEditor';
 import NoteNameDialog from './NoteNameDialog';
 import NotesList from './NotesList';
@@ -65,6 +65,7 @@ export default function NotesPanel() {
   const [deletingFolder, setDeletingFolder] = useState<DeletingFolder | null>(null);
   const [documentActionError, setDocumentActionError] = useState<Error | null>(null);
   const [navigationError, setNavigationError] = useState<Error | null>(null);
+  const [openingExternalFile, setOpeningExternalFile] = useState<WorkspaceFile | null>(null);
   const [documentActionPending, setDocumentActionPending] = useState(false);
   const documentSessionRef = useRef<NoteDocumentCommands | null>(null);
   const {
@@ -78,6 +79,7 @@ export default function NotesPanel() {
     deleteNote,
     deleteFolder,
     renameNote,
+    openExternalFile,
     refreshNotes,
   } = useNotesWorkspace();
 
@@ -167,13 +169,17 @@ export default function NotesPanel() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {(error || navigationError) && (
+      {(error || navigationError || openExternalFile.error) && (
         <Alert
           variant="destructive"
           className="shrink-0 rounded-none border-x-0 border-t-0 px-4 py-2"
         >
           <AlertDescription>
-            {navigationError ? `无法切换笔记：${navigationError.message}` : error!.message}
+            {navigationError
+              ? `无法切换笔记：${navigationError.message}`
+              : openExternalFile.error && openingExternalFile
+                ? `无法打开“${openingExternalFile.name}”：${openExternalFile.error.message}`
+                : error!.message}
           </AlertDescription>
         </Alert>
       )}
@@ -207,7 +213,11 @@ export default function NotesPanel() {
               setSelectedFilePath(note.relative_path);
             });
           }}
-          onOpenExternal={() => undefined}
+          onOpenExternal={(file) => {
+            openExternalFile.reset();
+            setOpeningExternalFile(file);
+            openExternalFile.mutate(file.relative_path);
+          }}
           onCreateNote={() => {
             createNote.reset();
             setNameDialog({ mode: 'create' });

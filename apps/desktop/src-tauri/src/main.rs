@@ -51,6 +51,7 @@ fn main() {
                 .build(),
         )
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             bkmrx_lib::logging::initialize(app.handle());
@@ -141,25 +142,31 @@ fn main() {
             app.manage(Arc::clone(&settings_store));
             app.manage(runtime_paths);
             let note_handle = handle.clone();
-            let note_service = Arc::new(bkmrx_lib::notes::NotesWorkspace::new(
-                Arc::clone(&settings_store),
-                Arc::new(move |event| match event {
-                    bkmrx_lib::notes::NoteEvent::Changed(note) => {
-                        if let Err(error) = note_handle.emit("note-changed", note) {
-                            log::warn!(
-                                "frontend_event_emit_failed event=note-changed error={error}"
-                            );
+            let note_service = Arc::new(
+                bkmrx_lib::notes::NotesWorkspace::new(
+                    Arc::clone(&settings_store),
+                    Arc::new(move |event| match event {
+                        bkmrx_lib::notes::NoteEvent::Changed(note) => {
+                            if let Err(error) = note_handle.emit("note-changed", note) {
+                                log::warn!(
+                                    "frontend_event_emit_failed event=note-changed error={error}"
+                                );
+                            }
                         }
-                    }
-                    bkmrx_lib::notes::NoteEvent::Removed(path) => {
-                        if let Err(error) = note_handle.emit("note-removed", path) {
-                            log::warn!(
-                                "frontend_event_emit_failed event=note-removed error={error}"
-                            );
+                        bkmrx_lib::notes::NoteEvent::Removed(path) => {
+                            if let Err(error) = note_handle.emit("note-removed", path) {
+                                log::warn!(
+                                    "frontend_event_emit_failed event=note-removed error={error}"
+                                );
+                            }
                         }
-                    }
-                }),
-            ));
+                    }),
+                )
+                .with_external_file_opener(Arc::new(|path| {
+                    tauri_plugin_opener::open_path(path, None::<&str>)
+                        .map_err(|error| error.to_string())
+                })),
+            );
             app.manage(Arc::clone(&note_service));
             let http_launch =
                 tauri::async_runtime::block_on(bkmrx_lib::http_server::LocalHttpServer::launch(
@@ -221,6 +228,7 @@ fn main() {
             bkmrx_lib::commands::initialize_bookmarks,
             bkmrx_lib::commands::scan_notes,
             bkmrx_lib::commands::open_note_document,
+            bkmrx_lib::commands::open_external_note_file,
             bkmrx_lib::commands::save_note_document,
             bkmrx_lib::commands::rename_note_document,
             bkmrx_lib::commands::delete_note_document,

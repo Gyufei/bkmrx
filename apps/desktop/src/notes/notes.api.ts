@@ -1,6 +1,7 @@
 import {
   invokeScanNotes,
   invokeOpenNoteDocument,
+  invokeOpenExternalNoteFile,
   invokeSaveNoteDocument,
   invokeRenameNoteDocument,
   invokeDeleteNoteDocument,
@@ -27,6 +28,13 @@ export async function openNoteDocumentApi(
   relativePath: string,
 ): Promise<OpenedNoteDocument> {
   return await invokeOpenNoteDocument(revision, relativePath);
+}
+
+export async function openExternalNoteFileApi(
+  revision: number,
+  relativePath: string,
+): Promise<void> {
+  await invokeOpenExternalNoteFile(revision, relativePath);
 }
 
 export async function saveNoteDocumentApi(

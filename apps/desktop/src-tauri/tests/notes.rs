@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 #[cfg(unix)]
 use std::os::unix::{fs::symlink, fs::PermissionsExt};
@@ -25,6 +28,16 @@ fn workspace(root: &TempDir) -> NotesWorkspace {
     settings.common.paths.notes_dir = Some(root.path().to_string_lossy().into_owned());
     store.replace(1, settings).unwrap();
     NotesWorkspace::new(store, Arc::new(|_| {}))
+}
+
+fn workspace_with_recording_opener(
+    root: &TempDir,
+    opened: Arc<Mutex<Vec<PathBuf>>>,
+) -> NotesWorkspace {
+    workspace(root).with_external_file_opener(Arc::new(move |path| {
+        opened.lock().unwrap().push(path.to_path_buf());
+        Ok(())
+    }))
 }
 
 #[test]
@@ -282,6 +295,170 @@ fn list_fails_when_a_directory_cannot_be_read() {
     let error = result.unwrap_err();
     assert_eq!(error.code(), "note_io_error");
     assert!(!error.message.contains(&root.path().to_string_lossy()[..]));
+}
+
+#[test]
+fn open_external_file_authorizes_and_delegates_a_regular_file() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("page.HTML"), "<p>page</p>").unwrap();
+    let opened = Arc::new(Mutex::new(Vec::new()));
+    let workspace = workspace_with_recording_opener(&root, Arc::clone(&opened));
+    let revision = workspace.list().unwrap().revision;
+
+    workspace.open_external_file(revision, "page.HTML").unwrap();
+
+    assert_eq!(
+        opened.lock().unwrap().as_slice(),
+        &[root.path().join("page.HTML").canonicalize().unwrap()]
+    );
+}
+
+#[test]
+fn open_external_file_rejects_markdown_directories_and_launchers() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("note.md"), "note").unwrap();
+    std::fs::create_dir(root.path().join("folder")).unwrap();
+    for extension in ["app", "CoMmAnD", "exe", "com", "bat", "cmd", "msi", "ps1"] {
+        std::fs::write(root.path().join(format!("run.{extension}")), "launcher").unwrap();
+    }
+    let opened = Arc::new(Mutex::new(Vec::new()));
+    let workspace = workspace_with_recording_opener(&root, Arc::clone(&opened));
+    let revision = workspace.list().unwrap().revision;
+
+    for path in [
+        "note.md",
+        "folder",
+        "run.app",
+        "run.CoMmAnD",
+        "run.exe",
+        "run.com",
+        "run.bat",
+        "run.cmd",
+        "run.msi",
+        "run.ps1",
+    ] {
+        assert_eq!(
+            workspace
+                .open_external_file(revision, path)
+                .unwrap_err()
+                .code(),
+            "external_file_not_allowed"
+        );
+    }
+    assert!(opened.lock().unwrap().is_empty());
+}
+
+#[test]
+fn open_external_file_returns_a_sanitized_adapter_error() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("page.html"), "page").unwrap();
+    let workspace = workspace(&root).with_external_file_opener(Arc::new(|_| {
+        Err("failed to open /private/secret/page.html".into())
+    }));
+    let revision = workspace.list().unwrap().revision;
+
+    let error = workspace
+        .open_external_file(revision, "page.html")
+        .unwrap_err();
+
+    assert_eq!(error.code(), "external_file_open_failed");
+    assert!(!error.message.contains("/private/secret"));
+}
+
+#[test]
+fn open_external_file_rejects_stale_and_outside_identities() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("data.json"), "{}").unwrap();
+    let opened = Arc::new(Mutex::new(Vec::new()));
+    let workspace = workspace_with_recording_opener(&root, Arc::clone(&opened));
+    let revision = workspace.list().unwrap().revision;
+
+    assert_eq!(
+        workspace
+            .open_external_file(revision - 1, "data.json")
+            .unwrap_err()
+            .code(),
+        "notes_workspace_changed"
+    );
+    for path in ["../outside.html", "/tmp/outside.html"] {
+        assert_eq!(
+            workspace
+                .open_external_file(revision, path)
+                .unwrap_err()
+                .code(),
+            "note_path_outside_root"
+        );
+    }
+    assert!(opened.lock().unwrap().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn open_external_file_rejects_symlinks() {
+    let root = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    std::fs::write(outside.path().join("outside.html"), "outside").unwrap();
+    symlink(
+        outside.path().join("outside.html"),
+        root.path().join("linked.html"),
+    )
+    .unwrap();
+    let opened = Arc::new(Mutex::new(Vec::new()));
+    let workspace = workspace_with_recording_opener(&root, Arc::clone(&opened));
+    let revision = workspace.list().unwrap().revision;
+
+    assert_eq!(
+        workspace
+            .open_external_file(revision, "linked.html")
+            .unwrap_err()
+            .code(),
+        "external_file_not_allowed"
+    );
+    assert!(opened.lock().unwrap().is_empty());
+}
+
+#[test]
+fn open_external_file_rejects_hidden_workspace_entries() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join(".secret.html"), "secret").unwrap();
+    std::fs::create_dir(root.path().join(".private")).unwrap();
+    std::fs::write(root.path().join(".private/page.html"), "private").unwrap();
+    let opened = Arc::new(Mutex::new(Vec::new()));
+    let workspace = workspace_with_recording_opener(&root, Arc::clone(&opened));
+    let revision = workspace.list().unwrap().revision;
+
+    for path in [".secret.html", ".private/page.html"] {
+        assert_eq!(
+            workspace
+                .open_external_file(revision, path)
+                .unwrap_err()
+                .code(),
+            "external_file_not_allowed"
+        );
+    }
+    assert!(opened.lock().unwrap().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn open_external_file_rejects_a_symlinked_parent_directory() {
+    let root = TempDir::new().unwrap();
+    let target = root.path().join("target");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::write(target.join("page.html"), "page").unwrap();
+    symlink(&target, root.path().join("linked-directory")).unwrap();
+    let opened = Arc::new(Mutex::new(Vec::new()));
+    let workspace = workspace_with_recording_opener(&root, Arc::clone(&opened));
+    let revision = workspace.list().unwrap().revision;
+
+    assert_eq!(
+        workspace
+            .open_external_file(revision, "linked-directory/page.html")
+            .unwrap_err()
+            .code(),
+        "external_file_not_allowed"
+    );
+    assert!(opened.lock().unwrap().is_empty());
 }
 
 #[test]

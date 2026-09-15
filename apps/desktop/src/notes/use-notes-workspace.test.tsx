@@ -16,6 +16,7 @@ const deleteNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFolderApi = vi.hoisted(() => vi.fn());
 const renameNoteFileApi = vi.hoisted(() => vi.fn());
 const scanNotesDirectoryApi = vi.hoisted(() => vi.fn());
+const openExternalNoteFileApi = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/use-tauri-event', () => ({
   useTauriEvent: (
@@ -40,6 +41,7 @@ vi.mock('./notes.api', () => ({
   deleteNoteFileApi,
   deleteNoteFolderApi,
   renameNoteFileApi,
+  openExternalNoteFileApi,
 }));
 
 afterEach(() => {
@@ -95,6 +97,7 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
   renameNoteFileApi.mockResolvedValue('renamed.md');
   deleteNoteFileApi.mockResolvedValue(undefined);
   deleteNoteFolderApi.mockResolvedValue(undefined);
+  openExternalNoteFileApi.mockResolvedValue(undefined);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { result } = renderHook(() => useNotesWorkspace(), {
     wrapper: createWrapper(queryClient),
@@ -125,6 +128,9 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
 
   act(() => result.current.deleteFolder.mutate('folder'));
   await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledWith(1, 'folder'));
+
+  act(() => result.current.openExternalFile.mutate('page.html'));
+  await waitFor(() => expect(openExternalNoteFileApi).toHaveBeenCalledWith(1, 'page.html'));
 });
 
 it('does not turn successful mutations into failures when cache invalidation fails', async () => {
