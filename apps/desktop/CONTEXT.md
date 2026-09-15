@@ -29,8 +29,20 @@ The validated RSSHub origin and optional access key used for RSS requests.
 _Avoid_: RSSHub settings, RSS service config
 
 **Notes Workspace**:
-The notes directory selected by Application Settings, addressed through relative note identities at a specific Settings Revision.
+The directory selected by Application Settings whose folders and regular files are exposed through relative Workspace Entry identities at a specific Settings Revision.
 _Avoid_: scanned directory, notes root
+
+**Workspace Entry**:
+A folder or regular file contained by the Notes Workspace and identified by its path relative to that workspace.
+_Avoid_: note identity, scanned item
+
+**Markdown Document**:
+A Markdown Workspace Entry that the desktop application opens and edits through a Document Session.
+_Avoid_: text file, external file
+
+**External File**:
+A non-Markdown Workspace Entry that the desktop application lists but delegates to the operating system for opening.
+_Avoid_: attachment, note
 
 **Document Session**:
 The active note draft together with its load, autosave, retry, and transition coordination state.

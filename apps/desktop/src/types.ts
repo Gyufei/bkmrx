@@ -212,9 +212,25 @@ export interface NoteFile {
   size: number;
 }
 
+export type WorkspaceFileKind = 'markdown' | 'external';
+
+export interface WorkspaceFile {
+  name: string;
+  relative_path: string;
+  kind: WorkspaceFileKind;
+}
+
+export interface WorkspaceDirectory {
+  name: string;
+  relative_path: string;
+  directories: WorkspaceDirectory[];
+  files: WorkspaceFile[];
+}
+
 export interface NotesWorkspaceListing {
   revision: number;
   notes: NoteFile[];
+  root: WorkspaceDirectory;
 }
 
 export interface NoteChangedEvent {

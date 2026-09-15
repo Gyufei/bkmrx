@@ -9,10 +9,33 @@ pub struct NoteFile {
     pub size: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceFileKind {
+    Markdown,
+    External,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkspaceFile {
+    pub name: String,
+    pub relative_path: String,
+    pub kind: WorkspaceFileKind,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkspaceDirectory {
+    pub name: String,
+    pub relative_path: String,
+    pub directories: Vec<WorkspaceDirectory>,
+    pub files: Vec<WorkspaceFile>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct NotesWorkspaceListing {
     pub revision: u64,
     pub notes: Vec<NoteFile>,
+    pub root: WorkspaceDirectory,
 }
 
 #[derive(Debug, Clone, Serialize)]

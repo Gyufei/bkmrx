@@ -1,7 +1,12 @@
 use std::sync::Arc;
 
+#[cfg(unix)]
+use std::os::unix::{fs::symlink, fs::PermissionsExt};
+#[cfg(target_os = "linux")]
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+
 use bkmrx_lib::{
-    notes::NotesWorkspace,
+    notes::{NotesWorkspace, WorkspaceFileKind},
     providers::ProviderContext,
     settings::SettingsStore,
     translation::{TranslationProviderManager, TranslationRegistry, TranslationRuntime},
@@ -14,7 +19,7 @@ fn workspace(root: &TempDir) -> NotesWorkspace {
         Arc::new(TranslationRuntime::default()),
         ProviderContext::new(reqwest::Client::new()),
     ));
-    let settings_file = root.path().join("settings.json");
+    let settings_file = root.path().join(".test-settings.json");
     let store = Arc::new(SettingsStore::open(settings_file, providers).store);
     let mut settings = store.snapshot().settings;
     settings.common.paths.notes_dir = Some(root.path().to_string_lossy().into_owned());
@@ -172,6 +177,111 @@ fn list_returns_nested_markdown_in_title_order() {
             .collect::<Vec<_>>(),
         vec!["a", "b"]
     );
+}
+
+#[test]
+fn list_exposes_a_sorted_workspace_tree_alongside_legacy_notes() {
+    let root = TempDir::new().unwrap();
+    std::fs::create_dir(root.path().join("a-empty")).unwrap();
+    std::fs::create_dir(root.path().join("alpha")).unwrap();
+    std::fs::create_dir(root.path().join("Beta")).unwrap();
+    std::fs::create_dir(root.path().join(".hidden")).unwrap();
+    std::fs::write(root.path().join("Z.HTML"), "<p>external</p>").unwrap();
+    std::fs::write(root.path().join("a.md"), "# markdown\n").unwrap();
+    std::fs::write(root.path().join("draft.MARKDOWN"), "# draft\n").unwrap();
+    std::fs::write(root.path().join("Beta/nested.JSON"), "{}").unwrap();
+    std::fs::write(root.path().join(".secret.md"), "hidden").unwrap();
+    std::fs::write(root.path().join(".hidden/note.md"), "hidden").unwrap();
+
+    let listing = workspace(&root).list().unwrap();
+
+    assert_eq!(listing.root.relative_path, "");
+    assert_eq!(
+        listing
+            .root
+            .directories
+            .iter()
+            .map(|directory| directory.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a-empty", "alpha", "Beta"]
+    );
+    assert_eq!(
+        listing
+            .root
+            .files
+            .iter()
+            .map(|file| (file.name.as_str(), &file.kind))
+            .collect::<Vec<_>>(),
+        vec![
+            ("a.md", &WorkspaceFileKind::Markdown),
+            ("draft.MARKDOWN", &WorkspaceFileKind::Markdown),
+            ("Z.HTML", &WorkspaceFileKind::External),
+        ]
+    );
+    assert!(listing.root.directories[0].directories.is_empty());
+    assert!(listing.root.directories[0].files.is_empty());
+    assert_eq!(listing.root.directories[2].files[0].name, "nested.JSON");
+    assert_eq!(
+        listing.root.directories[2].files[0].relative_path,
+        "Beta/nested.JSON"
+    );
+    assert_eq!(
+        listing
+            .notes
+            .iter()
+            .map(|note| note.title.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a", "draft"]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn list_excludes_symlinks_without_following_their_targets() {
+    let root = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    std::fs::write(outside.path().join("outside.md"), "outside").unwrap();
+    symlink(outside.path(), root.path().join("linked-directory")).unwrap();
+    symlink(
+        outside.path().join("outside.md"),
+        root.path().join("linked-file.md"),
+    )
+    .unwrap();
+
+    let listing = workspace(&root).list().unwrap();
+
+    assert!(listing.root.directories.is_empty());
+    assert!(listing.root.files.is_empty());
+    assert!(listing.notes.is_empty());
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn list_rejects_non_utf8_file_names() {
+    let root = TempDir::new().unwrap();
+    let invalid_name = OsString::from_vec(vec![b'n', b'o', b't', b'e', 0x80]);
+    std::fs::write(root.path().join(invalid_name), "invalid name").unwrap();
+
+    let error = workspace(&root).list().unwrap_err();
+
+    assert_eq!(error.code(), "note_io_error");
+    assert!(error.message.contains("不受支持的文件名"));
+}
+
+#[cfg(unix)]
+#[test]
+fn list_fails_when_a_directory_cannot_be_read() {
+    let root = TempDir::new().unwrap();
+    let blocked = root.path().join("blocked");
+    std::fs::create_dir(&blocked).unwrap();
+    std::fs::set_permissions(&blocked, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let result = workspace(&root).list();
+
+    std::fs::set_permissions(&blocked, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let error = result.unwrap_err();
+    assert_eq!(error.code(), "note_io_error");
+    assert!(!error.message.contains(&root.path().to_string_lossy()[..]));
 }
 
 #[test]

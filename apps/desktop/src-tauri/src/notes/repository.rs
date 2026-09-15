@@ -1,52 +1,182 @@
-use std::{fs, io, io::Write, path::Path, time::UNIX_EPOCH};
+use std::{cmp::Ordering, fs, io, io::Write, path::Path, time::UNIX_EPOCH};
 
 use atomic_write_file::AtomicWriteFile;
+use walkdir::{DirEntry, WalkDir};
 
-use super::NoteFile;
+use super::{NoteFile, WorkspaceDirectory, WorkspaceFile, WorkspaceFileKind};
 
-pub fn scan_notes(dir: &str) -> io::Result<Vec<NoteFile>> {
-    let root = Path::new(dir);
+pub struct ScannedWorkspace {
+    pub notes: Vec<NoteFile>,
+    pub root: WorkspaceDirectory,
+}
+
+pub fn scan_workspace(root: &Path) -> io::Result<ScannedWorkspace> {
     if !root.exists() {
         return Err(io::Error::new(io::ErrorKind::NotFound, "目录不存在"));
     }
-    let mut notes = Vec::new();
-    scan_dir(root, root, &mut notes)?;
-    notes.sort_by_key(|note| note.title.to_lowercase());
-    Ok(notes)
+    let (directory, mut notes) = scan_directory(root, root)?;
+    notes.sort_by(|left, right| {
+        compare_name(&left.title, &right.title)
+            .then_with(|| left.relative_path.cmp(&right.relative_path))
+    });
+    Ok(ScannedWorkspace {
+        notes,
+        root: directory,
+    })
 }
 
-fn scan_dir(root: &Path, current: &Path, notes: &mut Vec<NoteFile>) -> io::Result<()> {
-    for entry in fs::read_dir(current)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let path = entry.path();
+fn scan_directory(root: &Path, current: &Path) -> io::Result<(WorkspaceDirectory, Vec<NoteFile>)> {
+    let mut directories = Vec::new();
+    let mut files = Vec::new();
+    let mut notes = Vec::new();
+
+    for entry in WalkDir::new(current)
+        .min_depth(1)
+        .max_depth(1)
+        .follow_links(false)
+    {
+        let entry = entry.map_err(walkdir_error)?;
+        let name = entry_name(&entry)?;
+        if name.starts_with('.') {
+            continue;
+        }
+        let file_type = entry.file_type();
         if file_type.is_dir() {
-            scan_dir(root, &path, notes)?;
-        } else if file_type.is_file() && path.extension().is_some_and(|extension| extension == "md")
-        {
-            if let Some(note) = scan_note(root, &path) {
-                notes.push(note);
+            let (directory, child_notes) = scan_directory(root, entry.path())?;
+            directories.push(directory);
+            notes.extend(child_notes);
+        } else if file_type.is_file() {
+            let metadata = entry.metadata().map_err(walkdir_error)?;
+            let relative_path = relative_identity(root, entry.path())?;
+            let kind = classify_file(entry.path());
+            if kind == WorkspaceFileKind::Markdown {
+                notes.push(note_from_metadata(
+                    entry.path(),
+                    relative_path.clone(),
+                    &metadata,
+                )?);
             }
+            files.push(WorkspaceFile {
+                name,
+                relative_path,
+                kind,
+            });
         }
     }
-    Ok(())
+
+    directories.sort_by(|left, right| {
+        compare_entry(
+            &left.name,
+            &left.relative_path,
+            &right.name,
+            &right.relative_path,
+        )
+    });
+    files.sort_by(|left, right| {
+        compare_entry(
+            &left.name,
+            &left.relative_path,
+            &right.name,
+            &right.relative_path,
+        )
+    });
+
+    Ok((
+        WorkspaceDirectory {
+            name: directory_name(current)?,
+            relative_path: relative_identity(root, current)?,
+            directories,
+            files,
+        },
+        notes,
+    ))
 }
 
 pub fn scan_note(root: &Path, path: &Path) -> Option<NoteFile> {
     let meta = fs::metadata(path).ok()?;
+    let relative_path = relative_identity(root, path).ok()?;
+    note_from_metadata(path, relative_path, &meta).ok()
+}
+
+fn note_from_metadata(
+    path: &Path,
+    relative_path: String,
+    meta: &fs::Metadata,
+) -> io::Result<NoteFile> {
     let modified = meta
         .modified()
         .ok()
         .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
         .map(|duration| duration.as_secs())
         .unwrap_or(0);
-    Some(NoteFile {
-        relative_path: path.strip_prefix(root).ok()?.to_string_lossy().into_owned(),
-        title: path.file_stem()?.to_str()?.to_owned(),
+    Ok(NoteFile {
+        relative_path,
+        title: path
+            .file_stem()
+            .and_then(|title| title.to_str())
+            .ok_or_else(invalid_filename)?
+            .to_owned(),
         tags: Vec::new(),
         modified,
         size: meta.len(),
     })
+}
+
+fn classify_file(path: &Path) -> WorkspaceFileKind {
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some(extension)
+            if extension.eq_ignore_ascii_case("md")
+                || extension.eq_ignore_ascii_case("markdown") =>
+        {
+            WorkspaceFileKind::Markdown
+        }
+        _ => WorkspaceFileKind::External,
+    }
+}
+
+fn entry_name(entry: &DirEntry) -> io::Result<String> {
+    entry
+        .file_name()
+        .to_str()
+        .map(str::to_owned)
+        .ok_or_else(invalid_filename)
+}
+
+fn directory_name(path: &Path) -> io::Result<String> {
+    path.file_name()
+        .unwrap_or(path.as_os_str())
+        .to_str()
+        .map(str::to_owned)
+        .ok_or_else(invalid_filename)
+}
+
+fn relative_identity(root: &Path, path: &Path) -> io::Result<String> {
+    path.strip_prefix(root)
+        .map_err(|_| io::Error::other("路径不在笔记目录中"))?
+        .to_str()
+        .map(|relative| relative.replace('\\', "/"))
+        .ok_or_else(invalid_filename)
+}
+
+fn compare_entry(left_name: &str, left_path: &str, right_name: &str, right_path: &str) -> Ordering {
+    compare_name(left_name, right_name).then_with(|| left_path.cmp(right_path))
+}
+
+fn compare_name(left: &str, right: &str) -> Ordering {
+    left.to_lowercase()
+        .cmp(&right.to_lowercase())
+        .then_with(|| left.cmp(right))
+}
+
+fn invalid_filename() -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, "存在不受支持的文件名")
+}
+
+fn walkdir_error(error: walkdir::Error) -> io::Error {
+    match error.io_error() {
+        Some(source) => io::Error::new(source.kind(), source.to_string()),
+        None => io::Error::other("无法读取笔记目录"),
+    }
 }
 
 pub fn delete(path: &str) -> io::Result<()> {

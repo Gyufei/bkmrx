@@ -31,11 +31,15 @@ impl NotesWorkspace {
 
     pub fn list(&self) -> AppResult<NotesWorkspaceListing> {
         let (revision, root) = self.configured_root()?;
-        let notes = repository::scan_notes(&root.to_string_lossy()).map_err(note_io_error)?;
+        let scanned = repository::scan_workspace(&root).map_err(note_io_error)?;
         if let Some(watcher) = &self.watcher {
             watcher.watch(&root, revision)?;
         }
-        Ok(NotesWorkspaceListing { revision, notes })
+        Ok(NotesWorkspaceListing {
+            revision,
+            notes: scanned.notes,
+            root: scanned.root,
+        })
     }
 
     pub fn open_document(&self, revision: u64, relative_path: &str) -> AppResult<OpenedDocument> {

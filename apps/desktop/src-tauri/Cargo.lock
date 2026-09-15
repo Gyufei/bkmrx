@@ -283,6 +283,7 @@ dependencies = [
  "tower",
  "url",
  "uuid",
+ "walkdir",
 ]
 
 [[package]]
