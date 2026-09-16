@@ -1,4 +1,4 @@
-import { Copy, Folder, FolderOpen, Trash2, Warehouse } from 'lucide-react';
+import { Copy, Folder, FolderOpen, Trash2, FolderRoot, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
@@ -37,7 +37,7 @@ function FolderRow({
   const isRoot = directory.relative_path === '';
   const isExpanded = isRoot || expanded.has(directory.relative_path);
   const hasChildren = directory.directories.length > 0;
-  const DirectoryIcon = isRoot ? Warehouse : isExpanded ? FolderOpen : Folder;
+  const DirectoryIcon = isRoot ? FolderRoot : isExpanded ? FolderOpen : Folder;
   const row = (
     <button
       onClick={() => {
@@ -50,15 +50,12 @@ function FolderRow({
           ? 'bg-primary/15'
           : 'text-muted-foreground hover:bg-accent/20 hover:text-foreground dark:hover:text-foreground'
       }`}
-      style={{ paddingLeft: `${8 + depth * 16}px` }}
+      style={{ paddingLeft: `${8 + depth * 8}px` }}
     >
       {hasChildren && !isRoot ? (
-        <span
-          aria-hidden="true"
+        <ChevronRight
           className={`w-3 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-        >
-          ›
-        </span>
+        />
       ) : (
         <span className="w-3 shrink-0" />
       )}

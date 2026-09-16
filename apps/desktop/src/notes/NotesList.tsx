@@ -91,13 +91,12 @@ export default function NotesList({
     <div className="relative flex w-56 shrink-0 flex-col bg-sidebar">
       <Separator orientation="vertical" className="absolute right-0" />
       <div className="shrink-0 px-3 pt-3 pb-2">
-        <div className="mb-2 text-xs text-muted-foreground">共 {files.length} 个文件</div>
         <Input
           type="text"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="搜索文件..."
-          className="h-7 rounded-md px-2.5 text-xs"
+          placeholder={`共 ${files.length} 个文件`}
+          className="h-7 rounded-sm px-2.5 text-xs"
         />
       </div>
       <div className="flex-1 overflow-y-auto">
@@ -166,12 +165,10 @@ export default function NotesList({
         )}
       </div>
       <Separator />
-      <div className="shrink-0 p-2">
-        <Button variant="ghost" size="sm" className="w-full" onClick={onCreateNote}>
-          <Plus data-icon="inline-start" />
-          新建笔记
-        </Button>
-      </div>
+      <Button variant="ghost" size="sm" className="shrink-0 w-full rounded-none h-12" onClick={onCreateNote}>
+        <Plus data-icon="inline-start" />
+        新建笔记
+      </Button>
     </div>
   );
 }
