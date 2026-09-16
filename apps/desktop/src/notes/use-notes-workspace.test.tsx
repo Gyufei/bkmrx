@@ -14,6 +14,7 @@ const eventHandlers = vi.hoisted(
 const createNoteApi = vi.hoisted(() => vi.fn());
 const deleteNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFolderApi = vi.hoisted(() => vi.fn());
+const preflightNoteFolderDeletionApi = vi.hoisted(() => vi.fn());
 const renameNoteFileApi = vi.hoisted(() => vi.fn());
 const scanNotesDirectoryApi = vi.hoisted(() => vi.fn());
 const openExternalNoteFileApi = vi.hoisted(() => vi.fn());
@@ -40,6 +41,7 @@ vi.mock('./notes.api', () => ({
   createNoteApi,
   deleteNoteFileApi,
   deleteNoteFolderApi,
+  preflightNoteFolderDeletionApi,
   renameNoteFileApi,
   openExternalNoteFileApi,
 }));
@@ -113,6 +115,12 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
   renameNoteFileApi.mockResolvedValue('renamed.md');
   deleteNoteFileApi.mockResolvedValue(undefined);
   deleteNoteFolderApi.mockResolvedValue(undefined);
+  preflightNoteFolderDeletionApi.mockResolvedValue({
+    file_count: 1,
+    directory_count: 0,
+    invisible_entry_count: 0,
+    receipt: 'folder-receipt',
+  });
   openExternalNoteFileApi.mockResolvedValue(undefined);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { result } = renderHook(() => useNotesWorkspace(), {
@@ -142,8 +150,11 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
   act(() => result.current.deleteNote.mutate('first.md'));
   await waitFor(() => expect(deleteNoteFileApi).toHaveBeenCalledWith(1, 'first.md'));
 
-  act(() => result.current.deleteFolder.mutate('folder'));
-  await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledWith(1, 'folder'));
+  act(() => result.current.deleteFolder.mutate('folder-receipt'));
+  await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledWith('folder-receipt'));
+
+  act(() => result.current.preflightFolderDeletion.mutate('folder'));
+  await waitFor(() => expect(preflightNoteFolderDeletionApi).toHaveBeenCalledWith(1, 'folder'));
 
   act(() => result.current.openExternalFile.mutate('page.html'));
   await waitFor(() => expect(openExternalNoteFileApi).toHaveBeenCalledWith(1, 'page.html'));

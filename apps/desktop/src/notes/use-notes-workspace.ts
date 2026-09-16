@@ -9,6 +9,7 @@ import {
   deleteNoteFileApi,
   NotesQueryApiKey,
   openExternalNoteFileApi,
+  preflightNoteFolderDeletionApi,
   renameNoteFileApi,
   scanNotesDirectoryApi,
 } from './notes.api';
@@ -52,8 +53,12 @@ export function useNotesWorkspace() {
     onSuccess: invalidateNotesAfterMutation,
   });
   const deleteFolder = useMutation({
-    mutationFn: (relativePath: string) => deleteNoteFolderApi(workspaceRevision!, relativePath),
+    mutationFn: (receipt: string) => deleteNoteFolderApi(receipt),
     onSuccess: invalidateNotesAfterMutation,
+  });
+  const preflightFolderDeletion = useMutation({
+    mutationFn: (relativePath: string) =>
+      preflightNoteFolderDeletionApi(workspaceRevision!, relativePath),
   });
   const renameNote = useMutation({
     mutationFn: (input: { relativePath: string; name: string }) =>
@@ -74,6 +79,7 @@ export function useNotesWorkspace() {
     createNote,
     deleteNote,
     deleteFolder,
+    preflightFolderDeletion,
     renameNote,
     openExternalFile,
     refreshNotes: invalidateNotes,

@@ -322,6 +322,13 @@ export function invokeCreateNoteFile(
   return invoke<string>('create_note_file', { revision, directory, name });
 }
 
-export function invokeDeleteNoteFolder(revision: number, relativePath: string): Promise<void> {
-  return invoke('delete_note_folder', { revision, relativePath });
+export function invokeDeleteNoteFolder(receipt: string): Promise<void> {
+  return invoke('delete_note_folder', { receipt });
+}
+
+export function invokePreflightNoteFolderDeletion(
+  revision: number,
+  relativePath: string,
+): Promise<import('../types').FolderDeletionSummary> {
+  return invoke('preflight_note_folder_deletion', { revision, relativePath });
 }

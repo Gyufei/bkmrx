@@ -237,6 +237,13 @@ export interface NotesWorkspaceChangedEvent {
   revision: number;
 }
 
+export interface FolderDeletionSummary {
+  file_count: number;
+  directory_count: number;
+  invisible_entry_count: number;
+  receipt: string;
+}
+
 export interface OpenedNoteDocument {
   content: string;
   receipt: string;

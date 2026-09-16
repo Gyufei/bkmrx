@@ -7,12 +7,14 @@ import {
   invokeDeleteNoteDocument,
   invokeCreateNoteFile,
   invokeDeleteNoteFolder,
+  invokePreflightNoteFolderDeletion,
 } from '../lib/invoke';
 import type {
   NotesWorkspaceListing,
   OpenedNoteDocument,
   RenamedNoteDocument,
   SavedNoteDocument,
+  FolderDeletionSummary,
 } from '../types';
 
 export const NotesQueryApiKey = {
@@ -73,8 +75,15 @@ export async function deleteNoteFileApi(revision: number, relativePath: string):
   await deleteNoteDocumentApi(opened.receipt);
 }
 
-export async function deleteNoteFolderApi(revision: number, relativePath: string): Promise<void> {
-  await invokeDeleteNoteFolder(revision, relativePath);
+export async function deleteNoteFolderApi(receipt: string): Promise<void> {
+  await invokeDeleteNoteFolder(receipt);
+}
+
+export async function preflightNoteFolderDeletionApi(
+  revision: number,
+  relativePath: string,
+): Promise<FolderDeletionSummary> {
+  return await invokePreflightNoteFolderDeletion(revision, relativePath);
 }
 
 export async function renameNoteFileApi({

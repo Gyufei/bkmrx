@@ -444,10 +444,18 @@ pub fn get_server_status(
 #[tauri::command]
 pub async fn delete_note_folder(
     workspace: State<'_, SharedNotesWorkspace>,
+    receipt: String,
+) -> crate::error::AppResult<()> {
+    workspace.delete_folder(&receipt)
+}
+
+#[tauri::command]
+pub async fn preflight_note_folder_deletion(
+    workspace: State<'_, SharedNotesWorkspace>,
     revision: u64,
     relative_path: String,
-) -> crate::error::AppResult<()> {
-    workspace.delete_folder(revision, &relative_path)
+) -> crate::error::AppResult<crate::notes::FolderDeletionSummary> {
+    workspace.preflight_folder_deletion(revision, &relative_path)
 }
 
 #[tauri::command]

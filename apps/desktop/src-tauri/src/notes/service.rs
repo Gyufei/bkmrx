@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::{
-    repository, watcher::NoteWatcher, NoteEvent, NotesWorkspaceListing, OpenedDocument,
-    RenamedDocument, SavedDocument,
+    repository, watcher::NoteWatcher, FolderDeletionSummary, NoteEvent, NotesWorkspaceListing,
+    OpenedDocument, RenamedDocument, SavedDocument,
 };
 use crate::{
     error::{AppError, AppResult},
@@ -148,15 +148,50 @@ impl NotesWorkspace {
         relative_identity(&root, Path::new(&created))
     }
 
-    pub fn delete_folder(&self, revision: u64, relative_path: &str) -> AppResult<()> {
+    pub fn delete_folder(&self, receipt: &str) -> AppResult<()> {
+        let receipt = decode_folder_deletion_receipt(receipt)?;
+        let path =
+            self.authorize_workspace_directory(receipt.workspace_revision, &receipt.relative_path)?;
+        let current_identity = repository::directory_identity(&path).map_err(note_io_error)?;
+        if current_identity != receipt.directory_identity {
+            return Err(folder_changed());
+        }
+        let (_, _, _, current_tree_fingerprint) =
+            repository::preflight_folder_deletion(&path).map_err(note_io_error)?;
+        if current_tree_fingerprint != receipt.tree_fingerprint {
+            return Err(folder_changed());
+        }
+        repository::delete_folder(&path.to_string_lossy()).map_err(note_io_error)
+    }
+
+    pub fn preflight_folder_deletion(
+        &self,
+        revision: u64,
+        relative_path: &str,
+    ) -> AppResult<FolderDeletionSummary> {
         if relative_path.is_empty() {
             return Err(path_outside_root());
         }
-        let path = self.authorize_existing(revision, relative_path)?;
-        if !path.is_dir() {
-            return Err(path_outside_root());
+        let path = self.authorize_workspace_directory(revision, relative_path)?;
+        let directory_identity = repository::directory_identity(&path).map_err(note_io_error)?;
+        let (file_count, directory_count, invisible_entry_count, tree_fingerprint) =
+            repository::preflight_folder_deletion(&path).map_err(note_io_error)?;
+        if repository::directory_identity(&path).map_err(note_io_error)? != directory_identity {
+            return Err(folder_changed());
         }
-        repository::delete_folder(&path.to_string_lossy()).map_err(note_io_error)
+        let receipt = encode_folder_deletion_receipt(&FolderDeletionReceiptPayload {
+            format: 1,
+            workspace_revision: revision,
+            relative_path: relative_path.to_owned(),
+            directory_identity,
+            tree_fingerprint,
+        })?;
+        Ok(FolderDeletionSummary {
+            file_count,
+            directory_count,
+            invisible_entry_count,
+            receipt,
+        })
     }
 
     pub fn stop(&self) {
@@ -208,6 +243,36 @@ impl NotesWorkspace {
         Ok(path)
     }
 
+    fn authorize_workspace_directory(
+        &self,
+        revision: u64,
+        relative_path: &str,
+    ) -> AppResult<PathBuf> {
+        if relative_path.is_empty() {
+            return Err(path_outside_root());
+        }
+        validate_relative_path(relative_path)?;
+        let (_, root) = self.root_at(revision)?;
+        let candidate = Path::new(relative_path).components().try_fold(
+            root,
+            |candidate, component| -> AppResult<PathBuf> {
+                let Component::Normal(name) = component else {
+                    return Err(path_outside_root());
+                };
+                let next = candidate.join(name);
+                let metadata = std::fs::symlink_metadata(&next).map_err(note_io_error)?;
+                if metadata.file_type().is_symlink() {
+                    return Err(path_outside_root());
+                }
+                Ok(next)
+            },
+        )?;
+        if !candidate.is_dir() {
+            return Err(path_outside_root());
+        }
+        Ok(candidate)
+    }
+
     fn authorize_receipt(&self, receipt: &ReceiptPayload) -> AppResult<(PathBuf, String)> {
         let path = self.authorize_existing(receipt.workspace_revision, &receipt.relative_path)?;
         let current = repository::read(&path.to_string_lossy()).map_err(note_io_error)?;
@@ -224,6 +289,15 @@ struct ReceiptPayload {
     workspace_revision: u64,
     relative_path: String,
     fingerprint: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct FolderDeletionReceiptPayload {
+    format: u8,
+    workspace_revision: u64,
+    relative_path: String,
+    directory_identity: String,
+    tree_fingerprint: String,
 }
 
 fn fingerprint(content: &str) -> String {
@@ -246,6 +320,39 @@ fn decode_receipt(receipt: &str) -> AppResult<ReceiptPayload> {
         return Err(invalid_receipt());
     }
     Ok(decoded)
+}
+
+fn encode_folder_deletion_receipt(receipt: &FolderDeletionReceiptPayload) -> AppResult<String> {
+    let serialized = serde_json::to_vec(receipt).map_err(|error| {
+        AppError::internal_error(format!("failed to encode folder deletion receipt: {error}"))
+    })?;
+    Ok(URL_SAFE_NO_PAD.encode(serialized))
+}
+
+fn decode_folder_deletion_receipt(receipt: &str) -> AppResult<FolderDeletionReceiptPayload> {
+    let bytes = URL_SAFE_NO_PAD
+        .decode(receipt)
+        .map_err(|_| invalid_folder_deletion_receipt())?;
+    let decoded: FolderDeletionReceiptPayload =
+        serde_json::from_slice(&bytes).map_err(|_| invalid_folder_deletion_receipt())?;
+    if decoded.format != 1 {
+        return Err(invalid_folder_deletion_receipt());
+    }
+    Ok(decoded)
+}
+
+fn invalid_folder_deletion_receipt() -> AppError {
+    AppError::note_error(
+        "invalid_folder_deletion_receipt",
+        "The folder deletion receipt is invalid",
+    )
+}
+
+fn folder_changed() -> AppError {
+    AppError::note_error(
+        "notes_folder_changed",
+        "The folder changed; inspect it and try again",
+    )
 }
 
 fn invalid_receipt() -> AppError {

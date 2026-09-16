@@ -498,10 +498,124 @@ fn workspace_deletes_nested_folder_but_not_root() {
     std::fs::create_dir(root.path().join("nested")).unwrap();
     let workspace = workspace(&root);
     let revision = workspace.list().unwrap().revision;
-    workspace.delete_folder(revision, "nested").unwrap();
+    let summary = workspace
+        .preflight_folder_deletion(revision, "nested")
+        .unwrap();
+    workspace.delete_folder(&summary.receipt).unwrap();
     assert!(!root.path().join("nested").exists());
     assert_eq!(
-        workspace.delete_folder(revision, "").unwrap_err().code(),
+        workspace
+            .preflight_folder_deletion(revision, "")
+            .unwrap_err()
+            .code(),
+        "note_path_outside_root"
+    );
+}
+
+#[test]
+fn folder_deletion_rejects_a_directory_replaced_after_preflight() {
+    let root = TempDir::new().unwrap();
+    std::fs::create_dir(root.path().join("nested")).unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+    let summary = workspace
+        .preflight_folder_deletion(revision, "nested")
+        .unwrap();
+    std::fs::rename(root.path().join("nested"), root.path().join("original")).unwrap();
+    std::fs::create_dir(root.path().join("nested")).unwrap();
+
+    assert_eq!(
+        workspace
+            .delete_folder(&summary.receipt)
+            .unwrap_err()
+            .code(),
+        "notes_folder_changed"
+    );
+    assert!(root.path().join("nested").exists());
+    assert!(root.path().join("original").exists());
+}
+
+#[test]
+fn folder_deletion_rejects_descendants_added_after_preflight() {
+    let root = TempDir::new().unwrap();
+    std::fs::create_dir(root.path().join("nested")).unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+    let summary = workspace
+        .preflight_folder_deletion(revision, "nested")
+        .unwrap();
+    std::fs::write(
+        root.path().join("nested/.added-after-confirmation"),
+        "hidden",
+    )
+    .unwrap();
+
+    assert_eq!(
+        workspace
+            .delete_folder(&summary.receipt)
+            .unwrap_err()
+            .code(),
+        "notes_folder_changed"
+    );
+    assert!(root
+        .path()
+        .join("nested/.added-after-confirmation")
+        .exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn folder_deletion_rejects_a_symlink_replacement_after_preflight() {
+    let root = TempDir::new().unwrap();
+    std::fs::create_dir(root.path().join("nested")).unwrap();
+    std::fs::create_dir(root.path().join("other")).unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+    let summary = workspace
+        .preflight_folder_deletion(revision, "nested")
+        .unwrap();
+    std::fs::remove_dir(root.path().join("nested")).unwrap();
+    symlink(root.path().join("other"), root.path().join("nested")).unwrap();
+
+    assert_eq!(
+        workspace
+            .delete_folder(&summary.receipt)
+            .unwrap_err()
+            .code(),
+        "note_path_outside_root"
+    );
+    assert!(root.path().join("other").exists());
+    assert!(root.path().join("nested").is_symlink());
+}
+
+#[cfg(unix)]
+#[test]
+fn folder_deletion_preflight_counts_all_descendants_and_invisible_entries() {
+    let root = TempDir::new().unwrap();
+    let folder = root.path().join("nested");
+    std::fs::create_dir_all(folder.join("child")).unwrap();
+    std::fs::create_dir_all(folder.join(".hidden")).unwrap();
+    std::fs::write(folder.join("visible.md"), "visible").unwrap();
+    std::fs::write(folder.join("child/data.json"), "{}").unwrap();
+    std::fs::write(folder.join(".secret"), "secret").unwrap();
+    std::fs::write(folder.join(".hidden/deep.js"), "hidden").unwrap();
+    symlink(root.path().join("outside"), folder.join("linked")).unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+
+    let summary = workspace
+        .preflight_folder_deletion(revision, "nested")
+        .unwrap();
+
+    assert_eq!(summary.file_count, 4);
+    assert_eq!(summary.directory_count, 2);
+    assert_eq!(summary.invisible_entry_count, 4);
+    assert!(!summary.receipt.is_empty());
+    assert_eq!(
+        workspace
+            .preflight_folder_deletion(revision, "")
+            .unwrap_err()
+            .code(),
         "note_path_outside_root"
     );
 }

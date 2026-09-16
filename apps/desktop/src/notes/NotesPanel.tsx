@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { FileText } from 'lucide-react';
-import type { NoteFile, WorkspaceDirectory, WorkspaceFile } from '../types';
+import type { FolderDeletionSummary, NoteFile, WorkspaceDirectory, WorkspaceFile } from '../types';
 import NoteEditor from './NoteEditor';
 import NoteNameDialog from './NoteNameDialog';
 import NotesList from './NotesList';
@@ -14,7 +14,12 @@ import { useNotesWorkspace } from './use-notes-workspace';
 import type { NoteDocumentCommands } from './use-note-document';
 
 type NameDialogState = { mode: 'create' } | { mode: 'rename'; note: NoteFile };
-type DeletingFolder = { path: string; name: string };
+type DeletingFolder = {
+  path: string;
+  name: string;
+  revision: number;
+  summary: FolderDeletionSummary;
+};
 
 const SELECTED_FOLDER_STORAGE_PREFIX = 'bkmrx:notes:selected-folder:';
 
@@ -79,6 +84,7 @@ export default function NotesPanel() {
     createNote,
     deleteNote,
     deleteFolder,
+    preflightFolderDeletion,
     renameNote,
     openExternalFile,
     refreshNotes,
@@ -107,6 +113,11 @@ export default function NotesPanel() {
     writeSelectedFolder(notesDir, fallback);
   }, [loading, notesDir, root, selectedFolder]);
 
+  useEffect(() => {
+    if (deletingFolder?.revision === workspaceRevision) return;
+    setDeletingFolder(null);
+  }, [deletingFolder?.revision, workspaceRevision]);
+
   const selectedDirectory = useMemo(
     () => (root ? (findDirectory(root, selectedFolder) ?? root) : null),
     [root, selectedFolder],
@@ -119,9 +130,14 @@ export default function NotesPanel() {
           message: `无法打开“${openingExternalFile.name}”：${openExternalFile.error.message}`,
           retryable: false,
         }
-      : error
-        ? { message: error.message, retryable: true }
-        : null;
+      : preflightFolderDeletion.error
+        ? {
+            message: `无法检查文件夹内容：${preflightFolderDeletion.error.message}`,
+            retryable: false,
+          }
+        : error
+          ? { message: error.message, retryable: true }
+          : null;
 
   if (!notesDir) {
     return (
@@ -214,8 +230,15 @@ export default function NotesPanel() {
               });
             }}
             onDeleteFolder={(folder) => {
+              if (workspaceRevision === null) return;
+              const revision = workspaceRevision;
               deleteFolder.reset();
-              setDeletingFolder(folder);
+              preflightFolderDeletion.reset();
+              preflightFolderDeletion.mutate(folder.path, {
+                onSuccess: (summary) => {
+                  setDeletingFolder({ ...folder, revision, summary });
+                },
+              });
             }}
           />
         )}
@@ -319,13 +342,28 @@ export default function NotesPanel() {
       <ConfirmDeleteDialog
         open={deletingFolder !== null}
         title={`删除文件夹“${deletingFolder?.name}”？`}
-        description="文件夹及其中所有内容将被删除，此操作不可撤销。"
+        description={
+          deletingFolder && (
+            <span className="space-y-2">
+              <span className="block">
+                将递归删除 {deletingFolder.summary.file_count} 个文件和{' '}
+                {deletingFolder.summary.directory_count} 个子文件夹，此操作不可撤销。
+              </span>
+              {deletingFolder.summary.invisible_entry_count > 0 && (
+                <span className="block font-medium text-destructive">
+                  其中有 {deletingFolder.summary.invisible_entry_count}{' '}
+                  个未在列表中展示的项目（隐藏项或符号链接），也会被删除。
+                </span>
+              )}
+            </span>
+          )
+        }
         pending={deleteFolder.isPending}
         error={deleteFolder.error}
         onOpenChange={(open) => !open && setDeletingFolder(null)}
         onConfirm={() => {
           if (!deletingFolder) return;
-          deleteFolder.mutate(deletingFolder.path, {
+          deleteFolder.mutate(deletingFolder.summary.receipt, {
             onSuccess: () => {
               const deletedPath = deletingFolder.path;
               const parentPath = deletedPath.split('/').slice(0, -1).join('/');

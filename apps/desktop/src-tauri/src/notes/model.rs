@@ -43,6 +43,14 @@ pub struct NotesWorkspaceChangedEvent {
     pub revision: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FolderDeletionSummary {
+    pub file_count: u64,
+    pub directory_count: u64,
+    pub invisible_entry_count: u64,
+    pub receipt: String,
+}
+
 pub type DocumentReceipt = String;
 
 #[derive(Debug, Clone, Serialize)]

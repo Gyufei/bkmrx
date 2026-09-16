@@ -9,6 +9,7 @@ import NotesPanel from './NotesPanel';
 const renameNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFolderApi = vi.hoisted(() => vi.fn());
+const preflightNoteFolderDeletionApi = vi.hoisted(() => vi.fn());
 const openExternalNoteFileApi = vi.hoisted(() => vi.fn());
 const scanNotesDirectoryApi = vi.hoisted(() => vi.fn());
 const activeDocumentSession = vi.hoisted(() => ({
@@ -36,6 +37,7 @@ vi.mock('./notes.api', () => ({
   createNoteApi: vi.fn(),
   deleteNoteFileApi,
   deleteNoteFolderApi,
+  preflightNoteFolderDeletionApi,
   openExternalNoteFileApi,
   renameNoteFileApi,
 }));
@@ -102,6 +104,12 @@ scanNotesDirectoryApi.mockResolvedValue({
     ],
   },
 });
+preflightNoteFolderDeletionApi.mockResolvedValue({
+  file_count: 4,
+  directory_count: 2,
+  invisible_entry_count: 3,
+  receipt: 'folder-receipt',
+});
 
 vi.mock('./NoteEditor', async () => {
   const { useEffect } = await import('react');
@@ -134,6 +142,7 @@ afterEach(() => {
   activeDocumentSession.delete.mockReset();
   openExternalNoteFileApi.mockReset();
   scanNotesDirectoryApi.mockClear();
+  preflightNoteFolderDeletionApi.mockClear();
 });
 
 it('offers a manual retry after the initial workspace scan fails', async () => {
@@ -469,17 +478,23 @@ it('requires confirmation before deleting a folder', async () => {
   fireEvent.click(await screen.findByRole('menuitem', { name: '删除' }));
 
   expect(deleteNoteFolderApi).not.toHaveBeenCalled();
+  await waitFor(() => expect(preflightNoteFolderDeletionApi).toHaveBeenCalledWith(1, '资料'));
   expect(await screen.findByText('删除文件夹“资料”？')).toBeTruthy();
+  expect(screen.getByText('将递归删除 4 个文件和 2 个子文件夹，此操作不可撤销。')).toBeTruthy();
+  expect(
+    screen.getByText('其中有 3 个未在列表中展示的项目（隐藏项或符号链接），也会被删除。'),
+  ).toBeTruthy();
 
   fireEvent.click(screen.getByRole('button', { name: '取消' }));
   expect(deleteNoteFolderApi).not.toHaveBeenCalled();
 
   fireEvent.contextMenu(folder);
   fireEvent.click(await screen.findByRole('menuitem', { name: '删除' }));
+  await screen.findByText('删除文件夹“资料”？');
   fireEvent.click(screen.getByRole('button', { name: '删除' }));
 
   await waitFor(() => expect(deleteNoteFolderApi).toHaveBeenCalledOnce());
-  expect(deleteNoteFolderApi).toHaveBeenCalledWith(1, '资料');
+  expect(deleteNoteFolderApi).toHaveBeenCalledWith('folder-receipt');
 });
 
 it('clears a previous deletion error before opening another note', async () => {

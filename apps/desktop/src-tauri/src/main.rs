@@ -224,6 +224,7 @@ fn main() {
             bkmrx_lib::commands::rename_note_document,
             bkmrx_lib::commands::delete_note_document,
             bkmrx_lib::commands::create_note_file,
+            bkmrx_lib::commands::preflight_note_folder_deletion,
             bkmrx_lib::commands::delete_note_folder,
             bkmrx_lib::commands::get_settings,
             bkmrx_lib::commands::update_settings,
