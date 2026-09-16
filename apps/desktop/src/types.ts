@@ -204,14 +204,6 @@ export interface BookmarkInitializationResult {
   navigation_category_count: number;
 }
 
-export interface NoteFile {
-  relative_path: string;
-  title: string;
-  tags: string[];
-  modified: number;
-  size: number;
-}
-
 export type WorkspaceFileKind = 'markdown' | 'external';
 
 export interface WorkspaceFile {
@@ -229,7 +221,6 @@ export interface WorkspaceDirectory {
 
 export interface NotesWorkspaceListing {
   revision: number;
-  notes: NoteFile[];
   root: WorkspaceDirectory;
 }
 

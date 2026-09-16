@@ -37,13 +37,13 @@ describe('useTauriEvent', () => {
     const firstHandler = vi.fn();
     const secondHandler = vi.fn();
     const { rerender, unmount } = renderHook(
-      ({ handler }) => useTauriEvent('note-removed', handler),
+      ({ handler }) => useTauriEvent('test-event', handler),
       { initialProps: { handler: firstHandler } },
     );
 
     await waitFor(() => expect(listenMock).toHaveBeenCalledOnce());
     rerender({ handler: secondHandler });
-    act(() => listener?.({ event: 'note-removed', id: 1, payload: '/notes/a.md' }));
+    act(() => listener?.({ event: 'test-event', id: 1, payload: '/notes/a.md' }));
 
     expect(firstHandler).not.toHaveBeenCalled();
     expect(secondHandler).toHaveBeenCalledOnce();
@@ -81,7 +81,7 @@ describe('useTauriEvent', () => {
   });
 
   it('does not subscribe while disabled', () => {
-    renderHook(() => useTauriEvent('note-changed', vi.fn(), false));
+    renderHook(() => useTauriEvent('test-event', vi.fn(), false));
     expect(listenMock).not.toHaveBeenCalled();
   });
 });

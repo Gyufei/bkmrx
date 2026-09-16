@@ -5,7 +5,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import type { NoteFile, NotesWorkspaceChangedEvent, WorkspaceDirectory } from '../types';
+import type { NotesWorkspaceChangedEvent, WorkspaceDirectory } from '../types';
 import { useNotesWorkspace } from './use-notes-workspace';
 
 const eventHandlers = vi.hoisted(
@@ -52,13 +52,6 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const firstNote: NoteFile = {
-  relative_path: 'first.md',
-  title: '第一篇笔记',
-  tags: [],
-  modified: 0,
-  size: 0,
-};
 const root: WorkspaceDirectory = {
   name: 'notes',
   relative_path: '',
@@ -78,14 +71,13 @@ it('reloads the complete workspace once for a matching structural event', async 
     files: [...root.files, { name: 'page.html', relative_path: 'page.html', kind: 'external' }],
   } satisfies WorkspaceDirectory;
   scanNotesDirectoryApi
-    .mockResolvedValueOnce({ revision: 1, notes: [firstNote], root })
-    .mockResolvedValueOnce({ revision: 1, notes: [firstNote], root: updatedRoot });
+    .mockResolvedValueOnce({ revision: 1, root })
+    .mockResolvedValueOnce({ revision: 1, root: updatedRoot });
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { result } = renderHook(() => useNotesWorkspace(), {
     wrapper: createWrapper(queryClient),
   });
-  await waitFor(() => expect(result.current.notes).toEqual([firstNote]));
-  expect(result.current.root).toEqual(root);
+  await waitFor(() => expect(result.current.root).toEqual(root));
 
   act(() => eventHandlers.get('notes-workspace-changed')?.({ payload: { revision: 1 } }));
 
@@ -95,7 +87,7 @@ it('reloads the complete workspace once for a matching structural event', async 
 
 it('retains the last successful workspace when a structural reload fails', async () => {
   scanNotesDirectoryApi
-    .mockResolvedValueOnce({ revision: 1, notes: [firstNote], root })
+    .mockResolvedValueOnce({ revision: 1, root })
     .mockRejectedValueOnce(new Error('目录暂时不可读'));
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { result } = renderHook(() => useNotesWorkspace(), {
@@ -110,7 +102,7 @@ it('retains the last successful workspace when a structural reload fails', async
 });
 
 it('exposes create, rename, and delete mutations through the workspace hook', async () => {
-  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote], root });
+  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, root });
   createNoteApi.mockResolvedValue('new.md');
   renameNoteFileApi.mockResolvedValue('renamed.md');
   deleteNoteFileApi.mockResolvedValue(undefined);
@@ -126,7 +118,7 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
   const { result } = renderHook(() => useNotesWorkspace(), {
     wrapper: createWrapper(queryClient),
   });
-  await waitFor(() => expect(result.current.notes).toEqual([firstNote]));
+  await waitFor(() => expect(result.current.root).toEqual(root));
 
   act(() => result.current.createNote.mutate({ directory: '', name: 'new' }));
   await waitFor(() =>
@@ -161,7 +153,7 @@ it('exposes create, rename, and delete mutations through the workspace hook', as
 });
 
 it('does not turn successful mutations into failures when cache invalidation fails', async () => {
-  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, notes: [firstNote], root });
+  scanNotesDirectoryApi.mockResolvedValue({ revision: 1, root });
   renameNoteFileApi.mockResolvedValue('renamed.md');
   deleteNoteFileApi.mockResolvedValue(undefined);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -169,7 +161,7 @@ it('does not turn successful mutations into failures when cache invalidation fai
   const { result } = renderHook(() => useNotesWorkspace(), {
     wrapper: createWrapper(queryClient),
   });
-  await waitFor(() => expect(result.current.notes).toEqual([firstNote]));
+  await waitFor(() => expect(result.current.root).toEqual(root));
 
   await expect(
     result.current.renameNote.mutateAsync({

@@ -44,38 +44,13 @@ vi.mock('./notes.api', () => ({
 
 scanNotesDirectoryApi.mockResolvedValue({
   revision: 1,
-  notes: [
-    {
-      path: '/notes/first.md',
-      relative_path: 'first.md',
-      title: '第一篇笔记',
-      tags: [],
-      modified: 0,
-      size: 0,
-    },
-    {
-      path: '/notes/second.md',
-      relative_path: 'second.md',
-      title: '第二篇笔记',
-      tags: [],
-      modified: 0,
-      size: 0,
-    },
-    {
-      path: '/notes/资料/nested.md',
-      relative_path: '资料/nested.md',
-      title: '资料笔记',
-      tags: [],
-      modified: 0,
-      size: 0,
-    },
-  ],
   root: {
     name: 'notes',
     relative_path: '',
     files: [
       { name: '第一篇笔记.md', relative_path: 'first.md', kind: 'markdown' },
       { name: '第二篇笔记.md', relative_path: 'second.md', kind: 'markdown' },
+      { name: '长扩展名.markdown', relative_path: 'long.markdown', kind: 'markdown' },
       { name: 'reference.HTML', relative_path: 'reference.HTML', kind: 'external' },
       { name: 'data.json', relative_path: 'data.json', kind: 'external' },
       { name: 'script.mjs', relative_path: 'script.mjs', kind: 'external' },
@@ -193,7 +168,7 @@ it('shows the real root and only the selected directory direct files', async () 
   );
 
   expect(await screen.findByRole('button', { name: 'notes' })).toBeTruthy();
-  expect(screen.getByText('共 6 个文件')).toBeTruthy();
+  expect(screen.getByText('共 7 个文件')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'reference.HTML' })).toBeTruthy();
   expect(screen.getByRole('button', { name: '空目录' })).toBeTruthy();
 
@@ -431,6 +406,30 @@ it('renames a note from its context menu using the file dialog', async () => {
       name: '改名后的笔记.md',
     });
   });
+});
+
+it('preserves the markdown extension when renaming from the workspace tree', async () => {
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  const note = await screen.findByRole('button', { name: '长扩展名.markdown' });
+
+  fireEvent.contextMenu(note);
+  fireEvent.click(await screen.findByText('重命名'));
+  fireEvent.change(screen.getByLabelText('文件名'), { target: { value: '重命名后' } });
+  fireEvent.click(screen.getByRole('button', { name: '确定' }));
+
+  await waitFor(() =>
+    expect(renameNoteFileApi).toHaveBeenCalledWith({
+      revision: 1,
+      relativePath: 'long.markdown',
+      name: '重命名后.markdown',
+    }),
+  );
 });
 
 it('requires confirmation before deleting a note', async () => {

@@ -1,35 +1,24 @@
-use std::{cmp::Ordering, collections::BTreeSet, fs, io, io::Write, path::Path, time::UNIX_EPOCH};
+use std::{cmp::Ordering, collections::BTreeSet, fs, io, io::Write, path::Path};
+
+#[cfg(not(unix))]
+use std::time::UNIX_EPOCH;
 
 use atomic_write_file::AtomicWriteFile;
 use sha2::{Digest, Sha256};
 use walkdir::{DirEntry, WalkDir};
 
-use super::{NoteFile, WorkspaceDirectory, WorkspaceFile, WorkspaceFileKind};
+use super::{WorkspaceDirectory, WorkspaceFile, WorkspaceFileKind};
 
-pub struct ScannedWorkspace {
-    pub notes: Vec<NoteFile>,
-    pub root: WorkspaceDirectory,
-}
-
-pub fn scan_workspace(root: &Path) -> io::Result<ScannedWorkspace> {
+pub fn scan_workspace(root: &Path) -> io::Result<WorkspaceDirectory> {
     if !root.exists() {
         return Err(io::Error::new(io::ErrorKind::NotFound, "目录不存在"));
     }
-    let (directory, mut notes) = scan_directory(root, root)?;
-    notes.sort_by(|left, right| {
-        compare_name(&left.title, &right.title)
-            .then_with(|| left.relative_path.cmp(&right.relative_path))
-    });
-    Ok(ScannedWorkspace {
-        notes,
-        root: directory,
-    })
+    scan_directory(root, root)
 }
 
-fn scan_directory(root: &Path, current: &Path) -> io::Result<(WorkspaceDirectory, Vec<NoteFile>)> {
+fn scan_directory(root: &Path, current: &Path) -> io::Result<WorkspaceDirectory> {
     let mut directories = Vec::new();
     let mut files = Vec::new();
-    let mut notes = Vec::new();
 
     for entry in WalkDir::new(current)
         .min_depth(1)
@@ -43,20 +32,10 @@ fn scan_directory(root: &Path, current: &Path) -> io::Result<(WorkspaceDirectory
         }
         let file_type = entry.file_type();
         if file_type.is_dir() {
-            let (directory, child_notes) = scan_directory(root, entry.path())?;
-            directories.push(directory);
-            notes.extend(child_notes);
+            directories.push(scan_directory(root, entry.path())?);
         } else if file_type.is_file() {
-            let metadata = entry.metadata().map_err(walkdir_error)?;
             let relative_path = relative_identity(root, entry.path())?;
             let kind = classify_file(entry.path());
-            if kind == WorkspaceFileKind::Markdown {
-                notes.push(note_from_metadata(
-                    entry.path(),
-                    relative_path.clone(),
-                    &metadata,
-                )?);
-            }
             files.push(WorkspaceFile {
                 name,
                 relative_path,
@@ -82,38 +61,11 @@ fn scan_directory(root: &Path, current: &Path) -> io::Result<(WorkspaceDirectory
         )
     });
 
-    Ok((
-        WorkspaceDirectory {
-            name: directory_name(current)?,
-            relative_path: relative_identity(root, current)?,
-            directories,
-            files,
-        },
-        notes,
-    ))
-}
-
-fn note_from_metadata(
-    path: &Path,
-    relative_path: String,
-    meta: &fs::Metadata,
-) -> io::Result<NoteFile> {
-    let modified = meta
-        .modified()
-        .ok()
-        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0);
-    Ok(NoteFile {
-        relative_path,
-        title: path
-            .file_stem()
-            .and_then(|title| title.to_str())
-            .ok_or_else(invalid_filename)?
-            .to_owned(),
-        tags: Vec::new(),
-        modified,
-        size: meta.len(),
+    Ok(WorkspaceDirectory {
+        name: directory_name(current)?,
+        relative_path: relative_identity(root, current)?,
+        directories,
+        files,
     })
 }
 

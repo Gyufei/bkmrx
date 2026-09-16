@@ -5,15 +5,16 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { FileText } from 'lucide-react';
-import type { FolderDeletionSummary, NoteFile, WorkspaceDirectory, WorkspaceFile } from '../types';
+import type { FolderDeletionSummary, WorkspaceDirectory, WorkspaceFile } from '../types';
 import NoteEditor from './NoteEditor';
 import NoteNameDialog from './NoteNameDialog';
 import NotesList from './NotesList';
 import NotesSidebar from './NotesSidebar';
 import { useNotesWorkspace } from './use-notes-workspace';
 import type { NoteDocumentCommands } from './use-note-document';
+import { workspaceFileDisplayName } from './workspace-file';
 
-type NameDialogState = { mode: 'create' } | { mode: 'rename'; note: NoteFile };
+type NameDialogState = { mode: 'create' } | { mode: 'rename'; note: WorkspaceFile };
 type DeletingFolder = {
   path: string;
   name: string;
@@ -67,7 +68,7 @@ export default function NotesPanel() {
   const [selectedFolder, setSelectedFolder] = useState('');
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
-  const [deletingNote, setDeletingNote] = useState<NoteFile | null>(null);
+  const [deletingNote, setDeletingNote] = useState<WorkspaceFile | null>(null);
   const [deletingFolder, setDeletingFolder] = useState<DeletingFolder | null>(null);
   const [documentActionError, setDocumentActionError] = useState<Error | null>(null);
   const [navigationError, setNavigationError] = useState<Error | null>(null);
@@ -78,7 +79,6 @@ export default function NotesPanel() {
     notesDir,
     workspaceRevision,
     root,
-    notes,
     loading,
     error,
     createNote,
@@ -244,7 +244,6 @@ export default function NotesPanel() {
         )}
         <NotesList
           files={selectedDirectory?.files ?? []}
-          notes={notes}
           loading={loading}
           selectedFilePath={selectedFilePath}
           onSelectMarkdown={(note) => {
@@ -306,7 +305,7 @@ export default function NotesPanel() {
 
       <ConfirmDeleteDialog
         open={deletingNote !== null}
-        title={`删除笔记“${deletingNote?.title}”？`}
+        title={`删除笔记“${deletingNote ? workspaceFileDisplayName(deletingNote.name) : ''}”？`}
         description="此操作不可撤销。"
         pending={deleteNote.isPending || documentActionPending}
         error={documentActionError ?? deleteNote.error}

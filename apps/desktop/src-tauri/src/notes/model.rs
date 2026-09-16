@@ -1,14 +1,5 @@
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize)]
-pub struct NoteFile {
-    pub relative_path: String,
-    pub title: String,
-    pub tags: Vec<String>,
-    pub modified: u64,
-    pub size: u64,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WorkspaceFileKind {
@@ -34,7 +25,6 @@ pub struct WorkspaceDirectory {
 #[derive(Debug, Clone, Serialize)]
 pub struct NotesWorkspaceListing {
     pub revision: u64,
-    pub notes: Vec<NoteFile>,
     pub root: WorkspaceDirectory,
 }
 

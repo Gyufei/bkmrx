@@ -174,26 +174,7 @@ fn delete_document_rejects_a_stale_receipt() {
 }
 
 #[test]
-fn list_returns_nested_markdown_in_title_order() {
-    let root = TempDir::new().unwrap();
-    std::fs::create_dir(root.path().join("nested")).unwrap();
-    std::fs::write(root.path().join("b.md"), "# b\n").unwrap();
-    std::fs::write(root.path().join("nested/a.md"), "# a\n").unwrap();
-    std::fs::write(root.path().join("ignored.txt"), "ignored").unwrap();
-
-    let listing = workspace(&root).list().unwrap();
-    assert_eq!(
-        listing
-            .notes
-            .iter()
-            .map(|note| note.title.as_str())
-            .collect::<Vec<_>>(),
-        vec!["a", "b"]
-    );
-}
-
-#[test]
-fn list_exposes_a_sorted_workspace_tree_alongside_legacy_notes() {
+fn list_exposes_a_sorted_workspace_tree() {
     let root = TempDir::new().unwrap();
     std::fs::create_dir(root.path().join("a-empty")).unwrap();
     std::fs::create_dir(root.path().join("alpha")).unwrap();
@@ -238,14 +219,6 @@ fn list_exposes_a_sorted_workspace_tree_alongside_legacy_notes() {
         listing.root.directories[2].files[0].relative_path,
         "Beta/nested.JSON"
     );
-    assert_eq!(
-        listing
-            .notes
-            .iter()
-            .map(|note| note.title.as_str())
-            .collect::<Vec<_>>(),
-        vec!["a", "draft"]
-    );
 }
 
 #[cfg(unix)]
@@ -265,7 +238,6 @@ fn list_excludes_symlinks_without_following_their_targets() {
 
     assert!(listing.root.directories.is_empty());
     assert!(listing.root.files.is_empty());
-    assert!(listing.notes.is_empty());
 }
 
 #[cfg(target_os = "linux")]

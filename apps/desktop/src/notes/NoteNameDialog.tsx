@@ -12,11 +12,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
-import type { NoteFile } from '../types';
+import type { WorkspaceFile } from '../types';
+import { workspaceFileDisplayName } from './workspace-file';
 
 interface NoteNameDialogProps {
   open: boolean;
-  note: NoteFile | null;
+  note: WorkspaceFile | null;
   pending: boolean;
   error: Error | null;
   onOpenChange: (open: boolean) => void;
@@ -37,7 +38,7 @@ export default function NoteNameDialog({
 
   useEffect(() => {
     if (!open) return;
-    setFileName(note?.title ?? '');
+    setFileName(note ? workspaceFileDisplayName(note.name) : '');
     setValidationError(null);
     submittingRef.current = false;
   }, [note, open]);

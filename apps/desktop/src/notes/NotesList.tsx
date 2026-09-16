@@ -25,23 +25,18 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
-import type { NoteFile, WorkspaceFile } from '../types';
+import type { WorkspaceFile } from '../types';
+import { workspaceFileDisplayName } from './workspace-file';
 
 interface NotesListProps {
   files: WorkspaceFile[];
-  notes: NoteFile[];
   loading: boolean;
   selectedFilePath: string | null;
-  onSelectMarkdown: (note: NoteFile) => void;
+  onSelectMarkdown: (file: WorkspaceFile) => void;
   onOpenExternal: (file: WorkspaceFile) => void;
   onCreateNote: () => void;
-  onRenameNote: (note: NoteFile) => void;
-  onDeleteNote: (note: NoteFile) => void;
-}
-
-function displayName(name: string) {
-  const extensionIndex = name.lastIndexOf('.');
-  return extensionIndex > 0 ? name.slice(0, extensionIndex) : name;
+  onRenameNote: (file: WorkspaceFile) => void;
+  onDeleteNote: (file: WorkspaceFile) => void;
 }
 
 function FileTypeIcon({ name }: { name: string }) {
@@ -57,7 +52,6 @@ function FileTypeIcon({ name }: { name: string }) {
 
 export default function NotesList({
   files,
-  notes,
   loading,
   selectedFilePath,
   onSelectMarkdown,
@@ -71,18 +65,12 @@ export default function NotesList({
     const query = searchQuery.trim().toLowerCase();
     return query ? files.filter((file) => file.name.toLowerCase().includes(query)) : files;
   }, [files, searchQuery]);
-  const notesByPath = useMemo(
-    () => new Map(notes.map((note) => [note.relative_path, note])),
-    [notes],
-  );
-
   const fileButton = (file: WorkspaceFile) => (
     <button
       aria-label={file.name}
       title={file.name}
       onClick={() => {
-        const note = notesByPath.get(file.relative_path);
-        if (file.kind === 'markdown' && note) onSelectMarkdown(note);
+        if (file.kind === 'markdown') onSelectMarkdown(file);
         else if (file.kind === 'external') onOpenExternal(file);
       }}
       className={cn(
@@ -94,7 +82,7 @@ export default function NotesList({
         <FileTypeIcon name={file.name} />
       </span>
       <span className="block truncate text-sm font-medium text-foreground">
-        {displayName(file.name)}
+        {workspaceFileDisplayName(file.name)}
       </span>
     </button>
   );
@@ -128,9 +116,7 @@ export default function NotesList({
         ) : (
           <div className="flex flex-col gap-1 px-2 pb-2">
             {filteredFiles.map((file) => {
-              const note =
-                file.kind === 'markdown' ? notesByPath.get(file.relative_path) : undefined;
-              if (!note) {
+              if (file.kind === 'external') {
                 return (
                   <ContextMenu key={file.relative_path}>
                     <ContextMenuTrigger>{fileButton(file)}</ContextMenuTrigger>
@@ -155,7 +141,7 @@ export default function NotesList({
                 <ContextMenu key={file.relative_path}>
                   <ContextMenuTrigger>{fileButton(file)}</ContextMenuTrigger>
                   <ContextMenuContent>
-                    <ContextMenuItem onClick={() => onRenameNote(note)}>
+                    <ContextMenuItem onClick={() => onRenameNote(file)}>
                       <Pencil className="h-4 w-4" />
                       <span>重命名</span>
                     </ContextMenuItem>
@@ -168,7 +154,7 @@ export default function NotesList({
                       <span>复制文件路径</span>
                     </ContextMenuItem>
                     <ContextMenuSeparator />
-                    <ContextMenuItem onClick={() => onDeleteNote(note)}>
+                    <ContextMenuItem onClick={() => onDeleteNote(file)}>
                       <Trash2 className="h-4 w-4" />
                       <span className="text-destructive">删除笔记</span>
                     </ContextMenuItem>
