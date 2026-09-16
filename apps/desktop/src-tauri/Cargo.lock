@@ -372,7 +372,7 @@ dependencies = [
 
 [[package]]
 name = "bkmrx"
-version = "1.21.1"
+version = "1.22.0"
 dependencies = [
  "ammonia",
  "arc-swap",
