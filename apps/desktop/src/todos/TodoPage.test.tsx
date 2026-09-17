@@ -69,6 +69,8 @@ describe('TodoPage', () => {
           status: 'in_progress',
           is_high_priority: true,
           tags: ['工作'],
+          start_date: null,
+          due_date: null,
           created_at: '',
           updated_at: '',
           completed_at: null,
@@ -146,6 +148,8 @@ describe('TodoPage', () => {
         description: '',
         tags: [],
         is_high_priority: false,
+        start_date: null,
+        due_date: null,
       }),
     );
   });
@@ -190,6 +194,8 @@ describe('TodoPage', () => {
         description: '',
         tags: ['工作'],
         is_high_priority: false,
+        start_date: null,
+        due_date: null,
       }),
     );
   });
@@ -349,6 +355,8 @@ describe('TodoPage', () => {
           status: 'completed',
           is_high_priority: false,
           tags: ['工作'],
+          start_date: null,
+          due_date: null,
           created_at: '',
           updated_at: '',
           completed_at: '2026-07-29T00:00:00Z',
@@ -378,6 +386,8 @@ describe('TodoPage', () => {
           status: 'completed',
           is_high_priority: false,
           tags: ['工作'],
+          start_date: null,
+          due_date: null,
           created_at: '',
           updated_at: '',
           completed_at: '2026-07-29T00:00:00Z',

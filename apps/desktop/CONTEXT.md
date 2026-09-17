@@ -71,3 +71,23 @@ _Avoid_: bookmark import, restore merge
 **Entity ID**:
 The stable UUID v7 identity used by desktop domain entities and every relationship between them. Database row numbers are internal implementation details and never identify domain entities.
 _Avoid_: database ID, numeric ID, row ID
+
+**Calendar Day**:
+The aggregate of all calendar information attached to one local civil date, including Holiday Annotations, Calendar Events, and Calendar Todos.
+_Avoid_: date cell, day item
+
+**Holiday Annotation**:
+A normalized holiday or adjusted-workday fact shown on a Calendar Day, retaining its source and semantic day type.
+_Avoid_: holiday event, holiday label
+
+**Calendar Event**:
+A user-facing occurrence categorized by its meaning, such as work, personal life, or an anniversary. Recurrence is a separate future concern.
+_Avoid_: holiday, repeated event
+
+**Calendar Todo**:
+A Todo projected onto a Calendar Day through a specific date role, such as its start date or due date.
+_Avoid_: calendar event, dated event
+
+**Calendar Source**:
+A stable string-identified origin that contributes normalized calendar information without exposing its provider-specific retrieval rules to callers.
+_Avoid_: calendar type, holiday provider enum

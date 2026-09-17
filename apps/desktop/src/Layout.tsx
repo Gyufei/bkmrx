@@ -6,12 +6,14 @@ import BookmarkView from './bookmarks/BookmarkView';
 import TodoPage from './todos/TodoPage';
 import RssPage from './rss/RssPage';
 import NavigationPage from './navigation/NavigationPage';
+import TodoCalendarPage from './todos/TodoCalendarPage';
 
-import NavBar, { PATHS, type BookmarkSubpage } from './Navbar';
+import NavBar, { PATHS, type BookmarkSubpage, type TodoSubpage } from './Navbar';
 
 export default function AppHome() {
   const [currentPath, setCurrentPath] = useState<PATHS>(PATHS.BOOKMARKS);
   const [bookmarkSubpage, setBookmarkSubpage] = useState<BookmarkSubpage>('navigation');
+  const [todoSubpage, setTodoSubpage] = useState<TodoSubpage>('todos');
 
   useHotkeys([
     {
@@ -43,6 +45,8 @@ export default function AppHome() {
         onCurrentPathChange={setCurrentPath}
         bookmarkSubpage={bookmarkSubpage}
         onBookmarkSubpageChange={setBookmarkSubpage}
+        todoSubpage={todoSubpage}
+        onTodoSubpageChange={setTodoSubpage}
       />
 
       <Activity
@@ -62,8 +66,15 @@ export default function AppHome() {
       <Activity mode={currentPath === PATHS.NOTES ? 'visible' : 'hidden'}>
         <NotesPanel />
       </Activity>
-      <Activity mode={currentPath === PATHS.TODOS ? 'visible' : 'hidden'}>
+      <Activity
+        mode={currentPath === PATHS.TODOS && todoSubpage === 'todos' ? 'visible' : 'hidden'}
+      >
         <TodoPage />
+      </Activity>
+      <Activity
+        mode={currentPath === PATHS.TODOS && todoSubpage === 'calendar' ? 'visible' : 'hidden'}
+      >
+        <TodoCalendarPage />
       </Activity>
       <Activity mode={currentPath === PATHS.RSS ? 'visible' : 'hidden'}>
         <RssPage />

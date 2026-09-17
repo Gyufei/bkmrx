@@ -9,6 +9,10 @@ function Popover(props: PopoverPrimitive.Root.Props) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />;
 }
 
+function PopoverTrigger(props: PopoverPrimitive.Trigger.Props) {
+  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
+}
+
 const PopoverContent = React.forwardRef<
   HTMLDivElement,
   PopoverPrimitive.Popup.Props &
@@ -37,4 +41,4 @@ const PopoverContent = React.forwardRef<
   );
 });
 
-export { Popover, PopoverContent };
+export { Popover, PopoverContent, PopoverTrigger };

@@ -14,6 +14,7 @@ export enum PATHS {
 }
 
 export type BookmarkSubpage = 'navigation' | 'bookmarks';
+export type TodoSubpage = 'todos' | 'calendar';
 
 const TABS = [
   { id: PATHS.BOOKMARKS, label: '书签', icon: <Bookmark /> },
@@ -27,11 +28,15 @@ export default function NavBar({
   onCurrentPathChange,
   bookmarkSubpage = 'navigation',
   onBookmarkSubpageChange = () => {},
+  todoSubpage = 'todos',
+  onTodoSubpageChange = () => {},
 }: {
   currentPath: PATHS;
   onCurrentPathChange: (path: PATHS) => void;
   bookmarkSubpage?: BookmarkSubpage;
   onBookmarkSubpageChange?: (page: BookmarkSubpage) => void;
+  todoSubpage?: TodoSubpage;
+  onTodoSubpageChange?: (page: TodoSubpage) => void;
 }) {
   const [isMac, setIsMac] = useState(false);
   const [serverRunning, setServerRunning] = useState(false);
@@ -97,6 +102,15 @@ export default function NavBar({
             <TabsList>
               <TabsTrigger value="navigation">导航</TabsTrigger>
               <TabsTrigger value="bookmarks">书签</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
+
+        {currentPath === PATHS.TODOS && (
+          <Tabs value={todoSubpage} onValueChange={onTodoSubpageChange}>
+            <TabsList>
+              <TabsTrigger value="todos">待办</TabsTrigger>
+              <TabsTrigger value="calendar">日历</TabsTrigger>
             </TabsList>
           </Tabs>
         )}

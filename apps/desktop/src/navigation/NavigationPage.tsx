@@ -192,7 +192,7 @@ function AddCategoryCard({ onClick }: { onClick(): void }) {
       type="button"
       aria-label="新建分类"
       onClick={onClick}
-      className="flex h-[82px] w-12 items-center justify-center rounded-lg border text-muted-foreground transition-transform hover:-translate-px hover:border-ring hover:text-foreground"
+      className="flex h-20.5 w-12 items-center justify-center rounded-lg border text-muted-foreground transition-transform hover:-translate-px hover:border-ring hover:text-foreground"
     >
       <Plus aria-hidden="true" />
     </button>

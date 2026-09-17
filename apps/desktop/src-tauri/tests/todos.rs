@@ -31,6 +31,8 @@ fn mutations_notify_once_after_commit_and_reads_and_exports_do_not_notify() {
                 description: String::new(),
                 is_high_priority: true,
                 tags: vec!["Work".into()],
+                start_date: None,
+                due_date: None,
             },
         )
         .unwrap();
@@ -76,7 +78,9 @@ fn failed_result_hydration_rolls_back_the_mutation_and_emits_no_event() {
                 title: "changed".into(),
                 description: String::new(),
                 is_high_priority: false,
-                tags: vec!["New".into()]
+                tags: vec!["New".into()],
+                start_date: None,
+                due_date: None,
             }
         )
         .is_err());
@@ -97,7 +101,9 @@ fn failed_result_hydration_rolls_back_the_mutation_and_emits_no_event() {
             title: "invalid".into(),
             description: String::new(),
             is_high_priority: false,
-            tags: vec!["New".into()]
+            tags: vec!["New".into()],
+            start_date: None,
+            due_date: None,
         })
         .is_err());
     assert_eq!(
@@ -131,6 +137,8 @@ fn create(store: &TodoStore, title: &str, tags: &[&str]) -> TodoId {
             description: "detail".into(),
             is_high_priority: false,
             tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+            start_date: None,
+            due_date: None,
         })
         .unwrap()
         .id
@@ -153,6 +161,8 @@ fn creates_updates_and_physically_deletes_while_retaining_tags() {
                 description: "updated".into(),
                 is_high_priority: true,
                 tags: vec!["Work".into()],
+                start_date: None,
+                due_date: None,
             },
         )
         .unwrap();
@@ -162,6 +172,58 @@ fn creates_updates_and_physically_deletes_while_retaining_tags() {
     assert!(find(&store, id).is_none());
     assert_eq!(store.tags().unwrap().len(), 2);
     assert!(store.tags().unwrap().iter().all(|tag| tag.count == 0));
+}
+
+#[test]
+fn creates_updates_and_validates_optional_dates() {
+    let store = store();
+    let created = store
+        .create(CreateTodo {
+            title: "dated task".into(),
+            description: String::new(),
+            is_high_priority: false,
+            tags: Vec::new(),
+            start_date: Some("2026-09-17".into()),
+            due_date: Some("2026-09-20".into()),
+        })
+        .unwrap();
+    assert_eq!(created.start_date.as_deref(), Some("2026-09-17"));
+    assert_eq!(created.due_date.as_deref(), Some("2026-09-20"));
+
+    let cleared = store
+        .update(
+            created.id,
+            UpdateTodo {
+                title: created.title,
+                description: created.description,
+                is_high_priority: created.is_high_priority,
+                tags: created.tags,
+                start_date: None,
+                due_date: None,
+            },
+        )
+        .unwrap();
+    assert_eq!((cleared.start_date, cleared.due_date), (None, None));
+
+    let invalid_order = store.create(CreateTodo {
+        title: "invalid order".into(),
+        description: String::new(),
+        is_high_priority: false,
+        tags: Vec::new(),
+        start_date: Some("2026-09-21".into()),
+        due_date: Some("2026-09-20".into()),
+    });
+    assert_eq!(invalid_order.unwrap_err().code(), "validation_error");
+
+    let invalid_format = store.create(CreateTodo {
+        title: "invalid format".into(),
+        description: String::new(),
+        is_high_priority: false,
+        tags: Vec::new(),
+        start_date: Some("2026-02-30".into()),
+        due_date: None,
+    });
+    assert_eq!(invalid_format.unwrap_err().code(), "validation_error");
 }
 
 #[test]
@@ -282,6 +344,8 @@ fn combines_tag_and_status_filters_with_range_statistics() {
                 description: String::new(),
                 is_high_priority: true,
                 tags: vec!["Work".into()],
+                start_date: None,
+                due_date: None,
             },
         )
         .unwrap();
@@ -412,6 +476,8 @@ fn export_orders_high_priority_first_within_status() {
                 description: String::new(),
                 is_high_priority: true,
                 tags: vec!["Work".into()],
+                start_date: None,
+                due_date: None,
             },
         )
         .unwrap();

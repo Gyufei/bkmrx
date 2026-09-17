@@ -168,13 +168,13 @@ it('shows the real root and only the selected directory direct files', async () 
   );
 
   expect(await screen.findByRole('button', { name: 'notes' })).toBeTruthy();
-  expect(screen.getByText('共 7 个文件')).toBeTruthy();
+  expect(screen.getByPlaceholderText('共 7 个文件')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'reference.HTML' })).toBeTruthy();
   expect(screen.getByRole('button', { name: '空目录' })).toBeTruthy();
 
   fireEvent.click(screen.getByRole('button', { name: '资料' }));
 
-  expect(await screen.findByText('共 1 个文件')).toBeTruthy();
+  expect(await screen.findByPlaceholderText('共 1 个文件')).toBeTruthy();
   expect(screen.getByRole('button', { name: '资料笔记.md' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'deep.json' })).toBeNull();
 });
@@ -278,7 +278,7 @@ it('searches complete direct filenames while keeping extensions hidden', async (
   expect(externalFile.textContent).not.toContain('.HTML');
   expect(externalFile.querySelector('[data-file-kind="html"]')).not.toBeNull();
 
-  fireEvent.change(screen.getByPlaceholderText('搜索文件...'), { target: { value: 'html' } });
+  fireEvent.change(screen.getByPlaceholderText('共 7 个文件'), { target: { value: 'html' } });
 
   expect(screen.getByRole('button', { name: 'reference.HTML' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: '第一篇笔记.md' })).toBeNull();

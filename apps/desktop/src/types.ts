@@ -257,6 +257,8 @@ export interface Todo {
   status: TodoStatus;
   is_high_priority: boolean;
   tags: string[];
+  start_date: string | null;
+  due_date: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -284,6 +286,8 @@ export interface CreateTodo {
   description: string;
   is_high_priority: boolean;
   tags: string[];
+  start_date: string | null;
+  due_date: string | null;
 }
 
 export type UpdateTodo = CreateTodo;

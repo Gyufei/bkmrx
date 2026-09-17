@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bkmrx_lib::{
     bookmarks::{Bookmark, BookmarkEvents, BookmarkStore},
+    calendar::{CalendarService, HolidayCnFetcher, HolidayCnSource},
     database::Database,
     navigation::NavigationStore,
     preview::PreviewService,
@@ -69,6 +70,7 @@ fn main() {
             );
             let handle = app.handle().clone();
             let app_data_dir = app.path().app_data_dir()?;
+            let calendar_cache_dir = app_data_dir.join("calendars/holiday-cn");
             let database = Arc::new(Database::open(app_data_dir.join("bookmarks.db"))?);
             database.assert_fts5_trigram()?;
             let runtime_paths =
@@ -91,6 +93,13 @@ fn main() {
                 })),
             );
             app.manage(todo_service);
+            app.manage(Arc::new(CalendarService::new(vec![Arc::new(
+                HolidayCnSource::new(
+                    calendar_cache_dir,
+                    Arc::new(HolidayCnFetcher),
+                    std::time::Duration::from_secs(7 * 24 * 60 * 60),
+                ),
+            )])));
             let navigation_handle = handle.clone();
             app.manage(Arc::new(
                 NavigationStore::new(Arc::clone(&database)).with_change_notifier(Arc::new(
@@ -178,6 +187,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            bkmrx_lib::commands::get_calendar_days,
             bkmrx_lib::commands::list_navigation_sections,
             bkmrx_lib::commands::create_navigation_category,
             bkmrx_lib::commands::update_navigation_category,

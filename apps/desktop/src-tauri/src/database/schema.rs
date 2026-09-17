@@ -21,7 +21,7 @@ CREATE TABLE navigation_placements (id TEXT PRIMARY KEY NOT NULL, category_id TE
 CREATE INDEX idx_navigation_placements_category ON navigation_placements(category_id,id);
 CREATE INDEX idx_navigation_placements_bookmark ON navigation_placements(bookmark_id);
 
-CREATE TABLE todos (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL CHECK(length(trim(title)) > 0), description TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'in_progress' CHECK(status IN ('in_progress','completed','suspended','canceled')), is_high_priority INTEGER NOT NULL DEFAULT 0 CHECK(is_high_priority IN (0,1)), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, completed_at INTEGER NULL);
+CREATE TABLE todos (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL CHECK(length(trim(title)) > 0), description TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'in_progress' CHECK(status IN ('in_progress','completed','suspended','canceled')), is_high_priority INTEGER NOT NULL DEFAULT 0 CHECK(is_high_priority IN (0,1)), start_date TEXT NULL, due_date TEXT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, completed_at INTEGER NULL);
 CREATE TABLE todo_tags (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK(length(trim(name)) > 0));
 CREATE TABLE todo_tag_relations (todo_id TEXT NOT NULL REFERENCES todos(id) ON DELETE CASCADE, tag_id TEXT NOT NULL REFERENCES todo_tags(id) ON DELETE CASCADE, PRIMARY KEY(todo_id,tag_id));
 CREATE INDEX idx_todos_status_sort ON todos(status,is_high_priority DESC,updated_at DESC,id DESC);

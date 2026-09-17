@@ -8,6 +8,7 @@ use rusqlite::{params, params_from_iter, OptionalExtension, Transaction};
 
 use crate::{
     database::Database,
+    date::{format_local_date, parse_local_date},
     error::{AppError, AppResult},
     identity::{TodoId, TodoTagId},
 };
@@ -29,7 +30,7 @@ impl SqliteTodoRepository {
             let status = request.status.map(TodoStatus::as_str);
             let mut statement = connection.prepare(
                 "SELECT DISTINCT t.id, t.title, t.description, t.status, t.is_high_priority,
-                        t.created_at, t.updated_at, t.completed_at
+                        t.start_date, t.due_date, t.created_at, t.updated_at, t.completed_at
                  FROM todos t
                  LEFT JOIN todo_tag_relations rel ON rel.todo_id = t.id
                  WHERE (?1 IS NULL OR t.status = ?1)
@@ -77,13 +78,14 @@ impl SqliteTodoRepository {
     pub(super) fn create(&self, input: CreateTodo) -> AppResult<Todo> {
         let title = normalize_title(&input.title)?;
         let tags = normalize_tags(input.tags)?;
+        let (start_date, due_date) = normalize_date_range(input.start_date, input.due_date)?;
         let now = Utc::now().timestamp_millis();
         let id = TodoId::new();
         self.database.write(|transaction| {
             transaction.execute(
-                "INSERT INTO todos (id, title, description, status, is_high_priority, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, 'in_progress', ?4, ?5, ?5)",
-                params![id, title, input.description, input.is_high_priority, now],
+                "INSERT INTO todos (id, title, description, status, is_high_priority, start_date, due_date, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, 'in_progress', ?4, ?5, ?6, ?7, ?7)",
+                params![id, title, input.description, input.is_high_priority, start_date, due_date, now],
             )?;
             replace_tags(transaction, id, &tags)?;
             get(transaction, id)?.ok_or_else(|| {
@@ -95,12 +97,21 @@ impl SqliteTodoRepository {
     pub(super) fn update(&self, id: TodoId, input: UpdateTodo) -> AppResult<Todo> {
         let title = normalize_title(&input.title)?;
         let tags = normalize_tags(input.tags)?;
+        let (start_date, due_date) = normalize_date_range(input.start_date, input.due_date)?;
         let now = Utc::now().timestamp_millis();
         self.database.write(|transaction| {
             let updated = transaction.execute(
                 "UPDATE todos SET title = ?1, description = ?2, is_high_priority = ?3,
-                    updated_at = ?4 WHERE id = ?5",
-                params![title, input.description, input.is_high_priority, now, id],
+                    start_date = ?4, due_date = ?5, updated_at = ?6 WHERE id = ?7",
+                params![
+                    title,
+                    input.description,
+                    input.is_high_priority,
+                    start_date,
+                    due_date,
+                    now,
+                    id
+                ],
             )?;
             if updated == 0 {
                 return Err(AppError::todo_not_found(id));
@@ -340,6 +351,37 @@ fn normalize_tags(values: Vec<String>) -> AppResult<Vec<String>> {
     Ok(tags.into_values().collect())
 }
 
+fn normalize_date_range(
+    start_date: Option<String>,
+    due_date: Option<String>,
+) -> AppResult<(Option<String>, Option<String>)> {
+    let start_date = parse_todo_date(start_date, "start date")?;
+    let due_date = parse_todo_date(due_date, "due date")?;
+    if start_date
+        .as_ref()
+        .zip(due_date.as_ref())
+        .is_some_and(|(start, due)| start > due)
+    {
+        return Err(AppError::validation_error(
+            "Todo start date cannot be later than due date",
+        ));
+    }
+    Ok((
+        start_date.map(format_local_date),
+        due_date.map(format_local_date),
+    ))
+}
+
+fn parse_todo_date(value: Option<String>, field: &str) -> AppResult<Option<chrono::NaiveDate>> {
+    value
+        .map(|value| {
+            parse_local_date(&value).map_err(|_| {
+                AppError::validation_error(format!("Todo {field} must use YYYY-MM-DD format"))
+            })
+        })
+        .transpose()
+}
+
 fn todo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
     let status_text: String = row.get(3)?;
     let status = TodoStatus::from_db(&status_text).ok_or_else(|| {
@@ -352,9 +394,11 @@ fn todo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
         status,
         is_high_priority: row.get(4)?,
         tags: Vec::new(),
-        created_at: timestamp(row.get(5)?)?,
-        updated_at: timestamp(row.get(6)?)?,
-        completed_at: row.get::<_, Option<i64>>(7)?.map(timestamp).transpose()?,
+        start_date: row.get(5)?,
+        due_date: row.get(6)?,
+        created_at: timestamp(row.get(7)?)?,
+        updated_at: timestamp(row.get(8)?)?,
+        completed_at: row.get::<_, Option<i64>>(9)?.map(timestamp).transpose()?,
     })
 }
 
@@ -366,7 +410,7 @@ fn timestamp(value: i64) -> rusqlite::Result<String> {
 
 fn get(connection: &rusqlite::Connection, id: TodoId) -> AppResult<Option<Todo>> {
     let mut todo = connection.query_row(
-        "SELECT id, title, description, status, is_high_priority, created_at, updated_at, completed_at
+        "SELECT id, title, description, status, is_high_priority, start_date, due_date, created_at, updated_at, completed_at
          FROM todos WHERE id = ?1", [id], todo_from_row,
     ).optional()?;
     if let Some(todo) = todo.as_mut() {

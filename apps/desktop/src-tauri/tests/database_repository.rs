@@ -52,7 +52,7 @@ fn creates_latest_schema_and_enables_fts5_trigram() {
     assert_eq!(
         db.query_i64_for_test("SELECT count(*) FROM pragma_table_info('todos')")
             .unwrap(),
-        8
+        10
     );
     assert_eq!(
         db.query_i64_for_test("SELECT count(*) FROM pragma_foreign_key_list('bookmark_tags')")

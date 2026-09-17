@@ -1,6 +1,8 @@
 pub mod bookmarks;
+pub mod calendar;
 pub mod commands;
 pub mod database;
+mod date;
 pub mod error;
 pub mod fsutil;
 pub mod http_server;

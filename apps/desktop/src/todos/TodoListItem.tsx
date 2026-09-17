@@ -1,4 +1,13 @@
-import { BookAlert, Circle, CircleCheck, CirclePause, CircleX, Pencil, Play, Trash2 } from 'lucide-react';
+import {
+  BookAlert,
+  Circle,
+  CircleCheck,
+  CirclePause,
+  CircleX,
+  Pencil,
+  Play,
+  Trash2,
+} from 'lucide-react';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -14,6 +23,7 @@ import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { useState } from 'react';
 import { Badge, badgeVariants } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatLocalDateForDisplay } from '@/lib/date';
 
 interface TodoListItemProps {
   todo: Todo;
@@ -26,6 +36,25 @@ interface TodoListItemProps {
   onSetStatus: (id: TodoId, status: TodoStatus) => void;
   onPrepareDelete: () => void;
   onDelete: (id: TodoId) => Promise<void>;
+}
+
+function TodoDates({ startDate, dueDate }: { startDate: string | null; dueDate: string | null }) {
+  if (!startDate && !dueDate) return null;
+  return (
+    <span className="inline-flex items-center gap-1">
+      {startDate && (
+        <Badge variant="success" aria-label={`开始日期 ${formatLocalDateForDisplay(startDate)}`}>
+          {formatLocalDateForDisplay(startDate)}
+        </Badge>
+      )}
+      {startDate && dueDate && <span className="text-xs text-muted-foreground">→</span>}
+      {dueDate && (
+        <Badge variant="destructive" aria-label={`截止日期 ${formatLocalDateForDisplay(dueDate)}`}>
+          {formatLocalDateForDisplay(dueDate)}
+        </Badge>
+      )}
+    </span>
+  );
 }
 
 function StatusToggle({
@@ -104,6 +133,7 @@ export default function TodoListItem({
               )}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <TodoDates startDate={todo.start_date} dueDate={todo.due_date} />
               {todo.tags.map((name) => {
                 const tag = tags.find((item) => item.name.toLowerCase() === name.toLowerCase());
                 return (

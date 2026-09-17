@@ -75,6 +75,8 @@ export default function TodoPage() {
                   description: '',
                   tags: controller.selectedTag ? [controller.selectedTag.name] : [],
                   is_high_priority: false,
+                  start_date: null,
+                  due_date: null,
                 });
                 setQuickTitle('');
               } catch {

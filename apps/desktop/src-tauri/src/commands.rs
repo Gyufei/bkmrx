@@ -5,6 +5,7 @@ use crate::bookmarks::{
     BookmarkPageRequest, CreateBookmark, SharedBookmarkStore, TagQueryRequest, TagSummary,
     UpdateBookmark,
 };
+use crate::calendar::{CalendarDay, CalendarRangeRequest, CalendarService, SharedCalendarService};
 use crate::error::AppResult;
 use crate::identity::BookmarkId;
 use crate::navigation::{
@@ -21,6 +22,21 @@ use crate::rss::{
 use crate::todos::{
     CreateTodo, SharedTodoStore, Todo, TodoList, TodoQuery, TodoStatus, TodoTag, UpdateTodo,
 };
+
+#[tauri::command]
+pub async fn get_calendar_days(
+    service: State<'_, SharedCalendarService>,
+    request: CalendarRangeRequest,
+) -> AppResult<Vec<CalendarDay>> {
+    query_calendar_days(&service, request).await
+}
+
+async fn query_calendar_days(
+    service: &CalendarService,
+    request: CalendarRangeRequest,
+) -> AppResult<Vec<CalendarDay>> {
+    service.query(request).await
+}
 
 #[tauri::command]
 pub fn list_navigation_sections(
@@ -463,4 +479,85 @@ pub fn get_system_info(
     paths: State<'_, crate::settings::RuntimePaths>,
 ) -> AppResult<crate::settings::SystemInfo> {
     Ok(paths.system_info())
+}
+
+#[cfg(test)]
+mod calendar_command_tests {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    use super::query_calendar_days;
+    use crate::calendar::{
+        CalendarDay, CalendarHolidayDayType, CalendarRange, CalendarRangeRequest, CalendarService,
+        CalendarSource, HolidayAnnotation, SourceFuture,
+    };
+
+    struct CommandSource {
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl CalendarSource for CommandSource {
+        fn id(&self) -> &str {
+            "command-test"
+        }
+
+        fn load<'a>(&'a self, _range: CalendarRange) -> SourceFuture<'a> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async {
+                Ok(vec![CalendarDay {
+                    date: "2026-10-01".into(),
+                    holidays: vec![HolidayAnnotation {
+                        name: "国庆节".into(),
+                        display_name: "国庆节".into(),
+                        day_type: CalendarHolidayDayType::DayOff,
+                        source: "command-test".into(),
+                    }],
+                    events: Vec::new(),
+                    todos: Vec::new(),
+                }])
+            })
+        }
+    }
+
+    fn service(calls: Arc<AtomicUsize>) -> CalendarService {
+        CalendarService::new(vec![Arc::new(CommandSource { calls })])
+    }
+
+    #[tokio::test]
+    async fn calendar_command_returns_service_results() {
+        let calls = Arc::new(AtomicUsize::new(0));
+
+        let days = query_calendar_days(
+            &service(calls.clone()),
+            CalendarRangeRequest {
+                start_date: "2026-10-01".into(),
+                end_date: "2026-10-01".into(),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(days[0].holidays[0].display_name, "国庆节");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn calendar_command_rejects_invalid_input_before_loading_sources() {
+        let calls = Arc::new(AtomicUsize::new(0));
+
+        let error = query_calendar_days(
+            &service(calls.clone()),
+            CalendarRangeRequest {
+                start_date: "invalid".into(),
+                end_date: "2026-10-01".into(),
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(error.code(), "validation_error");
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
 }

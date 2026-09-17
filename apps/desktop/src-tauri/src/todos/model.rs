@@ -40,6 +40,8 @@ pub struct Todo {
     pub status: TodoStatus,
     pub is_high_priority: bool,
     pub tags: Vec<String>,
+    pub start_date: Option<String>,
+    pub due_date: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub completed_at: Option<String>,
@@ -74,6 +76,10 @@ pub struct CreateTodo {
     pub is_high_priority: bool,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub start_date: Option<String>,
+    #[serde(default)]
+    pub due_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -82,4 +88,6 @@ pub struct UpdateTodo {
     pub description: String,
     pub is_high_priority: bool,
     pub tags: Vec<String>,
+    pub start_date: Option<String>,
+    pub due_date: Option<String>,
 }

@@ -12,13 +12,17 @@ vi.mock('./Navbar', async (importOriginal) => {
     ...original,
     default: ({
       onBookmarkSubpageChange,
+      onTodoSubpageChange,
     }: {
       onBookmarkSubpageChange: (page: 'navigation' | 'bookmarks') => void;
+      onTodoSubpageChange: (page: 'todos' | 'calendar') => void;
     }) => (
       <div>
         <input aria-label="导航测试输入框" />
         <button onClick={() => onBookmarkSubpageChange('navigation')}>导航子页</button>
         <button onClick={() => onBookmarkSubpageChange('bookmarks')}>书签子页</button>
+        <button onClick={() => onTodoSubpageChange('todos')}>待办子页</button>
+        <button onClick={() => onTodoSubpageChange('calendar')}>日历子页</button>
       </div>
     ),
   };
@@ -33,6 +37,7 @@ vi.mock('./notes/NotesPanel', () => ({
   default: () => <input aria-label="笔记临时状态" defaultValue="笔记工作区" />,
 }));
 vi.mock('./todos/TodoPage', () => ({ default: () => <div>Todo 工作区</div> }));
+vi.mock('./todos/TodoCalendarPage', () => ({ default: () => <div>日历工作区</div> }));
 vi.mock('./rss/RssPage', () => ({ default: () => <div>RSS 工作区</div> }));
 vi.mock('./settings/SettingsPage', () => ({ default: () => <div>设置工作区</div> }));
 
@@ -105,6 +110,19 @@ describe('AppHome workspace hotkeys', () => {
     expect(navigationInput).toBeVisible();
     expect(navigationInput).toHaveAttribute('data-temporary-state', 'kept');
     expect(bookmarkInput).not.toBeVisible();
+  });
+
+  it('switches between Todo and calendar subpages', () => {
+    render(<AppHome />);
+    dispatchModKey('3');
+    expect(screen.getByText('Todo 工作区')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: '日历子页' }));
+    expect(screen.getByText('日历工作区')).toBeVisible();
+    expect(screen.getByText('Todo 工作区')).not.toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: '待办子页' }));
+    expect(screen.getByText('Todo 工作区')).toBeVisible();
   });
 
   it('removes workspace hotkeys on unmount', () => {

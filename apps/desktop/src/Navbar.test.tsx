@@ -53,4 +53,28 @@ describe('NavBar server status', () => {
     );
     expect(screen.queryByRole('tab', { name: '导航' })).toBeNull();
   });
+
+  it('shows Todo secondary tabs only in the Todo workspace', () => {
+    const onTodoSubpageChange = vi.fn();
+    const view = render(
+      <NavBar
+        currentPath={PATHS.TODOS}
+        onCurrentPathChange={vi.fn()}
+        onTodoSubpageChange={onTodoSubpageChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: '日历' }));
+    expect(onTodoSubpageChange).toHaveBeenCalledWith('calendar', expect.anything());
+    expect(screen.getByRole('tab', { name: '待办' })).toBeTruthy();
+
+    view.rerender(
+      <NavBar
+        currentPath={PATHS.NOTES}
+        onCurrentPathChange={vi.fn()}
+        onTodoSubpageChange={onTodoSubpageChange}
+      />,
+    );
+    expect(screen.queryByRole('tab', { name: '日历' })).toBeNull();
+  });
 });

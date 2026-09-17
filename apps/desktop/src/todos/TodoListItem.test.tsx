@@ -13,6 +13,8 @@ const todo: Todo = {
   status: 'in_progress',
   is_high_priority: false,
   tags: ['工作'],
+  start_date: null,
+  due_date: null,
   created_at: '',
   updated_at: '',
   completed_at: null,
@@ -63,6 +65,30 @@ describe('TodoListItem', () => {
 
     fireEvent.click(tagButton);
     expect(onSelectTag).toHaveBeenCalledWith(todoTagId(4));
+  });
+
+  it('shows dates before tags with distinct start and due colors', () => {
+    render(
+      <TodoListItem
+        todo={{ ...todo, start_date: '2026-09-17', due_date: '2026-09-20' }}
+        tags={[{ id: todoTagId(4), name: '工作', count: 1 }]}
+        statusPending={false}
+        deletePending={false}
+        onEdit={vi.fn()}
+        onSelectTag={vi.fn()}
+        onSetStatus={vi.fn()}
+        onPrepareDelete={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    const start = screen.getByLabelText('开始日期 2026/9/17');
+    const due = screen.getByLabelText('截止日期 2026/9/20');
+    const tag = screen.getByRole('button', { name: '筛选标签 工作' });
+    expect(start.className).toContain('text-emerald');
+    expect(due.className).toContain('text-destructive');
+    expect(start.compareDocumentPosition(tag) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('→')).toBeTruthy();
   });
 
   it('keeps suspended status changes in the context menu', async () => {
