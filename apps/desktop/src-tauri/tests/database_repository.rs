@@ -7,7 +7,7 @@ use std::sync::Arc;
 fn creates_latest_schema_and_enables_fts5_trigram() {
     let db = Database::open_in_memory().unwrap();
 
-    assert_eq!(db.schema_version().unwrap(), 8);
+    assert_eq!(db.schema_version().unwrap(), 1);
     for table in [
         "bookmarks",
         "tags",
@@ -99,7 +99,7 @@ fn reopens_existing_database_without_changing_data() {
 
     let database = Database::open(&path).unwrap();
 
-    assert_eq!(database.schema_version().unwrap(), 8);
+    assert_eq!(database.schema_version().unwrap(), 1);
     assert_eq!(
         database
             .query_i64_for_test(&format!("SELECT count(*) FROM bookmarks WHERE id = '{id}'"))
@@ -109,24 +109,8 @@ fn reopens_existing_database_without_changing_data() {
 }
 
 #[test]
-fn migrates_schema_seven_by_adding_calendar_events() {
-    let directory = tempfile::TempDir::new().unwrap();
-    let path = directory.path().join("bookmarks.db");
-    let database = Database::open(&path).unwrap();
-    database
-        .execute_batch_for_test("DROP TABLE calendar_events; PRAGMA user_version = 7;")
-        .unwrap();
-    drop(database);
-
-    let migrated = Database::open(&path).unwrap();
-
-    assert_eq!(migrated.schema_version().unwrap(), 8);
-    assert!(migrated.has_table("calendar_events").unwrap());
-}
-
-#[test]
 fn rejects_every_newer_schema_version() {
-    for version in [9, 10, 11] {
+    for version in [2, 3, 8] {
         let directory = tempfile::TempDir::new().unwrap();
         let path = directory.path().join("bookmarks.db");
         let connection = rusqlite::Connection::open(&path).unwrap();
@@ -140,13 +124,13 @@ fn rejects_every_newer_schema_version() {
         assert_eq!(error.code(), "unsupported_schema_version");
         assert_eq!(
             error.details,
-            Some(serde_json::json!({ "found": version, "supported": 8 }))
+            Some(serde_json::json!({ "found": version, "supported": 1 }))
         );
     }
 }
 
 #[test]
-fn rejects_an_uncut_legacy_database_without_mutating_it() {
+fn rejects_a_pre_baseline_version_without_mutating_it() {
     let directory = tempfile::TempDir::new().unwrap();
     let path = directory.path().join("bookmarks.db");
     let connection = rusqlite::Connection::open(&path).unwrap();
@@ -156,7 +140,7 @@ fn rejects_an_uncut_legacy_database_without_mutating_it() {
     connection
         .execute("INSERT INTO legacy_marker(value) VALUES ('preserved')", [])
         .unwrap();
-    connection.pragma_update(None, "user_version", 1).unwrap();
+    connection.pragma_update(None, "user_version", 8).unwrap();
     drop(connection);
 
     let error = Database::open(&path).unwrap_err();
@@ -174,7 +158,7 @@ fn rejects_an_uncut_legacy_database_without_mutating_it() {
         connection
             .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
             .unwrap(),
-        1
+        8
     );
 }
 
