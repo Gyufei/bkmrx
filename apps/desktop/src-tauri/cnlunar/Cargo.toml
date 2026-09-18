@@ -1,0 +1,8 @@
+[package]
+name = "cnlunar"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "农历与二十四节气查询（移植自 OPN48/cnlunar，仅保留农历与节气功能）"
+
+[dependencies]

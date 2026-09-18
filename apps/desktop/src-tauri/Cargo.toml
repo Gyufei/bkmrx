@@ -7,6 +7,9 @@ edition = "2021"
 name = "bkmrx_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[workspace]
+members = ["cnlunar"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

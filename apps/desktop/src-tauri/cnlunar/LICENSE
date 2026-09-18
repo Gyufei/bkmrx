@@ -1,13 +1,7 @@
-# Third-Party Notices
-
-## holiday-cn
-
-This application retrieves Chinese holiday arrangement data from
-[NateScarlet/holiday-cn](https://github.com/NateScarlet/holiday-cn).
-
 MIT License
 
-Copyright (c) 2019 NateScarlet
+Copyright (c) 2025 OPN48
+Portions ported to Rust by the bkmrx project
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,14 +20,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-## cnlunar (apps/desktop/src-tauri/cnlunar)
-
-The `cnlunar` crate is a Rust port of the lunar-calendar and solar-term
-functionality from [OPN48/cnLunar](https://github.com/OPN48/cnLunar) (Python),
-keeping only those two features. MIT License — see
-[apps/desktop/src-tauri/cnlunar/LICENSE](apps/desktop/src-tauri/cnlunar/LICENSE) for the full text
-(Copyright (c) 2025 OPN48).
-
-The lookup tables in `apps/desktop/src-tauri/cnlunar/src/data.rs` are derived from the
-upstream Python source and cover 1901–2100 (Hong Kong Observatory data).
