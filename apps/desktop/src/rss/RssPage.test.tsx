@@ -170,6 +170,20 @@ it('shows a toast when refreshing all feeds fails', async () => {
   );
 });
 
+it('shows a destructive alert when the RSS workspace cannot load', async () => {
+  listFeedsApi.mockRejectedValue(new Error('feeds unavailable'));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <RssPage />
+    </QueryClientProvider>,
+  );
+
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toContain('RSS 加载失败');
+  expect(alert.classList.contains('text-destructive')).toBe(true);
+});
+
 it('offers edit, refresh, and delete as feed context-menu actions', async () => {
   refreshAllFeedsApi.mockReturnValue(new Promise(() => {}));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

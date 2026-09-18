@@ -4,7 +4,7 @@ import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { FileText } from 'lucide-react';
+import { FileText, Settings } from 'lucide-react';
 import type { FolderDeletionSummary, WorkspaceDirectory, WorkspaceFile } from '../types';
 import NoteEditor from './NoteEditor';
 import NoteNameDialog from './NoteNameDialog';
@@ -146,7 +146,11 @@ export default function NotesPanel() {
           <FileText className="size-10 opacity-40" />
         </EmptyMedia>
         <EmptyTitle>未设置笔记目录</EmptyTitle>
-        <EmptyDescription>请点击右上角齿轮⚙打开设置</EmptyDescription>
+        <EmptyDescription className="flex items-center">
+          请点击右上角齿轮
+          <Settings className="size-4 mx-1" />
+          打开设置
+        </EmptyDescription>
       </Empty>
     );
   }

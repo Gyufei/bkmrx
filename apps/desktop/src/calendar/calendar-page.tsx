@@ -7,8 +7,11 @@ import CalendarEventDialog from '@/calendar/calendar-event-dialog';
 import { useCalendarDays } from '@/calendar/use-calendar-days';
 import { useCalendarEventEditor } from '@/calendar/use-calendar-event-editor';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
+import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
 import { formatLocalDate } from '@/lib/date';
 import CalendarDayCell from './calendar-day-cell';
 
@@ -101,21 +104,42 @@ export default function CalendarPage() {
             </div>
           ))}
         </div>
-        <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 overflow-hidden">
-          {monthDays.map((date) => (
-            <CalendarDayCell
-              key={date.toISOString()}
-              date={date}
-              month={editor.month}
-              today={today}
-              selectedDate={editor.selectedDate}
-              calendarDay={calendarDaysByDate.get(formatLocalDate(date))}
-              onSelect={editor.selectDate}
-              onCreate={editor.openCreate}
-              onEdit={editor.openEdit}
-            />
-          ))}
-        </div>
+        {calendarDays.isLoading ? (
+          <div
+            role="status"
+            className="flex flex-1 items-center justify-center gap-2 text-muted-foreground"
+          >
+            <Spinner />
+            <span>正在加载日历…</span>
+          </div>
+        ) : calendarDays.isError ? (
+          <div className="flex flex-1 items-center justify-center p-5">
+            <Alert variant="destructive" className="max-w-md text-center">
+              <AlertTitle>日历加载失败</AlertTitle>
+            </Alert>
+          </div>
+        ) : calendarDays.data?.length === 0 ? (
+          <Empty className="flex-1 p-5">
+            <EmptyTitle>暂无日历数据</EmptyTitle>
+            <EmptyDescription>当前月份没有可展示的日期信息。</EmptyDescription>
+          </Empty>
+        ) : (
+          <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 overflow-hidden">
+            {monthDays.map((date) => (
+              <CalendarDayCell
+                key={date.toISOString()}
+                date={date}
+                month={editor.month}
+                today={today}
+                selectedDate={editor.selectedDate}
+                calendarDay={calendarDaysByDate.get(formatLocalDate(date))}
+                onSelect={editor.selectDate}
+                onCreate={editor.openCreate}
+                onEdit={editor.openEdit}
+              />
+            ))}
+          </div>
+        )}
       </main>
 
       <CalendarEventDialog

@@ -110,6 +110,15 @@ describe('SettingsPage', () => {
     expect(screen.getByText('/old/notes')).toBeTruthy();
   });
 
+  it('shows a destructive alert when settings cannot be loaded', async () => {
+    vi.mocked(getSettingsApi).mockRejectedValueOnce(new Error('settings unavailable'));
+    renderPage();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('设置加载失败');
+    expect(alert.classList.contains('text-destructive')).toBe(true);
+  });
+
   it('edits and saves one path without changing the others', async () => {
     renderPage();
     await screen.findByText('/old/backup');

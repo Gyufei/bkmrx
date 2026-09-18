@@ -3,12 +3,11 @@ import { Rss } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Bookmark, RssEntry, RssFeed } from '@/types';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
+import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Spinner } from '@/components/ui/spinner';
 import AddBookmarkDialog from '@/bookmarks/AddBookmarkDialog';
 import EditBookmarkDialog from '@/bookmarks/EditBookmarkDialog';
-import {
-  bookmarkByUrlQueryKey,
-  checkBookmarkApi,
-} from '@/bookmarks/bookmarks.api';
+import { bookmarkByUrlQueryKey, checkBookmarkApi } from '@/bookmarks/bookmarks.api';
 import { hasErrorCode } from '@/lib/error';
 import { toast } from '@/components/ui/toast';
 import AddFeedDialog from './AddFeedDialog';
@@ -92,6 +91,31 @@ export default function RssPage() {
     }
   };
 
+  const initialLoading = reader.feeds.isLoading && !reader.feeds.data;
+  const initialError = reader.feeds.isError && !reader.feeds.data;
+
+  if (initialLoading) {
+    return (
+      <div
+        role="status"
+        className="flex min-h-0 flex-1 items-center justify-center gap-2 text-muted-foreground"
+      >
+        <Spinner />
+        <span>正在加载 RSS…</span>
+      </div>
+    );
+  }
+
+  if (initialError) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center p-5">
+        <Alert variant="destructive" className="max-w-md text-center">
+          <AlertTitle>RSS 加载失败</AlertTitle>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-0 flex-1">
       <RssSidebar
@@ -115,6 +139,7 @@ export default function RssPage() {
         items={reader.items}
         selectedId={reader.selectedId}
         loading={reader.entries.isLoading}
+        error={reader.entries.isError}
         fetchingNext={reader.entries.isFetchingNextPage}
         hasNextPage={reader.entries.hasNextPage}
         onChoose={reader.choose}

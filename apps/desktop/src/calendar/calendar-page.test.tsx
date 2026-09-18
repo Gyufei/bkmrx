@@ -35,7 +35,16 @@ describe('CalendarPage', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 8, 17, 12));
-    mocks.getCalendarDays.mockResolvedValue([]);
+    mocks.getCalendarDays.mockResolvedValue([
+      {
+        date: '2026-09-17',
+        lunar_date: null,
+        solar_term: null,
+        holidays: [],
+        events: [],
+        todos: [],
+      },
+    ]);
     mocks.createEvent.mockResolvedValue({
       id: 'event-1',
       title: '产品评审',
@@ -56,6 +65,18 @@ describe('CalendarPage', () => {
       start_date: '2026-08-31',
       end_date: '2026-10-11',
     });
+  });
+
+  it('shows destructive and empty states for unavailable calendar data', async () => {
+    mocks.getCalendarDays.mockRejectedValueOnce(new Error('database unavailable'));
+    const failed = renderPage();
+    await vi.waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('日历加载失败'));
+    expect(screen.getByRole('alert')).toHaveClass('text-destructive');
+
+    failed.unmount();
+    mocks.getCalendarDays.mockResolvedValueOnce([]);
+    renderPage();
+    await vi.waitFor(() => expect(screen.getByText('暂无日历数据')).toBeVisible());
   });
 
   it('navigates months from the sidebar header', () => {
@@ -118,10 +139,14 @@ describe('CalendarPage', () => {
     );
   });
 
-  it('renders month day cells as custom div interactions', () => {
+  it('renders month day cells as custom div interactions', async () => {
     renderPage();
 
-    const selectedDay = document.querySelector('[role="button"][aria-pressed="true"]');
+    const selectedDay = await vi.waitFor(() => {
+      const element = document.querySelector('[role="button"][aria-pressed="true"]');
+      expect(element).toBeTruthy();
+      return element;
+    });
     expect(selectedDay?.tagName).toBe('DIV');
   });
 });

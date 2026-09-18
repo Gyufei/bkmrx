@@ -12,8 +12,7 @@ import { BookOpen, Pencil } from 'lucide-react';
 import { useHotkeys } from '@tanstack/react-hotkeys';
 
 import { Button } from '@/components/ui/button';
-import { Alert } from '@/components/ui/alert';
-import { Empty, EmptyTitle } from '@/components/ui/empty';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -267,17 +266,22 @@ export default function NoteEditor({ filePath, revision = 1, onSessionChange }: 
             加载笔记...
           </div>
         ) : session.loadState === 'error' ? (
-          <Empty className="h-full">
-            <EmptyTitle className="text-sm text-destructive">加载失败</EmptyTitle>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => void session.retryRead()}
+          <div className="flex h-full items-center justify-center p-4">
+            <Alert
+              variant="destructive"
+              className="flex max-w-md flex-col items-center gap-3 text-center"
             >
-              重试
-            </Button>
-          </Empty>
+              <AlertTitle>笔记加载失败</AlertTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void session.retryRead()}
+              >
+                重试
+              </Button>
+            </Alert>
+          </div>
         ) : mode === 'view' ? (
           <MarkdownViewer
             content={session.content}

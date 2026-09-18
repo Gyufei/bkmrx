@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { ArrowUpDown, BookOpen, Pencil, Plus } from 'lucide-react';
 import type { NavigationCategory, NavigationSection } from '@/types';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import BookmarkPickerDialog from './BookmarkPickerDialog';
 import NavigationCategoryDialog from './NavigationCategoryDialog';
@@ -135,28 +138,33 @@ function NavigationSections({
 }) {
   if (controller.loadState === 'loading')
     return (
-      <div className="flex-1 p-5">
-        <p>正在加载导航分类…</p>
+      <div
+        role="status"
+        className="flex flex-1 items-center justify-center gap-2 text-muted-foreground"
+      >
+        <Spinner />
+        <span>正在加载导航分类…</span>
       </div>
     );
   if (controller.loadState === 'error')
     return (
-      <div className="flex-1 p-5">
-        <p role="alert">加载导航分类失败</p>
+      <div className="flex flex-1 items-center justify-center p-5">
+        <Alert variant="destructive" className="max-w-md text-center">
+          <AlertTitle>加载导航分类失败</AlertTitle>
+        </Alert>
       </div>
     );
   const sections = controller.sections;
   if (sections.length === 0 && !manageable)
     return (
-      <div className="flex-1 p-5">
-        <div className="flex flex-wrap items-center gap-1 text-muted-foreground">
-          <span>还没有导航分类，先</span>
-          <Button size="xs" onClick={onCreate}>
-            创建
-          </Button>
-          <span>一个常用分类吧。</span>
-        </div>
-      </div>
+      <Empty className="flex-1 p-5">
+        <EmptyTitle>还没有导航分类</EmptyTitle>
+        <EmptyDescription>创建一个分类，开始整理常用书签。</EmptyDescription>
+        <Button size="sm" onClick={onCreate}>
+          <Plus data-icon="inline-start" />
+          创建
+        </Button>
+      </Empty>
     );
   return (
     <div className="flex-1 overflow-y-auto p-5 pr-14">
