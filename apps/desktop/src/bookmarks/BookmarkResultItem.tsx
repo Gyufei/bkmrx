@@ -11,7 +11,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { toast } from '@/components/ui/toast';
-import { tagColor } from '@/lib/tagColor';
+import { colorStyleForText } from '@/lib/text-color';
 
 export interface BookmarkResultItemProps {
   bookmark: Bookmark;
@@ -158,7 +158,7 @@ function BookmarkDetails(props: BookmarkResultItemProps) {
       {bookmark.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1.5">
           {bookmark.tags.map((tag) => (
-            <Badge key={tag} style={tagColor(tag)}>
+            <Badge key={tag} style={colorStyleForText(tag)}>
               {tag}
             </Badge>
           ))}

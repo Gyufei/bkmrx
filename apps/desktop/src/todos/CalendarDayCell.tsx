@@ -1,23 +1,19 @@
 import { format, isSameDay, isSameMonth } from 'date-fns';
 
 import { cn } from '@/lib/utils';
-import type { CalendarDay } from '@/calendar/calendar.types';
-
-export interface CalendarEvent {
-  id: number;
-  title: string;
-  date: Date;
-}
+import type { CalendarDay, CalendarEventSummary } from '@/calendar/calendar.types';
+import { colorStyleForText } from '@/lib/text-color';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface CalendarDayCellProps {
   date: Date;
   month: Date;
   today: Date;
   selectedDate: Date;
-  events: CalendarEvent[];
   calendarDay?: CalendarDay;
   onSelect: (date: Date) => void;
   onCreate: (date: Date) => void;
+  onEdit: (event: CalendarEventSummary, date: Date) => void;
 }
 
 export default function CalendarDayCell({
@@ -25,10 +21,10 @@ export default function CalendarDayCell({
   month,
   today,
   selectedDate,
-  events,
   calendarDay,
   onSelect,
   onCreate,
+  onEdit,
 }: CalendarDayCellProps) {
   const selected = isSameDay(date, selectedDate);
   const isToday = isSameDay(date, today);
@@ -49,15 +45,15 @@ export default function CalendarDayCell({
       className={cn(
         'group min-h-0 cursor-pointer overflow-hidden border-r border-b border-border p-2 text-left transition-colors hover:bg-primary/10 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
         !isSameMonth(date, month) && 'bg-muted/60 text-muted-foreground',
-        selected && 'bg-primary/20',
+        selected && 'bg-accent',
       )}
     >
       <div className="mb-1 flex min-w-0 items-center gap-1">
         <div
           className={cn(
             'flex size-7 shrink-0 items-center justify-center rounded-full text-sm',
-            isToday && 'bg-primary/10 font-medium text-primary',
-            selected && 'bg-primary font-medium text-primary-foreground',
+            isToday && 'text-primary',
+            selected && 'bg-primary text-primary-foreground ring-[3px] ring-ring/50',
           )}
         >
           {format(date, 'd')}
@@ -68,16 +64,30 @@ export default function CalendarDayCell({
           </span>
         )}
       </div>
-      <div className="flex flex-col gap-1">
-        {events.map((event) => (
-          <div
-            key={event.id}
-            className="truncate rounded-md bg-primary/12 px-2 py-1 text-xs font-medium text-primary"
-          >
-            {event.title}
-          </div>
-        ))}
-      </div>
+      <TooltipProvider delay={300}>
+        <div className="mt-1 flex flex-col gap-1">
+          {(calendarDay?.events ?? []).map((event) => (
+            <Tooltip key={event.id}>
+              <TooltipTrigger
+                render={
+                  <div
+                    className="truncate rounded-md px-2 py-1 text-xs font-medium transition-all hover:-translate-y-px hover:shadow-sm"
+                    style={colorStyleForText(event.title)}
+                    onClick={(clickEvent) => {
+                      clickEvent.stopPropagation();
+                      onEdit(event, date);
+                    }}
+                    onDoubleClick={(clickEvent) => clickEvent.stopPropagation()}
+                  >
+                    {event.title}
+                  </div>
+                }
+              />
+              <TooltipContent>{event.title}</TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
+      </TooltipProvider>
     </div>
   );
 }

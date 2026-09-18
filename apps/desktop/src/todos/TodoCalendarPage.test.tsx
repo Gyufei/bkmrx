@@ -7,11 +7,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import TodoCalendarPage from './TodoCalendarPage';
 
-const mocks = vi.hoisted(() => ({ getCalendarDays: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  getCalendarDays: vi.fn(),
+  createEvent: vi.fn(),
+  updateEvent: vi.fn(),
+  deleteEvent: vi.fn(),
+}));
 
 vi.mock('@/calendar/calendar.api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/calendar/calendar.api')>()),
   getCalendarDaysApi: mocks.getCalendarDays,
+  createCalendarEventApi: mocks.createEvent,
+  updateCalendarEventApi: mocks.updateEvent,
+  deleteCalendarEventApi: mocks.deleteEvent,
 }));
 
 function renderPage() {
@@ -28,6 +36,12 @@ describe('TodoCalendarPage', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 8, 17, 12));
     mocks.getCalendarDays.mockResolvedValue([]);
+    mocks.createEvent.mockResolvedValue({
+      id: 'event-1',
+      title: '产品评审',
+      date: '2026-09-17',
+      event_type: 'other',
+    });
   });
 
   afterEach(() => {
@@ -53,17 +67,53 @@ describe('TodoCalendarPage', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).not.toBe(currentHeading);
   });
 
-  it('adds a named event to the selected day', () => {
+  it('persists a named event for the selected day', async () => {
     renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: '添加事项' }));
     fireEvent.change(screen.getByRole('textbox', { name: '事项名称' }), {
       target: { value: '产品评审' },
     });
+    fireEvent.click(screen.getByRole('combobox', { name: '事件类型' }));
+    fireEvent.click(screen.getByRole('option', { name: '工作' }));
     fireEvent.click(screen.getByRole('button', { name: '添加' }));
 
-    expect(screen.getByText('产品评审')).toBeVisible();
-    expect(screen.queryByRole('dialog')).toBeNull();
+    await vi.waitFor(() =>
+      expect(mocks.createEvent.mock.calls[0]?.[0]).toEqual({
+        title: '产品评审',
+        date: '2026-09-17',
+        event_type: 'work',
+      }),
+    );
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('prefills and updates the event type when editing', async () => {
+    mocks.getCalendarDays.mockResolvedValue([
+      {
+        date: '2026-09-17',
+        holidays: [],
+        events: [{ id: 'event-1', title: '纪念日', event_type: 'anniversary', source: 'local' }],
+        todos: [],
+      },
+    ]);
+    mocks.updateEvent.mockResolvedValue({});
+    renderPage();
+
+    await vi.waitFor(() => expect(screen.getByText('纪念日')).toBeVisible());
+    fireEvent.click(screen.getByText('纪念日'));
+    expect(screen.getByRole('combobox', { name: '事件类型' })).toHaveTextContent('纪念日');
+    fireEvent.click(screen.getByRole('combobox', { name: '事件类型' }));
+    fireEvent.click(screen.getByRole('option', { name: '个人' }));
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await vi.waitFor(() =>
+      expect(mocks.updateEvent.mock.calls[0]?.[1]).toEqual({
+        title: '纪念日',
+        date: '2026-09-17',
+        event_type: 'personal',
+      }),
+    );
   });
 
   it('renders month day cells as custom div interactions', () => {

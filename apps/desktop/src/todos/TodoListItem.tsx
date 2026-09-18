@@ -15,7 +15,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { tagColor } from '@/lib/tagColor';
+import { colorStyleForText } from '@/lib/text-color';
 import { cn } from '@/lib/utils';
 import type { Todo, TodoStatus, TodoTag } from '@/types';
 import type { TodoId, TodoTagId } from '@/identity';
@@ -150,7 +150,7 @@ export default function TodoListItem({
                       badgeVariants(),
                       'cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default',
                     )}
-                    style={tagColor(name)}
+                    style={colorStyleForText(name)}
                   >
                     {name}
                   </button>

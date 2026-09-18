@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent } from '@/components/ui/popover';
 import { cn } from '../lib/utils';
-import { tagColor } from '../lib/tagColor';
+import { colorStyleForText } from '../lib/text-color';
 
 interface TagInputProps {
   value: string[];
@@ -147,7 +147,7 @@ export default function TagInput({
         )}
       >
         {value.map((tag) => (
-          <Badge key={tag} className="max-w-[200px] gap-1" style={tagColor(tag)}>
+          <Badge key={tag} className="max-w-[200px] gap-1" style={colorStyleForText(tag)}>
             <span className="truncate">{tag}</span>
             <button
               type="button"
@@ -209,7 +209,7 @@ export default function TagInput({
                 'transition-colors cursor-pointer',
                 i === activeIdx ? 'ring-2 ring-primary/40' : 'hover:bg-accent',
               )}
-              style={tagColor(tag)}
+              style={colorStyleForText(tag)}
             >
               {tag}
             </button>

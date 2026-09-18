@@ -57,6 +57,14 @@ impl AppError {
         )
     }
 
+    pub fn calendar_event_not_found(id: crate::identity::CalendarEventId) -> Self {
+        Self::new(
+            "calendar_event_not_found",
+            "Calendar event not found",
+            Some(serde_json::json!({ "id": id })),
+        )
+    }
+
     pub fn todo_tag_not_found(id: crate::identity::TodoTagId) -> Self {
         Self::new(
             "todo_tag_not_found",

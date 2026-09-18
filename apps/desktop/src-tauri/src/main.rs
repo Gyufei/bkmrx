@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use bkmrx_lib::{
     bookmarks::{Bookmark, BookmarkEvents, BookmarkStore},
-    calendar::{CalendarService, HolidayCnFetcher, HolidayCnSource},
+    calendar::{
+        CalendarEventStore, CalendarService, CalendarSource, HolidayCnFetcher, HolidayCnSource,
+    },
     database::Database,
     navigation::NavigationStore,
     preview::PreviewService,
@@ -93,7 +95,9 @@ fn main() {
                 })),
             );
             app.manage(todo_service);
-            app.manage(Arc::new(CalendarService::new(vec![Arc::new(
+            let calendar_events = Arc::new(CalendarEventStore::new(Arc::clone(&database)));
+            app.manage(Arc::clone(&calendar_events));
+            app.manage(Arc::new(CalendarService::new(vec![calendar_events as Arc<dyn CalendarSource>, Arc::new(
                 HolidayCnSource::new(
                     calendar_cache_dir,
                     Arc::new(HolidayCnFetcher),
@@ -188,6 +192,10 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             bkmrx_lib::commands::get_calendar_days,
+            bkmrx_lib::commands::list_calendar_events,
+            bkmrx_lib::commands::create_calendar_event,
+            bkmrx_lib::commands::update_calendar_event,
+            bkmrx_lib::commands::delete_calendar_event,
             bkmrx_lib::commands::list_navigation_sections,
             bkmrx_lib::commands::create_navigation_category,
             bkmrx_lib::commands::update_navigation_category,

@@ -37,13 +37,27 @@ import type {
   TodoId,
   TodoTagId,
 } from '../identity';
-import type { CalendarDay, CalendarRangeRequest } from '../calendar/calendar.types';
+import type {
+  CalendarDay,
+  CalendarEvent,
+  CalendarRangeRequest,
+  CreateCalendarEvent,
+  UpdateCalendarEvent,
+} from '../calendar/calendar.types';
 
 /* ───── Calendar ───── */
 
 export function invokeGetCalendarDays(request: CalendarRangeRequest): Promise<CalendarDay[]> {
   return invoke<CalendarDay[]>('get_calendar_days', { request });
 }
+export const invokeListCalendarEvents = (startDate: string, endDate: string) =>
+  invoke<CalendarEvent[]>('list_calendar_events', { startDate, endDate });
+export const invokeCreateCalendarEvent = (input: CreateCalendarEvent) =>
+  invoke<CalendarEvent>('create_calendar_event', { input });
+export const invokeUpdateCalendarEvent = (id: string, input: UpdateCalendarEvent) =>
+  invoke<CalendarEvent>('update_calendar_event', { id, input });
+export const invokeDeleteCalendarEvent = (id: string) =>
+  invoke<void>('delete_calendar_event', { id });
 
 export const invokeListNavigationSections = () =>
   invoke<NavigationSection[]>('list_navigation_sections');

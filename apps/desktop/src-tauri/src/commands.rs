@@ -5,7 +5,10 @@ use crate::bookmarks::{
     BookmarkPageRequest, CreateBookmark, SharedBookmarkStore, TagQueryRequest, TagSummary,
     UpdateBookmark,
 };
-use crate::calendar::{CalendarDay, CalendarRangeRequest, CalendarService, SharedCalendarService};
+use crate::calendar::{
+    CalendarDay, CalendarEvent, CalendarRangeRequest, CalendarService, CreateCalendarEvent,
+    SharedCalendarEventStore, SharedCalendarService, UpdateCalendarEvent,
+};
 use crate::error::AppResult;
 use crate::identity::BookmarkId;
 use crate::navigation::{
@@ -36,6 +39,40 @@ async fn query_calendar_days(
     request: CalendarRangeRequest,
 ) -> AppResult<Vec<CalendarDay>> {
     service.query(request).await
+}
+
+#[tauri::command]
+pub fn list_calendar_events(
+    service: State<'_, SharedCalendarEventStore>,
+    start_date: String,
+    end_date: String,
+) -> AppResult<Vec<CalendarEvent>> {
+    service.list(&start_date, &end_date)
+}
+
+#[tauri::command]
+pub fn create_calendar_event(
+    service: State<'_, SharedCalendarEventStore>,
+    input: CreateCalendarEvent,
+) -> AppResult<CalendarEvent> {
+    service.create(input)
+}
+
+#[tauri::command]
+pub fn update_calendar_event(
+    service: State<'_, SharedCalendarEventStore>,
+    id: crate::identity::CalendarEventId,
+    input: UpdateCalendarEvent,
+) -> AppResult<CalendarEvent> {
+    service.update(id, input)
+}
+
+#[tauri::command]
+pub fn delete_calendar_event(
+    service: State<'_, SharedCalendarEventStore>,
+    id: crate::identity::CalendarEventId,
+) -> AppResult<()> {
+    service.delete(id)
 }
 
 #[tauri::command]

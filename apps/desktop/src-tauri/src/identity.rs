@@ -101,6 +101,7 @@ entity_id!(RssFeedId);
 entity_id!(RssEntryId);
 entity_id!(NavigationCategoryId);
 entity_id!(NavigationPlacementId);
+entity_id!(CalendarEventId);
 
 #[cfg(test)]
 mod tests {

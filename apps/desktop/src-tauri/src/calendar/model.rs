@@ -125,13 +125,34 @@ pub enum CalendarHolidayDayType {
     Observance,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum CalendarEventType {
     Work,
     Personal,
     Anniversary,
+    #[default]
     Other,
+}
+
+impl CalendarEventType {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Work => "work",
+            Self::Personal => "personal",
+            Self::Anniversary => "anniversary",
+            Self::Other => "other",
+        }
+    }
+    pub(crate) fn from_db(value: &str) -> Option<Self> {
+        match value {
+            "work" => Some(Self::Work),
+            "personal" => Some(Self::Personal),
+            "anniversary" => Some(Self::Anniversary),
+            "other" => Some(Self::Other),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]

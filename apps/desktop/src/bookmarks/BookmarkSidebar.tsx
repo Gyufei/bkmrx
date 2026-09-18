@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { BookmarkBaseView, Tag } from '@/types';
-import { tagColor } from '../lib/tagColor';
+import { colorStyleForText } from '../lib/text-color';
 import { getTagsApi, tagQueryKey } from './bookmarks.api';
 
 const TAG_LIMIT = 50;
@@ -124,7 +124,7 @@ export default function BookmarkSidebar({
                   className={`inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs transition-all ${
                     selected ? '' : 'bg-muted text-muted-foreground hover:opacity-80'
                   }`}
-                  style={selected ? tagColor(tag.name) : undefined}
+                  style={selected ? colorStyleForText(tag.name) : undefined}
                 >
                   <span className="break-all text-start">{tag.name}</span>
                   <span className={selected ? 'opacity-60' : 'opacity-40'}>{tag.count}</span>

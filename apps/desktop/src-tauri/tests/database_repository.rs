@@ -7,7 +7,7 @@ use std::sync::Arc;
 fn creates_latest_schema_and_enables_fts5_trigram() {
     let db = Database::open_in_memory().unwrap();
 
-    assert_eq!(db.schema_version().unwrap(), 7);
+    assert_eq!(db.schema_version().unwrap(), 8);
     for table in [
         "bookmarks",
         "tags",
@@ -18,6 +18,7 @@ fn creates_latest_schema_and_enables_fts5_trigram() {
         "todos",
         "todo_tags",
         "todo_tag_relations",
+        "calendar_events",
         "rss_feeds",
         "rss_entries",
     ] {
@@ -32,6 +33,7 @@ fn creates_latest_schema_and_enables_fts5_trigram() {
         "idx_navigation_placements_bookmark",
         "idx_todos_status_sort",
         "idx_todo_tag_relations_tag_todo",
+        "idx_calendar_events_date",
         "idx_rss_entries_feed_sort",
         "idx_rss_entries_unread_sort",
     ] {
@@ -97,7 +99,7 @@ fn reopens_existing_database_without_changing_data() {
 
     let database = Database::open(&path).unwrap();
 
-    assert_eq!(database.schema_version().unwrap(), 7);
+    assert_eq!(database.schema_version().unwrap(), 8);
     assert_eq!(
         database
             .query_i64_for_test(&format!("SELECT count(*) FROM bookmarks WHERE id = '{id}'"))
@@ -107,8 +109,24 @@ fn reopens_existing_database_without_changing_data() {
 }
 
 #[test]
+fn migrates_schema_seven_by_adding_calendar_events() {
+    let directory = tempfile::TempDir::new().unwrap();
+    let path = directory.path().join("bookmarks.db");
+    let database = Database::open(&path).unwrap();
+    database
+        .execute_batch_for_test("DROP TABLE calendar_events; PRAGMA user_version = 7;")
+        .unwrap();
+    drop(database);
+
+    let migrated = Database::open(&path).unwrap();
+
+    assert_eq!(migrated.schema_version().unwrap(), 8);
+    assert!(migrated.has_table("calendar_events").unwrap());
+}
+
+#[test]
 fn rejects_every_newer_schema_version() {
-    for version in [8, 9, 10] {
+    for version in [9, 10, 11] {
         let directory = tempfile::TempDir::new().unwrap();
         let path = directory.path().join("bookmarks.db");
         let connection = rusqlite::Connection::open(&path).unwrap();
@@ -122,7 +140,7 @@ fn rejects_every_newer_schema_version() {
         assert_eq!(error.code(), "unsupported_schema_version");
         assert_eq!(
             error.details,
-            Some(serde_json::json!({ "found": version, "supported": 7 }))
+            Some(serde_json::json!({ "found": version, "supported": 8 }))
         );
     }
 }

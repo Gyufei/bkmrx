@@ -35,6 +35,20 @@ export interface CalendarEventSummary {
   source: string;
 }
 
+export interface CalendarEvent extends CalendarEventSummary {
+  date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCalendarEvent {
+  title: string;
+  date: string;
+  event_type: CalendarEventType;
+}
+
+export type UpdateCalendarEvent = CreateCalendarEvent;
+
 export interface CalendarTodoSummary {
   id: string;
   title: string;

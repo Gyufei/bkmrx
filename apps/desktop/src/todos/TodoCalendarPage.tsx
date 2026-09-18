@@ -1,17 +1,24 @@
 import { useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   addMonths,
   addDays,
   eachDayOfInterval,
   format,
-  isSameDay,
   isSameMonth,
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
+import {
+  createCalendarEventApi,
+  deleteCalendarEventApi,
+  updateCalendarEventApi,
+} from '@/calendar/calendar.api';
+import { CALENDAR_DAYS_QUERY_KEY } from '@/calendar/calendar.api';
+import { CalendarEventType, type CalendarEventSummary } from '@/calendar/calendar.types';
 import { useCalendarDays } from '@/calendar/use-calendar-days';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 import { Button } from '@/components/ui/button';
@@ -24,10 +31,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { toast } from '@/components/ui/toast';
 import { formatLocalDate } from '@/lib/date';
-import CalendarDayCell, { type CalendarEvent } from './CalendarDayCell';
+import CalendarDayCell from './CalendarDayCell';
 
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+const EVENT_TYPE_OPTIONS = [
+  { value: CalendarEventType.Work, label: '工作' },
+  { value: CalendarEventType.Personal, label: '个人' },
+  { value: CalendarEventType.Anniversary, label: '纪念日' },
+  { value: CalendarEventType.Other, label: '其他' },
+] as const;
 
 function getMonthDays(month: Date) {
   const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
@@ -41,9 +56,36 @@ export default function TodoCalendarPage() {
   const today = useMemo(() => new Date(), []);
   const [month, setMonth] = useState(() => startOfMonth(today));
   const [selectedDate, setSelectedDate] = useState(today);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [eventTitle, setEventTitle] = useState('');
+  const [eventType, setEventType] = useState(CalendarEventType.Other);
+  const [eventTypeOpen, setEventTypeOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEventSummary | null>(null);
+  const queryClient = useQueryClient();
+  const refreshCalendar = () =>
+    queryClient.invalidateQueries({ queryKey: CALENDAR_DAYS_QUERY_KEY });
+  const createEvent = useMutation({
+    mutationFn: createCalendarEventApi,
+    onSuccess: refreshCalendar,
+  });
+  const updateEvent = useMutation({
+    mutationFn: ({
+      id,
+      title,
+      date,
+      eventType,
+    }: {
+      id: string;
+      title: string;
+      date: string;
+      eventType: CalendarEventType;
+    }) => updateCalendarEventApi(id, { title, date, event_type: eventType }),
+    onSuccess: refreshCalendar,
+  });
+  const deleteEvent = useMutation({
+    mutationFn: deleteCalendarEventApi,
+    onSuccess: refreshCalendar,
+  });
   const monthDays = useMemo(() => getMonthDays(month), [month]);
   const calendarRequest = useMemo(
     () => ({
@@ -65,16 +107,49 @@ export default function TodoCalendarPage() {
 
   const openCreateDialog = (date = selectedDate) => {
     selectDate(date);
+    setEditingEvent(null);
     setEventTitle('');
+    setEventType(CalendarEventType.Other);
     setDialogOpen(true);
   };
 
-  const addEvent = () => {
+  const saveEvent = async () => {
     const title = eventTitle.trim();
     if (!title) return;
-    setEvents((current) => [...current, { id: Date.now(), title, date: new Date(selectedDate) }]);
-    setDialogOpen(false);
-    setEventTitle('');
+    const date = formatLocalDate(selectedDate);
+    try {
+      if (editingEvent)
+        await updateEvent.mutateAsync({
+          id: editingEvent.id,
+          title,
+          date,
+          eventType,
+        });
+      else await createEvent.mutateAsync({ title, date, event_type: eventType });
+      setDialogOpen(false);
+      setEventTitle('');
+    } catch {
+      toast.add({ type: 'error', title: editingEvent ? '事件修改失败' : '事件添加失败' });
+    }
+  };
+
+  const openEditDialog = (event: CalendarEventSummary, date: Date) => {
+    selectDate(date);
+    setEditingEvent(event);
+    setEventTitle(event.title);
+    setEventType(event.event_type);
+    setDialogOpen(true);
+  };
+
+  const removeEvent = async () => {
+    if (!editingEvent) return;
+    try {
+      await deleteEvent.mutateAsync(editingEvent.id);
+      setDialogOpen(false);
+      setEditingEvent(null);
+    } catch {
+      toast.add({ type: 'error', title: '事件删除失败' });
+    }
   };
 
   const changeMonth = (offset: number) => {
@@ -127,7 +202,7 @@ export default function TodoCalendarPage() {
       </CollapsibleSidebar>
 
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-        <div className="grid shrink-0 grid-cols-7 border-b border-border bg-muted/20">
+        <div className="grid shrink-0 grid-cols-7 border-b border-border bg-muted/60">
           {WEEKDAYS.map((weekday) => (
             <div
               key={weekday}
@@ -139,7 +214,6 @@ export default function TodoCalendarPage() {
         </div>
         <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 overflow-hidden">
           {monthDays.map((date) => {
-            const dayEvents = events.filter((event) => isSameDay(event.date, date));
             return (
               <CalendarDayCell
                 key={date.toISOString()}
@@ -147,10 +221,10 @@ export default function TodoCalendarPage() {
                 month={month}
                 today={today}
                 selectedDate={selectedDate}
-                events={dayEvents}
                 calendarDay={calendarDaysByDate.get(formatLocalDate(date))}
                 onSelect={selectDate}
                 onCreate={openCreateDialog}
+                onEdit={openEditDialog}
               />
             );
           })}
@@ -160,13 +234,13 @@ export default function TodoCalendarPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>添加事项</DialogTitle>
+            <DialogTitle>{editingEvent ? '修改事件' : '添加事件'}</DialogTitle>
           </DialogHeader>
           <form
             className="flex flex-col gap-4"
             onSubmit={(event) => {
               event.preventDefault();
-              addEvent();
+              void saveEvent();
             }}
           >
             <Input
@@ -176,12 +250,58 @@ export default function TodoCalendarPage() {
               onChange={(event) => setEventTitle(event.target.value)}
               placeholder="输入事项名称"
             />
+            <div className="flex flex-col gap-2 text-sm font-medium">
+              <span>事件类型</span>
+              <Popover open={eventTypeOpen} onOpenChange={setEventTypeOpen}>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-label="事件类型"
+                      aria-expanded={eventTypeOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {EVENT_TYPE_OPTIONS.find((option) => option.value === eventType)?.label}
+                      <ChevronDown data-icon="inline-end" className="text-muted-foreground" />
+                    </Button>
+                  }
+                />
+                <PopoverContent role="listbox" aria-label="事件类型" className="p-1">
+                  {EVENT_TYPE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="option"
+                      aria-selected={eventType === option.value}
+                      onClick={() => {
+                        setEventType(option.value);
+                        setEventTypeOpen(false);
+                      }}
+                      className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm font-normal transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                    >
+                      {option.label}
+                      {eventType === option.value && <Check className="size-4 text-primary" />}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            </div>
             <DialogFooter>
+              {editingEvent && (
+                <Button type="button" variant="destructive" onClick={() => void removeEvent()}>
+                  删除
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 取消
               </Button>
-              <Button type="submit" disabled={!eventTitle.trim()}>
-                添加
+              <Button
+                type="submit"
+                disabled={!eventTitle.trim() || createEvent.isPending || updateEvent.isPending}
+              >
+                {editingEvent ? '保存' : '添加'}
               </Button>
             </DialogFooter>
           </form>
