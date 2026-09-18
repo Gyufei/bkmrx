@@ -372,7 +372,7 @@ dependencies = [
 
 [[package]]
 name = "bkmrx"
-version = "1.23.0"
+version = "1.24.0"
 dependencies = [
  "ammonia",
  "arc-swap",
@@ -380,6 +380,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "chrono",
+ "cnlunar",
  "feed-rs",
  "futures-util",
  "http-body-util",

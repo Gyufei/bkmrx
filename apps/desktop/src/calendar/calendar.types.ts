@@ -55,8 +55,19 @@ export interface CalendarTodoSummary {
   date_type: CalendarTodoDateType;
 }
 
+export interface LunarDateSummary {
+  year: number;
+  month: number;
+  day: number;
+  is_leap_month: boolean;
+  month_name: string;
+  day_name: string;
+}
+
 export interface CalendarDay {
   date: string;
+  lunar_date: LunarDateSummary | null;
+  solar_term: string | null;
   holidays: HolidayAnnotation[];
   events: CalendarEventSummary[];
   todos: CalendarTodoSummary[];

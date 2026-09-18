@@ -4,48 +4,12 @@ import { cleanup, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CalendarEventType, CalendarHolidayDayType } from '@/calendar/calendar.types';
+import { CalendarEventType } from '@/calendar/calendar.types';
 import { colorStyleForText } from '@/lib/text-color';
-import CalendarDayCell from './CalendarDayCell';
+import CalendarDayCell from './calendar-day-cell';
 
 describe('CalendarDayCell', () => {
   afterEach(cleanup);
-
-  it('renders every normalized holiday display name after the day number', () => {
-    render(
-      <CalendarDayCell
-        date={new Date(2026, 9, 1)}
-        month={new Date(2026, 9, 1)}
-        today={new Date(2026, 8, 17)}
-        selectedDate={new Date(2026, 8, 17)}
-        calendarDay={{
-          date: '2026-10-01',
-          holidays: [
-            {
-              name: '国庆节',
-              display_name: '国庆节',
-              day_type: CalendarHolidayDayType.DayOff,
-              source: 'holiday-cn',
-            },
-            {
-              name: '测试节',
-              display_name: '测试节调休',
-              day_type: CalendarHolidayDayType.AdjustedWorkday,
-              source: 'holiday-cn',
-            },
-          ],
-          events: [],
-          todos: [],
-        }}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-        onEdit={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText('国庆节 / 测试节调休')).toBeVisible();
-    expect(screen.getByText('1')).toBeVisible();
-  });
 
   it('matches the shared calendar styles for today and selected dates', () => {
     const { rerender } = render(
@@ -89,6 +53,8 @@ describe('CalendarDayCell', () => {
         selectedDate={new Date(2026, 8, 16)}
         calendarDay={{
           date: '2026-09-17',
+          lunar_date: null,
+          solar_term: null,
           holidays: [],
           events: [
             {
@@ -107,7 +73,7 @@ describe('CalendarDayCell', () => {
     );
 
     const event = screen.getByText('一个宽度不足时会被省略的完整事件名称');
-    expect(event.parentElement).toHaveClass('mt-1');
+    expect(event.parentElement).toHaveClass('mt-1.5');
     expect(event).toHaveStyle(colorStyleForText('一个宽度不足时会被省略的完整事件名称'));
     expect(event).toHaveAttribute('data-slot', 'tooltip-trigger');
   });

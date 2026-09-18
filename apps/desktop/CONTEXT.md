@@ -73,8 +73,16 @@ The stable UUID v7 identity used by desktop domain entities and every relationsh
 _Avoid_: database ID, numeric ID, row ID
 
 **Calendar Day**:
-The aggregate of all calendar information attached to one local civil date, including Holiday Annotations, Calendar Events, and Calendar Todos.
+The aggregate of all calendar information attached to one local civil date, including its Lunar Date, Solar Term, Holiday Annotations, Calendar Events, and Calendar Todos.
 _Avoid_: date cell, day item
+
+**Lunar Date**:
+The Chinese lunar calendar date corresponding to a Calendar Day, including its lunar year, month, day, and leap-month status.
+_Avoid_: lunar label, Chinese date string
+
+**Solar Term**:
+One of the twenty-four named seasonal markers when it occurs on a Calendar Day.
+_Avoid_: lunar holiday, seasonal event
 
 **Holiday Annotation**:
 A normalized holiday or adjusted-workday fact shown on a Calendar Day, retaining its source and semantic day type.

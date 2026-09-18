@@ -1,6 +1,7 @@
 mod cache;
 mod events;
 mod holiday_cn;
+mod lunar;
 mod model;
 mod service;
 mod source;

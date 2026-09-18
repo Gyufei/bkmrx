@@ -17,9 +17,9 @@ pub enum CalendarContribution {
         date: String,
         annotation: HolidayAnnotation,
     },
-    Event {
+    Events {
         date: String,
-        event: CalendarEventSummary,
+        events: Vec<CalendarEventSummary>,
     },
     Todo {
         date: String,
@@ -30,7 +30,9 @@ pub enum CalendarContribution {
 impl CalendarContribution {
     pub(crate) fn date(&self) -> &str {
         match self {
-            Self::Holiday { date, .. } | Self::Event { date, .. } | Self::Todo { date, .. } => date,
+            Self::Holiday { date, .. } | Self::Events { date, .. } | Self::Todo { date, .. } => {
+                date
+            }
         }
     }
 }

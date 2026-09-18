@@ -59,6 +59,14 @@ impl CalendarEventStore {
                 "Calendar event date range must be ordered",
             ));
         }
+        self.list_by_range(start, end)
+    }
+
+    fn list_by_range(
+        &self,
+        start: chrono::NaiveDate,
+        end: chrono::NaiveDate,
+    ) -> AppResult<Vec<CalendarEvent>> {
         self.database.read(|connection| {
             let mut statement = connection.prepare(
                 "SELECT id,title,event_date,event_type,created_at,updated_at FROM calendar_events WHERE event_date BETWEEN ?1 AND ?2 ORDER BY event_date,id"
@@ -117,25 +125,27 @@ impl CalendarSource for CalendarEventStore {
 
     fn load<'a>(&'a self, range: CalendarRange) -> SourceFuture<'a> {
         Box::pin(async move {
-            self.list(
-                &format_local_date(range.start()),
-                &format_local_date(range.end()),
-            )
-            .map(|events| {
-                events
-                    .into_iter()
-                    .map(|event| CalendarContribution::Event {
-                        date: event.date,
-                        event: CalendarEventSummary {
-                            id: event.id.to_string(),
-                            title: event.title,
-                            event_type: event.event_type,
-                            source: "local".into(),
-                        },
-                    })
-                    .collect()
-            })
-            .map_err(|error| error.to_string())
+            self.list_by_range(range.start(), range.end())
+                .map(|events| {
+                    let mut by_date: std::collections::BTreeMap<String, Vec<CalendarEventSummary>> =
+                        std::collections::BTreeMap::new();
+                    for event in events {
+                        by_date
+                            .entry(event.date.clone())
+                            .or_default()
+                            .push(CalendarEventSummary {
+                                id: event.id.to_string(),
+                                title: event.title,
+                                event_type: event.event_type,
+                                source: "local".into(),
+                            });
+                    }
+                    by_date
+                        .into_iter()
+                        .map(|(date, events)| CalendarContribution::Events { date, events })
+                        .collect()
+                })
+                .map_err(|error| error.to_string())
         })
     }
 }

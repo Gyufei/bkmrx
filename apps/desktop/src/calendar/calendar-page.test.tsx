@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import TodoCalendarPage from './TodoCalendarPage';
+import CalendarPage from './calendar-page';
 
 const mocks = vi.hoisted(() => ({
   getCalendarDays: vi.fn(),
@@ -26,12 +26,12 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <TodoCalendarPage />
+      <CalendarPage />
     </QueryClientProvider>,
   );
 }
 
-describe('TodoCalendarPage', () => {
+describe('CalendarPage', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 8, 17, 12));
@@ -67,7 +67,7 @@ describe('TodoCalendarPage', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).not.toBe(currentHeading);
   });
 
-  it('persists a named event for the selected day', async () => {
+  it('creates an event through the dialog', async () => {
     renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: '添加事项' }));
@@ -88,10 +88,12 @@ describe('TodoCalendarPage', () => {
     await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('prefills and updates the event type when editing', async () => {
+  it('edits an existing event through the dialog', async () => {
     mocks.getCalendarDays.mockResolvedValue([
       {
         date: '2026-09-17',
+        lunar_date: null,
+        solar_term: null,
         holidays: [],
         events: [{ id: 'event-1', title: '纪念日', event_type: 'anniversary', source: 'local' }],
         todos: [],

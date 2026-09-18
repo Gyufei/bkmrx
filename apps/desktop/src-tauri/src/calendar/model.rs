@@ -2,13 +2,22 @@
 mod tests {
     use super::{
         CalendarDay, CalendarEventType, CalendarHolidayDayType, CalendarRangeRequest,
-        CalendarTodoDateType,
+        CalendarTodoDateType, LunarDateSummary,
     };
 
     #[test]
     fn serializes_the_calendar_day_contract() {
         let day = CalendarDay {
             date: "2026-10-01".into(),
+            lunar_date: Some(LunarDateSummary {
+                year: 2026,
+                month: 8,
+                day: 21,
+                is_leap_month: false,
+                month_name: "八月".into(),
+                day_name: "廿一".into(),
+            }),
+            solar_term: None,
             holidays: Vec::new(),
             events: Vec::new(),
             todos: Vec::new(),
@@ -18,6 +27,15 @@ mod tests {
             serde_json::to_value(day).unwrap(),
             serde_json::json!({
                 "date": "2026-10-01",
+                "lunar_date": {
+                    "year": 2026,
+                    "month": 8,
+                    "day": 21,
+                    "is_leap_month": false,
+                    "month_name": "八月",
+                    "day_name": "廿一"
+                },
+                "solar_term": null,
                 "holidays": [],
                 "events": [],
                 "todos": []
@@ -186,8 +204,20 @@ pub struct CalendarTodoSummary {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct LunarDateSummary {
+    pub year: i32,
+    pub month: u8,
+    pub day: u8,
+    pub is_leap_month: bool,
+    pub month_name: String,
+    pub day_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct CalendarDay {
     pub date: String,
+    pub lunar_date: Option<LunarDateSummary>,
+    pub solar_term: Option<String>,
     pub holidays: Vec<HolidayAnnotation>,
     pub events: Vec<CalendarEventSummary>,
     pub todos: Vec<CalendarTodoSummary>,

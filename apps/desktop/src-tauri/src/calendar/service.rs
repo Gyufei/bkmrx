@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use crate::error::{AppError, AppResult};
 
 use super::{
-    CalendarContribution, CalendarDay, CalendarRangeRequest, CalendarSource,
-    CalendarSourceRequirement,
+    lunar::annotations_for, CalendarContribution, CalendarDay, CalendarRange, CalendarRangeRequest,
+    CalendarSource, CalendarSourceRequirement,
 };
 
 pub type SharedCalendarService = Arc<CalendarService>;
@@ -20,7 +20,7 @@ impl CalendarService {
 
     pub async fn query(&self, request: CalendarRangeRequest) -> AppResult<Vec<CalendarDay>> {
         let range = request.validate()?;
-        let mut by_date = BTreeMap::<String, CalendarDay>::new();
+        let mut by_date = calendar_days(range);
         for source in &self.sources {
             let contributions = match source.load(range).await {
                 Ok(contributions) => contributions,
@@ -44,22 +44,25 @@ impl CalendarService {
                 },
             };
             for contribution in contributions {
-                let date = contribution.date().to_owned();
-                let entry = by_date.entry(date.clone()).or_insert_with(|| CalendarDay {
-                    date,
-                    holidays: Vec::new(),
-                    events: Vec::new(),
-                    todos: Vec::new(),
-                });
+                let Some(entry) = by_date.get_mut(contribution.date()) else {
+                    log::warn!(
+                        "calendar_source_out_of_range source={} date={}",
+                        source.id(),
+                        contribution.date()
+                    );
+                    continue;
+                };
                 match contribution {
                     CalendarContribution::Holiday { annotation, .. } => {
                         if !entry.holidays.contains(&annotation) {
                             entry.holidays.push(annotation);
                         }
                     }
-                    CalendarContribution::Event { event, .. } => {
-                        if !entry.events.contains(&event) {
-                            entry.events.push(event);
+                    CalendarContribution::Events { events, .. } => {
+                        for event in events {
+                            if !entry.events.contains(&event) {
+                                entry.events.push(event);
+                            }
                         }
                     }
                     CalendarContribution::Todo { todo, .. } => {
@@ -70,13 +73,35 @@ impl CalendarService {
                 }
             }
         }
-        Ok(by_date
-            .into_values()
-            .filter(|day| {
-                !day.holidays.is_empty() || !day.events.is_empty() || !day.todos.is_empty()
-            })
-            .collect())
+        Ok(by_date.into_values().collect())
     }
+}
+
+fn calendar_days(range: CalendarRange) -> BTreeMap<String, CalendarDay> {
+    let mut days = BTreeMap::new();
+    let mut date = range.start();
+    loop {
+        let annotations = annotations_for(date);
+        let key = date.to_string();
+        days.insert(
+            key.clone(),
+            CalendarDay {
+                date: key,
+                lunar_date: annotations.lunar_date,
+                solar_term: annotations.solar_term,
+                holidays: Vec::new(),
+                events: Vec::new(),
+                todos: Vec::new(),
+            },
+        );
+        if date == range.end() {
+            break;
+        }
+        date = date
+            .succ_opt()
+            .expect("validated calendar range always has a next date");
+    }
+    days
 }
 
 #[cfg(test)]
@@ -183,6 +208,35 @@ mod tests {
         assert_eq!(error.code(), "internal_error");
         assert_eq!(error.message, "Required calendar data could not be loaded");
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn returns_every_date_with_lunar_annotations_when_sources_are_empty() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let service = CalendarService::new(vec![Arc::new(FakeSource {
+            id: "empty",
+            requirement: CalendarSourceRequirement::Required,
+            result: Ok(Vec::new()),
+            calls,
+        })]);
+
+        let result = service
+            .query(CalendarRangeRequest {
+                start_date: "2026-04-04".into(),
+                end_date: "2026-04-06".into(),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            result
+                .iter()
+                .map(|day| day.date.as_str())
+                .collect::<Vec<_>>(),
+            vec!["2026-04-04", "2026-04-05", "2026-04-06"]
+        );
+        assert!(result.iter().all(|day| day.lunar_date.is_some()));
+        assert_eq!(result[1].solar_term.as_deref(), Some("清明"));
     }
 
     #[tokio::test]

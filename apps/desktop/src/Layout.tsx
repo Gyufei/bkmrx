@@ -6,7 +6,7 @@ import BookmarkView from './bookmarks/BookmarkView';
 import TodoPage from './todos/TodoPage';
 import RssPage from './rss/RssPage';
 import NavigationPage from './navigation/NavigationPage';
-import TodoCalendarPage from './todos/TodoCalendarPage';
+import CalendarPage from './calendar/calendar-page';
 
 import NavBar, { PATHS, type BookmarkSubpage, type TodoSubpage } from './Navbar';
 
@@ -74,7 +74,7 @@ export default function AppHome() {
       <Activity
         mode={currentPath === PATHS.TODOS && todoSubpage === 'calendar' ? 'visible' : 'hidden'}
       >
-        <TodoCalendarPage />
+        <CalendarPage />
       </Activity>
       <Activity mode={currentPath === PATHS.RSS ? 'visible' : 'hidden'}>
         <RssPage />
