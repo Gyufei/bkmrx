@@ -91,3 +91,11 @@ _Avoid_: calendar event, dated event
 **Calendar Source**:
 A stable string-identified origin that contributes normalized calendar information without exposing its provider-specific retrieval rules to callers.
 _Avoid_: calendar type, holiday provider enum
+
+**Required Calendar Source**:
+A Calendar Source whose failure makes a Calendar Day result incomplete or misleading, such as the user's persisted Calendar Events.
+_Avoid_: authoritative provider, hard dependency
+
+**Optional Calendar Source**:
+A Calendar Source whose information enhances Calendar Days but may be omitted when unavailable, such as Holiday Annotations.
+_Avoid_: best-effort provider, soft dependency

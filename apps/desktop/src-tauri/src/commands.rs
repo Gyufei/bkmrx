@@ -527,8 +527,9 @@ mod calendar_command_tests {
 
     use super::query_calendar_days;
     use crate::calendar::{
-        CalendarDay, CalendarHolidayDayType, CalendarRange, CalendarRangeRequest, CalendarService,
-        CalendarSource, HolidayAnnotation, SourceFuture,
+        CalendarContribution, CalendarHolidayDayType, CalendarRange, CalendarRangeRequest,
+        CalendarService, CalendarSource, CalendarSourceRequirement, HolidayAnnotation,
+        SourceFuture,
     };
 
     struct CommandSource {
@@ -540,19 +541,21 @@ mod calendar_command_tests {
             "command-test"
         }
 
+        fn requirement(&self) -> CalendarSourceRequirement {
+            CalendarSourceRequirement::Required
+        }
+
         fn load<'a>(&'a self, _range: CalendarRange) -> SourceFuture<'a> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             Box::pin(async {
-                Ok(vec![CalendarDay {
+                Ok(vec![CalendarContribution::Holiday {
                     date: "2026-10-01".into(),
-                    holidays: vec![HolidayAnnotation {
+                    annotation: HolidayAnnotation {
                         name: "国庆节".into(),
                         display_name: "国庆节".into(),
                         day_type: CalendarHolidayDayType::DayOff,
                         source: "command-test".into(),
-                    }],
-                    events: Vec::new(),
-                    todos: Vec::new(),
+                    },
                 }])
             })
         }

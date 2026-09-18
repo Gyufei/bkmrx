@@ -12,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    CalendarDay, CalendarEventSummary, CalendarEventType, CalendarRange, CalendarSource,
-    SourceFuture,
+    CalendarContribution, CalendarEventSummary, CalendarEventType, CalendarRange, CalendarSource,
+    CalendarSourceRequirement, SourceFuture,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -110,6 +110,11 @@ impl CalendarSource for CalendarEventStore {
     fn id(&self) -> &str {
         "local-events"
     }
+
+    fn requirement(&self) -> CalendarSourceRequirement {
+        CalendarSourceRequirement::Required
+    }
+
     fn load<'a>(&'a self, range: CalendarRange) -> SourceFuture<'a> {
         Box::pin(async move {
             self.list(
@@ -119,16 +124,14 @@ impl CalendarSource for CalendarEventStore {
             .map(|events| {
                 events
                     .into_iter()
-                    .map(|event| CalendarDay {
+                    .map(|event| CalendarContribution::Event {
                         date: event.date,
-                        holidays: Vec::new(),
-                        events: vec![CalendarEventSummary {
+                        event: CalendarEventSummary {
                             id: event.id.to_string(),
                             title: event.title,
                             event_type: event.event_type,
                             source: "local".into(),
-                        }],
-                        todos: Vec::new(),
+                        },
                     })
                     .collect()
             })
@@ -183,7 +186,10 @@ fn timestamp(value: i64) -> rusqlite::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::{CalendarEventStore, CreateCalendarEvent, UpdateCalendarEvent};
-    use crate::{calendar::CalendarEventType, database::Database};
+    use crate::{
+        calendar::{CalendarEventType, CalendarSource, CalendarSourceRequirement},
+        database::Database,
+    };
     use std::sync::Arc;
 
     #[test]
@@ -237,5 +243,12 @@ mod tests {
             .unwrap_err();
         assert_eq!(invalid_title.code(), "validation_error");
         assert_eq!(invalid_date.code(), "validation_error");
+    }
+
+    #[test]
+    fn is_a_required_calendar_source() {
+        let store = CalendarEventStore::new(Arc::new(Database::open_in_memory().unwrap()));
+
+        assert_eq!(store.requirement(), CalendarSourceRequirement::Required);
     }
 }

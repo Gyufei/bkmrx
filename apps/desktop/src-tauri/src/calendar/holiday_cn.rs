@@ -13,8 +13,8 @@ use serde::Deserialize;
 use crate::safe_http::{get, RequestOptions};
 
 use super::{
-    cache::RawYearCache, CalendarDay, CalendarHolidayDayType, CalendarRange, CalendarSource,
-    HolidayAnnotation, SourceFuture,
+    cache::RawYearCache, CalendarContribution, CalendarHolidayDayType, CalendarRange,
+    CalendarSource, CalendarSourceRequirement, HolidayAnnotation, SourceFuture,
 };
 
 const SOURCE_ID: &str = "holiday-cn";
@@ -112,7 +112,7 @@ impl HolidayCnSource {
         }
     }
 
-    async fn load_range(&self, range: CalendarRange) -> Result<Vec<CalendarDay>, String> {
+    async fn load_range(&self, range: CalendarRange) -> Result<Vec<CalendarContribution>, String> {
         let years = source_years(range);
         let mut annotations = BTreeMap::<String, Vec<HolidayAnnotation>>::new();
         let mut seen = HashSet::new();
@@ -155,11 +155,13 @@ impl HolidayCnSource {
         }
         Ok(annotations
             .into_iter()
-            .map(|(date, holidays)| CalendarDay {
-                date,
-                holidays,
-                events: Vec::new(),
-                todos: Vec::new(),
+            .flat_map(|(date, holidays)| {
+                holidays
+                    .into_iter()
+                    .map(move |annotation| CalendarContribution::Holiday {
+                        date: date.clone(),
+                        annotation,
+                    })
             })
             .collect())
     }
@@ -181,6 +183,10 @@ fn stale_or_error(
 impl CalendarSource for HolidayCnSource {
     fn id(&self) -> &str {
         SOURCE_ID
+    }
+
+    fn requirement(&self) -> CalendarSourceRequirement {
+        CalendarSourceRequirement::Optional
     }
 
     fn load<'a>(&'a self, range: CalendarRange) -> SourceFuture<'a> {
@@ -266,7 +272,10 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{HolidayCnDocumentFetcher, HolidayCnSource};
-    use crate::calendar::{CalendarHolidayDayType, CalendarRangeRequest, CalendarSource};
+    use crate::calendar::{
+        CalendarContribution, CalendarHolidayDayType, CalendarRangeRequest, CalendarSource,
+        CalendarSourceRequirement, HolidayAnnotation,
+    };
 
     #[derive(Default)]
     struct FakeFetcher {
@@ -299,6 +308,16 @@ mod tests {
 
     fn document(year: i32, days: &str) -> String {
         format!(r#"{{"year":{year},"papers":[],"days":[{days}]}}"#)
+    }
+
+    fn annotations(contributions: &[CalendarContribution]) -> Vec<&HolidayAnnotation> {
+        contributions
+            .iter()
+            .filter_map(|contribution| match contribution {
+                CalendarContribution::Holiday { annotation, .. } => Some(annotation),
+                _ => None,
+            })
+            .collect()
     }
 
     #[tokio::test]
@@ -336,11 +355,12 @@ mod tests {
         let days = source.load(range).await.unwrap();
 
         assert_eq!(*fetcher.years.lock().unwrap(), vec![2026, 2027]);
-        assert_eq!(days.len(), 2);
-        assert_eq!(days[0].holidays[0].display_name, "国庆节");
-        assert_eq!(days[1].holidays[0].display_name, "元旦调休");
+        let annotations = annotations(&days);
+        assert_eq!(annotations.len(), 2);
+        assert_eq!(annotations[0].display_name, "国庆节");
+        assert_eq!(annotations[1].display_name, "元旦调休");
         assert_eq!(
-            days[1].holidays[0].day_type,
+            annotations[1].day_type,
             CalendarHolidayDayType::AdjustedWorkday
         );
     }
@@ -370,10 +390,9 @@ mod tests {
 
         let days = source.load(range).await.unwrap();
 
-        assert_eq!(days.len(), 1);
+        let annotations = annotations(&days);
         assert_eq!(
-            days[0]
-                .holidays
+            annotations
                 .iter()
                 .map(|item| item.name.as_str())
                 .collect::<Vec<_>>(),
@@ -411,7 +430,7 @@ mod tests {
 
         let days = source.load(range).await.unwrap();
 
-        assert_eq!(days[0].holidays[0].name, "缓存节日");
+        assert_eq!(annotations(&days)[0].name, "缓存节日");
     }
 
     #[tokio::test]
@@ -450,7 +469,7 @@ mod tests {
 
         let days = source.load(range).await.unwrap();
 
-        assert_eq!(days[0].holidays[0].name, "缓存节日");
+        assert_eq!(annotations(&days)[0].name, "缓存节日");
         assert!(fetcher.years.lock().unwrap().is_empty());
     }
 
@@ -490,5 +509,17 @@ mod tests {
             std::fs::read_to_string(cache_dir.join("2026.json")).unwrap(),
             cached
         );
+    }
+
+    #[test]
+    fn is_an_optional_calendar_source() {
+        let directory = tempdir().unwrap();
+        let source = HolidayCnSource::new(
+            directory.path().into(),
+            Arc::new(FakeFetcher::default()),
+            Duration::from_secs(0),
+        );
+
+        assert_eq!(source.requirement(), CalendarSourceRequirement::Optional);
     }
 }

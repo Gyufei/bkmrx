@@ -1,8 +1,11 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 
-use super::{CalendarDay, CalendarRangeRequest, CalendarSource};
+use super::{
+    CalendarContribution, CalendarDay, CalendarRangeRequest, CalendarSource,
+    CalendarSourceRequirement,
+};
 
 pub type SharedCalendarService = Arc<CalendarService>;
 
@@ -19,28 +22,52 @@ impl CalendarService {
         let range = request.validate()?;
         let mut by_date = BTreeMap::<String, CalendarDay>::new();
         for source in &self.sources {
-            let days = match source.load(range).await {
-                Ok(days) => days,
-                Err(error) => {
-                    log::warn!(
-                        "calendar_source_failed source={} error={error}",
-                        source.id()
-                    );
-                    continue;
-                }
+            let contributions = match source.load(range).await {
+                Ok(contributions) => contributions,
+                Err(error) => match source.requirement() {
+                    CalendarSourceRequirement::Optional => {
+                        log::warn!(
+                            "calendar_source_failed source={} requirement=optional error={error}",
+                            source.id()
+                        );
+                        continue;
+                    }
+                    CalendarSourceRequirement::Required => {
+                        log::error!(
+                            "calendar_source_failed source={} requirement=required error={error}",
+                            source.id()
+                        );
+                        return Err(AppError::internal_error(
+                            "Required calendar data could not be loaded",
+                        ));
+                    }
+                },
             };
-            for day in days {
-                let entry = by_date
-                    .entry(day.date.clone())
-                    .or_insert_with(|| CalendarDay {
-                        date: day.date.clone(),
-                        holidays: Vec::new(),
-                        events: Vec::new(),
-                        todos: Vec::new(),
-                    });
-                entry.holidays.extend(day.holidays);
-                entry.events.extend(day.events);
-                entry.todos.extend(day.todos);
+            for contribution in contributions {
+                let date = contribution.date().to_owned();
+                let entry = by_date.entry(date.clone()).or_insert_with(|| CalendarDay {
+                    date,
+                    holidays: Vec::new(),
+                    events: Vec::new(),
+                    todos: Vec::new(),
+                });
+                match contribution {
+                    CalendarContribution::Holiday { annotation, .. } => {
+                        if !entry.holidays.contains(&annotation) {
+                            entry.holidays.push(annotation);
+                        }
+                    }
+                    CalendarContribution::Event { event, .. } => {
+                        if !entry.events.contains(&event) {
+                            entry.events.push(event);
+                        }
+                    }
+                    CalendarContribution::Todo { todo, .. } => {
+                        if !entry.todos.contains(&todo) {
+                            entry.todos.push(todo);
+                        }
+                    }
+                }
             }
         }
         Ok(by_date
@@ -61,12 +88,14 @@ mod tests {
 
     use super::CalendarService;
     use crate::calendar::{
-        CalendarDay, CalendarRange, CalendarRangeRequest, CalendarSource, SourceFuture,
+        CalendarContribution, CalendarHolidayDayType, CalendarRange, CalendarRangeRequest,
+        CalendarSource, CalendarSourceRequirement, HolidayAnnotation, SourceFuture,
     };
 
     struct FakeSource {
         id: &'static str,
-        result: Result<Vec<CalendarDay>, String>,
+        requirement: CalendarSourceRequirement,
+        result: Result<Vec<CalendarContribution>, String>,
         calls: Arc<AtomicUsize>,
     }
 
@@ -74,33 +103,48 @@ mod tests {
         fn id(&self) -> &str {
             self.id
         }
+
+        fn requirement(&self) -> CalendarSourceRequirement {
+            self.requirement
+        }
+
         fn load<'a>(&'a self, _range: CalendarRange) -> SourceFuture<'a> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             Box::pin(async move { self.result.clone() })
         }
     }
 
-    fn day(date: &str) -> CalendarDay {
-        CalendarDay {
+    fn holiday(date: &str, name: &str) -> CalendarContribution {
+        CalendarContribution::Holiday {
             date: date.into(),
-            holidays: Vec::new(),
-            events: Vec::new(),
-            todos: Vec::new(),
+            annotation: HolidayAnnotation {
+                name: name.into(),
+                display_name: name.into(),
+                day_type: CalendarHolidayDayType::DayOff,
+                source: "test".into(),
+            },
         }
     }
 
     #[tokio::test]
-    async fn isolates_failed_sources_and_omits_empty_days() {
+    async fn degrades_optional_failures_and_aggregates_unique_contributions_by_date() {
         let calls = Arc::new(AtomicUsize::new(0));
+        let annotation = holiday("2026-10-01", "国庆节");
         let service = CalendarService::new(vec![
             Arc::new(FakeSource {
-                id: "failed",
+                id: "optional-failed",
+                requirement: CalendarSourceRequirement::Optional,
                 result: Err("offline".into()),
                 calls: calls.clone(),
             }),
             Arc::new(FakeSource {
                 id: "working",
-                result: Ok(vec![day("2026-10-01")]),
+                requirement: CalendarSourceRequirement::Required,
+                result: Ok(vec![
+                    holiday("2026-10-02", "次日"),
+                    annotation.clone(),
+                    annotation,
+                ]),
                 calls: calls.clone(),
             }),
         ]);
@@ -111,8 +155,34 @@ mod tests {
 
         let result = service.query(request).await.unwrap();
 
-        assert!(result.is_empty());
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].date, "2026-10-01");
+        assert_eq!(result[0].holidays.len(), 1);
+        assert_eq!(result[1].date, "2026-10-02");
         assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn propagates_required_source_failures() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let service = CalendarService::new(vec![Arc::new(FakeSource {
+            id: "required-failed",
+            requirement: CalendarSourceRequirement::Required,
+            result: Err("database unavailable".into()),
+            calls: calls.clone(),
+        })]);
+
+        let error = service
+            .query(CalendarRangeRequest {
+                start_date: "2026-10-01".into(),
+                end_date: "2026-10-02".into(),
+            })
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), "internal_error");
+        assert_eq!(error.message, "Required calendar data could not be loaded");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
@@ -120,6 +190,7 @@ mod tests {
         let calls = Arc::new(AtomicUsize::new(0));
         let service = CalendarService::new(vec![Arc::new(FakeSource {
             id: "working",
+            requirement: CalendarSourceRequirement::Required,
             result: Ok(Vec::new()),
             calls: calls.clone(),
         })]);
