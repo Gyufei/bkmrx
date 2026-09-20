@@ -164,7 +164,7 @@ export function GooeyNav({
   value,
   defaultValue = 0,
   onChange,
-  size = 'sm',
+  size = 'md',
   className,
   ...props
 }: GooeyNavProps) {
@@ -206,7 +206,7 @@ export function GooeyNav({
                 borderBottomRightRadius: open(i + 1) ? corner : 0,
               }}
               className={cn(
-                'bg-sidebar',
+                'bg-muted',
                 isActive ? `${FADE_IN} bg-primary` : FADE_OUT,
               )}
             >

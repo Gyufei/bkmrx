@@ -84,7 +84,7 @@ export default function CalendarPage() {
             nav: 'hidden',
             month_caption: 'hidden',
             today: 'rounded-(--cell-radius) text-primary',
-            day_button: '!mx-auto !size-7 !min-w-0 rounded-full',
+            day_button: '!mx-auto !size-6 !min-w-0 rounded-5',
           }}
         />
         <Button className="mt-4 w-full" onClick={() => editor.openCreate()}>

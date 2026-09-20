@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react';
 import { invokeGetServerStatus } from './lib/invoke';
 import { Button } from './components/ui/button';
-import { Bookmark, ListTodo, Notebook, Rss, Settings } from 'lucide-react';
+import {
+  Bookmark,
+  CalendarDays,
+  ListTodo,
+  MapPinSearch,
+  Notebook,
+  Rss,
+  Settings,
+  SquareCheckBig,
+  StarPlus,
+} from 'lucide-react';
 
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
 import { GooeyNav } from './components/GooeyNav';
@@ -86,18 +96,26 @@ export default function NavBar({
 
         {currentPath === PATHS.BOOKMARKS && (
           <Tabs value={bookmarkSubpage} onValueChange={onBookmarkSubpageChange}>
-            <TabsList>
-              <TabsTrigger value="navigation">导航</TabsTrigger>
-              <TabsTrigger value="bookmarks">书签</TabsTrigger>
+            <TabsList className="h-7 p-0.5">
+              <TabsTrigger className="size-6 p-0" value="navigation" aria-label="Navigation">
+                <MapPinSearch className="size-3.5" />
+              </TabsTrigger>
+              <TabsTrigger className="size-6 p-0" value="bookmarks" aria-label="Bookmarks">
+                <StarPlus className="size-3.5" />
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         )}
 
         {currentPath === PATHS.TODOS && (
           <Tabs value={todoSubpage} onValueChange={onTodoSubpageChange}>
-            <TabsList>
-              <TabsTrigger value="todos">待办</TabsTrigger>
-              <TabsTrigger value="calendar">日历</TabsTrigger>
+            <TabsList className="h-7 p-0.5">
+              <TabsTrigger className="size-6 p-0" value="todos" aria-label="Todos">
+                <SquareCheckBig className="size-3.5" />
+              </TabsTrigger>
+              <TabsTrigger className="size-6 p-0" value="calendar" aria-label="Calendar">
+                <CalendarDays className="size-3.5" />
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         )}
