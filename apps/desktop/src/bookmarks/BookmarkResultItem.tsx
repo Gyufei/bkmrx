@@ -1,4 +1,4 @@
-import { Code, ExternalLink, FolderPlus, Link, Pencil, Star, Trash2 } from 'lucide-react';
+import { Code, ExternalLink, FolderPlus, Link, Pencil, Trash2 } from 'lucide-react';
 import type { BookmarkId } from '@/identity';
 import type { Bookmark } from '@/types';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/context-menu';
 import { toast } from '@/components/ui/toast';
 import { colorStyleForText } from '@/lib/text-color';
+import StarButton from '@/components/StarButton';
 
 export interface BookmarkResultItemProps {
   bookmark: Bookmark;
@@ -95,17 +96,12 @@ function BookmarkRow(props: BookmarkResultItemProps) {
   return (
     <div className="group relative">
       <BookmarkDetails {...props} />
-      <button
-        type="button"
-        disabled={props.starPending}
-        aria-busy={props.starPending}
-        onClick={(event) => toggleStar(event, props)}
-        className={`absolute right-2 top-2 p-1.5 rounded-md transition-colors disabled:cursor-wait disabled:opacity-50 ${bookmark.starred_at ? 'text-amber-500 hover:bg-amber-500/10' : 'text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-amber-500 hover:bg-amber-500/10'}`}
-        title={bookmark.starred_at ? '取消星标' : '添加星标'}
-        aria-label={bookmark.starred_at ? '取消星标' : '添加星标'}
-      >
-        <Star className="h-4 w-4" fill={bookmark.starred_at ? 'currentColor' : 'none'} />
-      </button>
+      <StarButton
+        starred={!!bookmark.starred_at}
+        pending={props.starPending}
+        onToggle={() => handleToggleStar(props)}
+        className="absolute right-2 top-2"
+      />
       <button
         onClick={(event) => {
           event.stopPropagation();
@@ -168,8 +164,7 @@ function BookmarkDetails(props: BookmarkResultItemProps) {
   );
 }
 
-function toggleStar(event: React.MouseEvent<HTMLButtonElement>, props: BookmarkResultItemProps) {
-  event.stopPropagation();
+function handleToggleStar(props: BookmarkResultItemProps) {
   const { bookmark } = props;
   const nextStarred = bookmark.starred_at === null;
   props.onToggleStarred(bookmark, nextStarred);

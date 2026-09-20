@@ -4,6 +4,7 @@ import { Button } from './components/ui/button';
 import { Bookmark, ListTodo, Notebook, Rss, Settings } from 'lucide-react';
 
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
+import { GooeyNav } from './components/GooeyNav';
 
 export enum PATHS {
   BOOKMARKS = 'bookmarks',
@@ -76,26 +77,12 @@ export default function NavBar({
       }
     >
       <div className="flex items-center gap-3">
-        <div className="inline-flex items-center gap-1 rounded-lg bg-sidebar p-1">
-          <Tabs value={currentPath} onValueChange={onCurrentPathChange} orientation="horizontal">
-            <TabsList>
-              {TABS.map((tab) => (
-                <TabsTrigger
-                  key={tab.id}
-                  value={tab.id}
-                  className={`px-3 py-1.5 h-auto transition-all ${
-                    currentPath === tab.id
-                      ? 'bg-white dark:bg-[#3f3f46] text-primary shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground dark:hover:text-foreground'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
+        <GooeyNav
+          items={TABS.map((tab) => ({ label: tab.label, icon: tab.icon }))}
+          value={TABS.findIndex((t) => t.id === currentPath)}
+          onChange={(i) => onCurrentPathChange(TABS[i].id)}
+          size="sm"
+        />
 
         {currentPath === PATHS.BOOKMARKS && (
           <Tabs value={bookmarkSubpage} onValueChange={onBookmarkSubpageChange}>
