@@ -7,6 +7,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
+import { selectedRowClass } from '@/lib/ui';
 import type { TodoTag } from '@/types';
 import type { TodoTagId } from '@/identity';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
@@ -23,10 +24,7 @@ interface TodoSidebarProps {
 }
 
 const tagButtonClass = (selected: boolean) =>
-  cn(
-    'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm',
-    selected ? 'bg-primary/15 font-medium' : 'hover:bg-muted/60',
-  );
+  cn('flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm', selectedRowClass(selected, { fontWeight: true }));
 
 export default function TodoSidebar({
   tags,

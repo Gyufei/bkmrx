@@ -58,10 +58,10 @@ export default function AddFeedDialog({
     },
   });
   const create = useMutation({
-    mutationFn: () =>
+    mutationFn: (target: FeedCandidate) =>
       createFeedApi({
         source_url: sourceUrl,
-        feed_url: selected!.feed_url,
+        feed_url: target.feed_url,
         custom_title: customTitle.trim() || null,
       }),
     onSuccess: () => {
@@ -103,7 +103,7 @@ export default function AddFeedDialog({
           className="min-w-0 flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            if (selected) create.mutate();
+            if (selected) create.mutate(selected);
             else preview.mutate(url.trim());
           }}
         >

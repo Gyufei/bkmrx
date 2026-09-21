@@ -207,7 +207,13 @@ function EntryContent({
             {entry.is_read ? '标为未读' : '标为已读'}
           </Button>
           {entry.link && (
-            <Button variant="outline" size="sm" onClick={() => void open(entry.link!)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (entry.link) void open(entry.link);
+              }}
+            >
               打开原文
             </Button>
           )}

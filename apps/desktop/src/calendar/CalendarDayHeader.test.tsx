@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CalendarHolidayDayType, type CalendarDay } from './calendar.types';
-import CalendarDayHeader from './calendar-day-header';
+import CalendarDayHeader from './CalendarDayHeader';
 
 const date = new Date(2026, 4, 17);
 

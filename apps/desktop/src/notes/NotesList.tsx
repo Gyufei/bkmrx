@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { copyToClipboard } from '@/lib/clipboard';
 import { Button } from '@/components/ui/button';
 import {
   ContextMenu,
@@ -125,9 +126,7 @@ export default function NotesList({
                         <span>系统打开</span>
                       </ContextMenuItem>
                       <ContextMenuItem
-                        onClick={() =>
-                          navigator.clipboard.writeText(file.relative_path).catch(() => {})
-                        }
+                        onClick={() => void copyToClipboard(file.relative_path, '路径已复制')}
                       >
                         <Copy className="h-4 w-4" />
                         <span>复制文件路径</span>
@@ -145,9 +144,7 @@ export default function NotesList({
                       <span>重命名</span>
                     </ContextMenuItem>
                     <ContextMenuItem
-                      onClick={() =>
-                        navigator.clipboard.writeText(file.relative_path).catch(() => {})
-                      }
+                      onClick={() => void copyToClipboard(file.relative_path, '路径已复制')}
                     >
                       <Copy className="h-4 w-4" />
                       <span>复制文件路径</span>

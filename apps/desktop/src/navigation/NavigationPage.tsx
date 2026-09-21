@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { ArrowUpDown, BookOpen, Pencil, Plus } from 'lucide-react';
 import type { NavigationCategory, NavigationSection } from '@/types';
-import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-import { Spinner } from '@/components/ui/spinner';
+import { PageError, PageLoading } from '@/components/PageStatus';
+import PageShell from '@/components/PageShell';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import BookmarkPickerDialog from './BookmarkPickerDialog';
 import NavigationCategoryDialog from './NavigationCategoryDialog';
@@ -32,7 +32,7 @@ export default function NavigationPage() {
   };
 
   return (
-    <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+    <PageShell relative>
       {manageable ? (
         <Button
           variant="outline"
@@ -115,7 +115,7 @@ export default function NavigationPage() {
           if (result.ok) setDeleting(null);
         }}
       />
-    </main>
+    </PageShell>
   );
 }
 
@@ -137,23 +137,9 @@ function NavigationSections({
   onDelete(section: NavigationSection): void;
 }) {
   if (controller.loadState === 'loading')
-    return (
-      <div
-        role="status"
-        className="flex flex-1 items-center justify-center gap-2 text-muted-foreground"
-      >
-        <Spinner />
-        <span>正在加载导航分类…</span>
-      </div>
-    );
+    return <PageLoading text="正在加载导航分类…" className="flex-1" />;
   if (controller.loadState === 'error')
-    return (
-      <div className="flex flex-1 items-center justify-center p-5">
-        <Alert variant="destructive" className="max-w-md text-center">
-          <AlertTitle>加载导航分类失败</AlertTitle>
-        </Alert>
-      </div>
-    );
+    return <PageError title="加载导航分类失败" className="flex-1" />;
   const sections = controller.sections;
   if (sections.length === 0 && !manageable)
     return (

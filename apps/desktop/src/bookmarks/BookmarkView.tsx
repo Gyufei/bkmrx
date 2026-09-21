@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toast';
 import type { BookmarkBaseView } from '@/types';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
+import PageShell from '@/components/PageShell';
 import AddBookmarkDialog from './AddBookmarkDialog';
 import BookmarkSidebar from './BookmarkSidebar';
 import BookmarkWebPreview from './BookmarkWebPreview';
@@ -55,7 +56,7 @@ export default function BookmarkView() {
           randomDrawing={browser.randomDrawing}
         />
       </CollapsibleSidebar>
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <PageShell>
         <header className="shrink-0 border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <SearchBar
@@ -124,7 +125,7 @@ export default function BookmarkView() {
             onInteractionLockChange={setResultListInteractionLocked}
           />
         </div>
-      </main>
+      </PageShell>
       <AddBookmarkDialog open={showAddDialog} onOpenChange={setShowAddDialog} />
       <BookmarkWebPreview
         bookmark={navigation.previewBookmark}

@@ -11,6 +11,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
+import { selectedRowClass } from '@/lib/ui';
 
 interface Props {
   scope: RssEntryScope;
@@ -115,10 +116,7 @@ function FeedItem({
       <ContextMenuTrigger
         render={
           <div
-            className={cn(
-              'flex items-center rounded-md',
-              active ? 'bg-primary/15' : 'hover:bg-accent/60',
-            )}
+            className={cn('flex items-center rounded-md', selectedRowClass(active))}
           />
         }
       >

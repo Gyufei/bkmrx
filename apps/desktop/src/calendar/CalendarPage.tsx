@@ -3,17 +3,17 @@ import { addDays, eachDayOfInterval, format, startOfMonth, startOfWeek } from 'd
 import { zhCN } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
-import CalendarEventDialog from '@/calendar/calendar-event-dialog';
+import CalendarEventDialog from '@/calendar/CalendarEventDialog';
 import { useCalendarDays } from '@/calendar/use-calendar-days';
 import { useCalendarEventEditor } from '@/calendar/use-calendar-event-editor';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
-import { Alert, AlertTitle } from '@/components/ui/alert';
+import PageShell from '@/components/PageShell';
+import { PageError, PageLoading } from '@/components/PageStatus';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-import { Spinner } from '@/components/ui/spinner';
 import { formatLocalDate } from '@/lib/date';
-import CalendarDayCell from './calendar-day-cell';
+import CalendarDayCell from './CalendarDayCell';
 
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -93,7 +93,7 @@ export default function CalendarPage() {
         </Button>
       </CollapsibleSidebar>
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <PageShell>
         <div className="grid shrink-0 grid-cols-7 border-b border-border bg-muted/60">
           {WEEKDAYS.map((weekday) => (
             <div
@@ -105,19 +105,9 @@ export default function CalendarPage() {
           ))}
         </div>
         {calendarDays.isLoading ? (
-          <div
-            role="status"
-            className="flex flex-1 items-center justify-center gap-2 text-muted-foreground"
-          >
-            <Spinner />
-            <span>正在加载日历…</span>
-          </div>
+          <PageLoading text="正在加载日历…" className="flex-1" />
         ) : calendarDays.isError ? (
-          <div className="flex flex-1 items-center justify-center p-5">
-            <Alert variant="destructive" className="max-w-md text-center">
-              <AlertTitle>日历加载失败</AlertTitle>
-            </Alert>
-          </div>
+          <PageError title="日历加载失败" className="flex-1" />
         ) : calendarDays.data?.length === 0 ? (
           <Empty className="flex-1 p-5">
             <EmptyTitle>暂无日历数据</EmptyTitle>
@@ -140,7 +130,7 @@ export default function CalendarPage() {
             ))}
           </div>
         )}
-      </main>
+      </PageShell>
 
       <CalendarEventDialog
         open={editor.dialogOpen}

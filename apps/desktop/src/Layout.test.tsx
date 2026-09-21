@@ -37,7 +37,7 @@ vi.mock('./notes/NotesPanel', () => ({
   default: () => <input aria-label="笔记临时状态" defaultValue="笔记工作区" />,
 }));
 vi.mock('./todos/TodoPage', () => ({ default: () => <div>Todo 工作区</div> }));
-vi.mock('./calendar/calendar-page', () => ({ default: () => <div>日历工作区</div> }));
+vi.mock('./calendar/CalendarPage', () => ({ default: () => <div>日历工作区</div> }));
 vi.mock('./rss/RssPage', () => ({ default: () => <div>RSS 工作区</div> }));
 vi.mock('./settings/SettingsPage', () => ({ default: () => <div>设置工作区</div> }));
 

@@ -11,6 +11,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { toast } from '@/components/ui/toast';
+import { copyToClipboard } from '@/lib/clipboard';
 import { colorStyleForText } from '@/lib/text-color';
 import StarButton from '@/components/StarButton';
 
@@ -58,18 +59,14 @@ function BookmarkContextMenu({
           <FolderPlus />
           <span>添加到导航分类</span>
         </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => {
-            navigator.clipboard.writeText(bookmark.url).catch(() => {});
-          }}
-        >
+        <ContextMenuItem onClick={() => copyToClipboard(bookmark.url, '链接已复制')}>
           <Link />
           <span>复制链接</span>
         </ContextMenuItem>
         <ContextMenuItem
           onClick={() => {
             const text = bookmark.title ? `[${bookmark.title}](${bookmark.url})` : bookmark.url;
-            navigator.clipboard.writeText(text).catch(() => {});
+            void copyToClipboard(text, 'Markdown 已复制');
           }}
         >
           <Code />

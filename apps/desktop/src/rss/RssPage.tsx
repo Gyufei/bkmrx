@@ -3,8 +3,7 @@ import { Rss } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Bookmark, RssEntry, RssFeed } from '@/types';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
-import { Alert, AlertTitle } from '@/components/ui/alert';
-import { Spinner } from '@/components/ui/spinner';
+import { PageError, PageLoading } from '@/components/PageStatus';
 import AddBookmarkDialog from '@/bookmarks/AddBookmarkDialog';
 import EditBookmarkDialog from '@/bookmarks/EditBookmarkDialog';
 import { bookmarkByUrlQueryKey, checkBookmarkApi } from '@/bookmarks/bookmarks.api';
@@ -30,7 +29,7 @@ export default function RssPage() {
   const selectedLink = reader.selected?.link?.trim() || null;
   const bookmark = useQuery({
     queryKey: bookmarkByUrlQueryKey(selectedLink ?? ''),
-    queryFn: () => checkBookmarkApi(selectedLink!),
+    queryFn: () => (selectedLink ? checkBookmarkApi(selectedLink) : null),
     enabled: selectedLink !== null,
     refetchOnWindowFocus: true,
   });
@@ -66,6 +65,12 @@ export default function RssPage() {
     }
   };
 
+  const handleToggleRead = () => {
+    const entry = reader.selected;
+    if (!entry) return;
+    reader.markRead.mutate({ id: entry.id, isRead: !entry.is_read });
+  };
+
   const handleBookmarkCreateError = async (error: unknown, values: { url: string }) => {
     if (!hasErrorCode(error, 'bookmark_url_conflict')) return;
     try {
@@ -95,25 +100,11 @@ export default function RssPage() {
   const initialError = reader.feeds.isError && !reader.feeds.data;
 
   if (initialLoading) {
-    return (
-      <div
-        role="status"
-        className="flex min-h-0 flex-1 items-center justify-center gap-2 text-muted-foreground"
-      >
-        <Spinner />
-        <span>正在加载 RSS…</span>
-      </div>
-    );
+    return <PageLoading text="正在加载 RSS…" className="min-h-0 flex-1" />;
   }
 
   if (initialError) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center p-5">
-        <Alert variant="destructive" className="max-w-md text-center">
-          <AlertTitle>RSS 加载失败</AlertTitle>
-        </Alert>
-      </div>
-    );
+    return <PageError title="RSS 加载失败" className="min-h-0 flex-1" />;
   }
 
   return (
@@ -153,9 +144,7 @@ export default function RssPage() {
             bookmarkState={bookmarkState}
             onToggleImages={() => setHideImages((hidden) => !hidden)}
             onBookmark={handleBookmark}
-            onToggleRead={() =>
-              reader.markRead.mutate({ id: reader.selected!.id, isRead: !reader.selected!.is_read })
-            }
+            onToggleRead={handleToggleRead}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

@@ -1,6 +1,8 @@
 import { Copy, Folder, FolderOpen, Trash2, FolderRoot, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
+import { copyToClipboard } from '@/lib/clipboard';
+
 import {
   ContextMenu,
   ContextMenuContent,
@@ -72,9 +74,7 @@ function FolderRow({
         <ContextMenu>
           <ContextMenuTrigger>{row}</ContextMenuTrigger>
           <ContextMenuContent>
-            <ContextMenuItem
-              onClick={() => navigator.clipboard.writeText(directory.relative_path).catch(() => {})}
-            >
+            <ContextMenuItem onClick={() => void copyToClipboard(directory.relative_path, '路径已复制')}>
               <Copy className="h-4 w-4" />
               <span>复制路径</span>
             </ContextMenuItem>

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import CalendarPage from './calendar-page';
+import CalendarPage from './CalendarPage';
 
 const mocks = vi.hoisted(() => ({
   getCalendarDays: vi.fn(),

@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import type { CalendarDay, CalendarEventSummary } from '@/calendar/calendar.types';
 import { colorStyleForText } from '@/lib/text-color';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import CalendarDayHeader from './calendar-day-header';
+import CalendarDayHeader from './CalendarDayHeader';
 
 interface CalendarDayCellProps {
   date: Date;

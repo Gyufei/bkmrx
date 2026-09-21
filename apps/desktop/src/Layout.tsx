@@ -6,7 +6,7 @@ import BookmarkView from './bookmarks/BookmarkView';
 import TodoPage from './todos/TodoPage';
 import RssPage from './rss/RssPage';
 import NavigationPage from './navigation/NavigationPage';
-import CalendarPage from './calendar/calendar-page';
+import CalendarPage from './calendar/CalendarPage';
 
 import NavBar, { PATHS, type BookmarkSubpage, type TodoSubpage } from './Navbar';
 

@@ -24,7 +24,7 @@ export default function RenameFeedDialog({
   const [title, setTitle] = useState('');
   useEffect(() => setTitle(feed?.custom_title || feed?.title || ''), [feed]);
   const rename = useMutation({
-    mutationFn: () => renameFeedApi(feed!.id, title.trim() || null),
+    mutationFn: (target: RssFeed) => renameFeedApi(target.id, title.trim() || null),
     onSuccess: () => {
       void invalidateRssQueries(client);
       onClose();
@@ -41,7 +41,7 @@ export default function RenameFeedDialog({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            rename.mutate();
+            if (feed) rename.mutate(feed);
           }}
         >
           <FieldGroup>

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { BookmarkId } from '@/identity';
 import type { Bookmark } from '@/types';
+import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
+import { PageError, PageLoading } from '@/components/PageStatus';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
-import { Spinner } from '@/components/ui/spinner';
 import AddBookmarkToNavigationDialog from './AddBookmarkToNavigationDialog';
 import BookmarkResultItem from './BookmarkResultItem';
 import DeleteBkDialog from './DeleteBkDialog';
@@ -34,9 +35,16 @@ interface Props {
 export default function ResultList(props: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const targets = useDialogTargets(props.onInteractionLockChange);
-  useInfiniteScroll(sentinelRef, props);
-  if (props.initialError) return <InitialError message={props.initialError} />;
-  if (props.initialLoading) return <InitialLoading />;
+  useInfiniteScroll({
+    sentinelRef,
+    hasMore: props.hasMore,
+    isFetching: props.isFetchingNextPage,
+    hasError: !!props.nextPageError,
+    onLoadMore: props.onLoadMore,
+  });
+  if (props.initialError)
+    return <PageError title={props.initialError} className="h-48 px-4" />;
+  if (props.initialLoading) return <PageLoading text="加载中..." className="h-48" />;
   if (props.bookmarks.length === 0)
     return (
       <Empty className="h-48">
@@ -44,28 +52,6 @@ export default function ResultList(props: Props) {
       </Empty>
     );
   return <BookmarkResults props={props} targets={targets} sentinelRef={sentinelRef} />;
-}
-
-function useInfiniteScroll(sentinelRef: React.RefObject<HTMLDivElement | null>, props: Props) {
-  const handleIntersect = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      if (
-        entries[0]?.isIntersecting &&
-        props.hasMore &&
-        !props.isFetchingNextPage &&
-        !props.nextPageError
-      )
-        props.onLoadMore();
-    },
-    [props.hasMore, props.isFetchingNextPage, props.nextPageError, props.onLoadMore],
-  );
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(handleIntersect, { rootMargin: '200px' });
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [handleIntersect, sentinelRef]);
 }
 
 function useDialogTargets(onInteractionLockChange: Props['onInteractionLockChange']) {
@@ -131,39 +117,9 @@ function BookmarkResults({
   );
 }
 
-function InitialError({ message }: { message: string }) {
-  return (
-    <div className="flex h-48 items-center justify-center px-4">
-      <Alert variant="destructive" className="max-w-md text-center">
-        <AlertDescription>{message}</AlertDescription>
-      </Alert>
-    </div>
-  );
-}
-
-function InitialLoading() {
-  return (
-    <div
-      role="status"
-      className="flex h-48 items-center justify-center gap-2 text-sm text-muted-foreground"
-    >
-      <Spinner />
-      加载中...
-    </div>
-  );
-}
-
 function PaginationStatus(props: Props) {
   if (props.isFetchingNextPage)
-    return (
-      <div
-        role="status"
-        className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground"
-      >
-        <Spinner />
-        加载中...
-      </div>
-    );
+    return <PageLoading text="加载中..." className="py-4" />;
   if (props.nextPageError)
     return (
       <Alert variant="destructive" className="flex items-center justify-center gap-2 border-0 py-2">

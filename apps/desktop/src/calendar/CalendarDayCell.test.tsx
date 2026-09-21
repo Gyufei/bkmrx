@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CalendarEventType } from '@/calendar/calendar.types';
 import { colorStyleForText } from '@/lib/text-color';
-import CalendarDayCell from './calendar-day-cell';
+import CalendarDayCell from './CalendarDayCell';
 
 describe('CalendarDayCell', () => {
   afterEach(cleanup);

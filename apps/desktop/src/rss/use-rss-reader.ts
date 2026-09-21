@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RssEntry, RssEntryScope } from '@/types';
 import type { RssEntryId } from '@/identity';
@@ -16,6 +16,8 @@ import {
   rssEntriesKey,
   updateRssEntryQueries,
 } from './rss.api';
+
+const AUTO_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
 export function useRssReader() {
   const queryClient = useQueryClient();
@@ -74,7 +76,12 @@ export function useRssReader() {
       if (scope.mode === 'feed' && scope.feed_id === id) setScope({ mode: 'all' });
     },
   });
+  const lastAutoRefreshAtRef = useRef(0);
+  // Activity 会在每次切回面板时重跑挂载 effect，用时间戳限流，避免频繁切 tab 反复触发刷新。
   useEffect(() => {
+    const now = Date.now();
+    if (now - lastAutoRefreshAtRef.current < AUTO_REFRESH_INTERVAL_MS) return;
+    lastAutoRefreshAtRef.current = now;
     refresh.mutate(true);
   }, []);
   useEffect(() => {

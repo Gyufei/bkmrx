@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { CreateTodo, Todo, TodoTag } from '@/types';
+import { toast } from '@/components/ui/toast';
+import { getErrorMessage } from '@/lib/error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { Separator } from '@/components/ui/separator';
-import { Spinner } from '@/components/ui/spinner';
+import { PageError, PageLoading } from '@/components/PageStatus';
+import PageShell from '@/components/PageShell';
 import TodoDialog from './TodoDialog';
 import TodoListItem from './TodoListItem';
 import TodoSidebar from './TodoSidebar';
@@ -44,7 +46,7 @@ export default function TodoPage() {
         }}
         onArchiveDeleteTag={controller.archiveDelete.prepareArchive}
       />
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <PageShell>
         <header className="flex items-center justify-between px-8 py-5">
           <h1 className="text-2xl font-semibold">{controller.selectedTag?.name ?? '所有任务'}</h1>
           <Button
@@ -79,8 +81,8 @@ export default function TodoPage() {
                   due_date: null,
                 });
                 setQuickTitle('');
-              } catch {
-                /* toast handled by mutation */
+              } catch (error) {
+                toast.add({ title: getErrorMessage(error, '创建任务失败'), type: 'error' });
               }
             }}
             placeholder="快速添加任务，按 Enter 提交…"
@@ -103,17 +105,9 @@ export default function TodoPage() {
         <Separator />
         <div className="min-h-0 flex-1 overflow-y-auto px-8 py-4">
           {controller.todos.isLoading ? (
-            <div
-              role="status"
-              className="flex items-center justify-center gap-2 py-10 text-muted-foreground"
-            >
-              <Spinner />
-              正在加载任务…
-            </div>
+            <PageLoading text="正在加载任务…" className="py-10" />
           ) : controller.todos.isError ? (
-            <Alert variant="destructive" className="mx-auto max-w-md text-center">
-              <AlertTitle>任务加载失败</AlertTitle>
-            </Alert>
+            <PageError title="任务加载失败" />
           ) : controller.todos.data?.items.length === 0 ? (
             <Empty className="py-10">
               <EmptyDescription>{controller.emptyText}</EmptyDescription>
@@ -146,7 +140,7 @@ export default function TodoPage() {
           {controller.todos.data?.total ?? 0} 个任务 · {controller.todos.data?.completed ?? 0}{' '}
           个已完成
         </footer>
-      </main>
+      </PageShell>
       <TodoDialog
         open={dialogOpen}
         todo={editing}
@@ -172,8 +166,8 @@ export default function TodoPage() {
           try {
             await controller.renameMutation.mutateAsync({ id: renaming.id, name: renameValue });
             setRenaming(null);
-          } catch {
-            /* toast handled */
+          } catch (error) {
+            toast.add({ title: getErrorMessage(error, '重命名失败'), type: 'error' });
           }
         }}
         onCloseDelete={() => setDeletingTag(null)}
@@ -182,8 +176,8 @@ export default function TodoPage() {
           try {
             await controller.deleteTagMutation.mutateAsync(deletingTag.id);
             setDeletingTag(null);
-          } catch {
-            /* toast handled */
+          } catch (error) {
+            toast.add({ title: getErrorMessage(error, '删除失败'), type: 'error' });
           }
         }}
         onCloseArchive={controller.archiveDelete.closeArchive}

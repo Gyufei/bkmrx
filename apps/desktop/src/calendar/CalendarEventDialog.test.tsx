@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
-import CalendarEventDialog from './calendar-event-dialog';
+import CalendarEventDialog from './CalendarEventDialog';
 import { CalendarEventType } from './calendar.types';
 
 function renderDialog(overrides: Partial<React.ComponentProps<typeof CalendarEventDialog>> = {}) {
