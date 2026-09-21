@@ -22,14 +22,14 @@ impl PreparedTranslationRoute {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct ProviderStatusView {
     pub descriptor: ProviderDescriptor,
     pub configured: bool,
     pub activation: ProviderActivation,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderActivation {
     Inactive,

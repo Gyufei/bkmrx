@@ -2,11 +2,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::identity::BookmarkId;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, thiserror::Error)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, thiserror::Error, specta::Type)]
 #[error("{message}")]
 pub struct AppError {
     pub code: String,
     pub message: String,
+    #[specta(skip)]
     pub details: Option<serde_json::Value>,
 }
 

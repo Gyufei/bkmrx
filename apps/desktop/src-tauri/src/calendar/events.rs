@@ -16,7 +16,7 @@ use super::{
     CalendarSourceRequirement, SourceFuture,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct CalendarEvent {
     pub id: CalendarEventId,
     pub title: String,
@@ -26,7 +26,7 @@ pub struct CalendarEvent {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct CreateCalendarEvent {
     pub title: String,
     pub date: String,
@@ -34,7 +34,7 @@ pub struct CreateCalendarEvent {
     pub event_type: CalendarEventType,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct UpdateCalendarEvent {
     pub title: String,
     pub date: String,

@@ -33,14 +33,14 @@ pub struct RssService {
     settings: Option<crate::settings::SharedSettingsStore>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct RefreshResult {
     pub refreshed: u32,
     pub added: u32,
     pub failed: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct FeedRefreshResult {
     pub feed: RssFeed,
     pub added: u32,

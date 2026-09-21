@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::identity::{TodoId, TodoTagId};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum TodoStatus {
     InProgress,
@@ -32,7 +32,7 @@ impl TodoStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct Todo {
     pub id: TodoId,
     pub title: String,
@@ -47,27 +47,27 @@ pub struct Todo {
     pub completed_at: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct TodoTag {
     pub id: TodoTagId,
     pub name: String,
     pub count: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct TodoQuery {
     pub status: Option<TodoStatus>,
     pub tag_id: Option<TodoTagId>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct TodoList {
     pub items: Vec<Todo>,
     pub total: i64,
     pub completed: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct CreateTodo {
     pub title: String,
     #[serde(default)]
@@ -82,7 +82,7 @@ pub struct CreateTodo {
     pub due_date: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct UpdateTodo {
     pub title: String,
     pub description: String,

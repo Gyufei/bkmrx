@@ -2,13 +2,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::identity::BookmarkId;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct PrepareBookmarkPreviewRequest {
     pub bookmark_id: BookmarkId,
     pub url: String,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BookmarkPreview {
     Web {
@@ -27,7 +27,7 @@ pub enum BookmarkPreview {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct GithubRepositoryPreview {
     pub owner: String,
     pub name: String,
@@ -43,7 +43,7 @@ pub struct GithubRepositoryPreview {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum PreviewFallbackReason {
     EmbeddingDenied,

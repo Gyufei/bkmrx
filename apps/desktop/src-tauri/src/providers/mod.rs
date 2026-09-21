@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, specta::Type)]
 #[serde(transparent)]
 pub struct ProviderId(String);
 
@@ -46,18 +46,20 @@ impl<'de> Deserialize<'de> for ProviderId {
 #[error("Provider ID is invalid")]
 pub struct ProviderIdError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum Capability {
     Translation,
     Ai,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct ProviderDescriptor {
     pub id: ProviderId,
     pub capability: Capability,
+    #[specta(type = String)]
     pub display_name: &'static str,
+    #[specta(type = String)]
     pub description: &'static str,
 }
 

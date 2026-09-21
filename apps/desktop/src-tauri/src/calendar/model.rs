@@ -93,7 +93,7 @@ use crate::{
 
 const MAX_RANGE_DAYS: i64 = 366;
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct CalendarRangeRequest {
     pub start_date: String,
     pub end_date: String,
@@ -135,7 +135,7 @@ impl CalendarRange {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, Hash, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum CalendarHolidayDayType {
     DayOff,
@@ -143,7 +143,7 @@ pub enum CalendarHolidayDayType {
     Observance,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum CalendarEventType {
     Work,
@@ -173,14 +173,14 @@ impl CalendarEventType {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum CalendarTodoDateType {
     Start,
     Due,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Hash, specta::Type)]
 pub struct HolidayAnnotation {
     pub name: String,
     pub display_name: String,
@@ -188,7 +188,7 @@ pub struct HolidayAnnotation {
     pub source: String,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 pub struct CalendarEventSummary {
     pub id: String,
     pub title: String,
@@ -196,14 +196,14 @@ pub struct CalendarEventSummary {
     pub source: String,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 pub struct CalendarTodoSummary {
     pub id: String,
     pub title: String,
     pub date_type: CalendarTodoDateType,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 pub struct LunarDateSummary {
     pub year: i32,
     pub month: u8,
@@ -213,7 +213,7 @@ pub struct LunarDateSummary {
     pub day_name: String,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 pub struct CalendarDay {
     pub date: String,
     pub lunar_date: Option<LunarDateSummary>,

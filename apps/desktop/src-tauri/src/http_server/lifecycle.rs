@@ -25,7 +25,7 @@ impl Default for HttpServerOptions {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum HttpServerPhase {
     Running,
@@ -34,7 +34,7 @@ pub enum HttpServerPhase {
     Stopped,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct ServerStatus {
     pub running: bool,
     pub url: String,

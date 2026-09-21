@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::identity::BookmarkId;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct Bookmark {
     pub id: BookmarkId,
     pub url: String,
@@ -16,20 +16,20 @@ pub struct Bookmark {
     pub starred_at: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct TagSummary {
     pub name: String,
     pub count: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct TagQueryRequest {
     #[serde(default)]
     pub query: String,
     pub limit: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
 pub enum BookmarkPageRequest {
     Browse {
@@ -51,13 +51,13 @@ pub enum BookmarkPageRequest {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct BookmarkPage {
     pub items: Vec<Bookmark>,
     pub next_cursor: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct CreateBookmark {
     pub url: String,
     pub title: String,
@@ -65,7 +65,7 @@ pub struct CreateBookmark {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct UpdateBookmark {
     pub url: Option<String>,
     pub title: Option<String>,
@@ -73,12 +73,12 @@ pub struct UpdateBookmark {
     pub tags: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct BookmarkInitializationStatus {
     pub can_initialize: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct BookmarkInitializationResult {
     pub bookmark_count: usize,
     pub navigation_category_count: usize,

@@ -22,7 +22,7 @@ pub struct ParsedEntry {
     pub fetched_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct FeedCandidate {
     pub title: Option<String>,
     pub feed_url: String,
@@ -30,19 +30,19 @@ pub struct FeedCandidate {
     pub recent_entries: Vec<FeedPreviewEntry>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct FeedPreviewEntry {
     pub title: String,
     pub published_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct FeedPreview {
     pub source_url: String,
     pub candidates: Vec<FeedCandidate>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct RssFeed {
     pub id: RssFeedId,
     pub source_url: String,
@@ -65,7 +65,7 @@ impl RssFeed {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct RssEntry {
     pub id: RssEntryId,
     pub feed_id: RssFeedId,
@@ -80,7 +80,7 @@ pub struct RssEntry {
     pub is_read: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "snake_case", tag = "mode")]
 pub enum EntryQueryScope {
     All,
@@ -88,19 +88,19 @@ pub enum EntryQueryScope {
     Feed { feed_id: RssFeedId },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct EntryPage {
     pub entries: Vec<RssEntry>,
     pub next_cursor: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct EntryPageRequest {
     pub scope: EntryQueryScope,
     pub cursor: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub struct CreateFeed {
     pub source_url: String,
     pub feed_url: String,

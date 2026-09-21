@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-09-21
+
+### Added
+
+- 引入 `tauri-specta` 自动生成 TypeScript 类型绑定，Rust 模型与命令签名在编译时导出为 `bindings.ts`，消除前后端手工维护两套类型的同步负担。
+
+### Changed
+
+- 前端 invoke 层改为消费生成的 `commands` 对象，命令参数与返回类型由 Rust 端单一事实来源驱动。
+
 ## [1.24.1] - 2026-09-20
 
 ### Changed

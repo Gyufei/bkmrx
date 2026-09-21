@@ -1,213 +1,33 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '../bindings';
+import type { CalendarRangeRequest, CreateCalendarEvent, UpdateCalendarEvent } from '../calendar/calendar.types';
+import type { CalendarDay, CalendarEvent } from '../calendar/calendar.types';
 import type {
-  Bookmark,
-  BookmarkPreview,
-  BookmarkPage,
-  BookmarkPageRequest,
-  CreateBookmark,
-  BookmarkInitializationResult,
-  BookmarkInitializationStatus,
-  PrepareBookmarkPreviewRequest,
-  Tag,
-  TagQueryRequest,
-  UpdateBookmark,
-  CreateTodo,
-  Todo,
-  TodoList,
-  TodoQuery,
-  TodoStatus,
-  TodoTag,
-  UpdateTodo,
-  RssFeed,
-  RssEntry,
-  RssEntryPage,
-  RssEntryScope,
-  FeedPreview,
-  FeedRefreshResult,
-  RefreshResult,
-  NavigationCategory,
-  NavigationPlacementCard,
-  NavigationSection,
-} from '../types';
-import type {
-  BookmarkId,
-  NavigationCategoryId,
-  RssEntryId,
-  RssFeedId,
-  TodoId,
-  TodoTagId,
+  BookmarkId, NavigationCategoryId,
+  RssFeedId, RssEntryId,
+  TodoId, TodoTagId,
 } from '../identity';
 import type {
-  CalendarDay,
-  CalendarEvent,
-  CalendarRangeRequest,
-  CreateCalendarEvent,
-  UpdateCalendarEvent,
-} from '../calendar/calendar.types';
+  NavigationCategory, NavigationPlacementCard, NavigationSection,
+  Bookmark, BookmarkPreview, BookmarkPage, BookmarkPageRequest,
+  CreateBookmark, UpdateBookmark, Tag, TagQueryRequest,
+  PrepareBookmarkPreviewRequest,
+  BookmarkInitializationResult, BookmarkInitializationStatus,
+  RssFeed, RssEntry, RssEntryPage, RssEntryScope,
+  FeedPreview, FeedRefreshResult, RefreshResult,
+  Todo, TodoList, TodoQuery, TodoStatus, TodoTag,
+  CreateTodo, UpdateTodo,
+  NotesWorkspaceListing, OpenedNoteDocument, SavedNoteDocument,
+  RenamedNoteDocument, FolderDeletionSummary,
+} from '../types';
 
-/* ───── Calendar ───── */
-
-export function invokeGetCalendarDays(request: CalendarRangeRequest): Promise<CalendarDay[]> {
-  return invoke<CalendarDay[]>('get_calendar_days', { request });
-}
-export const invokeListCalendarEvents = (startDate: string, endDate: string) =>
-  invoke<CalendarEvent[]>('list_calendar_events', { startDate, endDate });
-export const invokeCreateCalendarEvent = (input: CreateCalendarEvent) =>
-  invoke<CalendarEvent>('create_calendar_event', { input });
-export const invokeUpdateCalendarEvent = (id: string, input: UpdateCalendarEvent) =>
-  invoke<CalendarEvent>('update_calendar_event', { id, input });
-export const invokeDeleteCalendarEvent = (id: string) =>
-  invoke<void>('delete_calendar_event', { id });
-
-export const invokeListNavigationSections = () =>
-  invoke<NavigationSection[]>('list_navigation_sections');
-export const invokeCreateNavigationCategory = (name: string) =>
-  invoke<NavigationCategory>('create_navigation_category', { input: { name } });
-export const invokeUpdateNavigationCategory = (id: NavigationCategoryId, name: string) =>
-  invoke<NavigationCategory>('update_navigation_category', { id, input: { name } });
-export const invokeDeleteNavigationCategory = (id: NavigationCategoryId) =>
-  invoke<void>('delete_navigation_category', { id });
-export const invokeReorderNavigationCategories = (categoryIds: NavigationCategoryId[]) =>
-  invoke<void>('reorder_navigation_categories', { input: { category_ids: categoryIds } });
-export const invokeAddNavigationBookmarks = (
-  categoryId: NavigationCategoryId,
-  bookmarkIds: BookmarkId[],
-) =>
-  invoke<NavigationPlacementCard[]>('add_navigation_bookmarks', {
-    categoryId,
-    input: { bookmark_ids: bookmarkIds },
-  });
-export const invokeRemoveNavigationBookmark = (
-  categoryId: NavigationCategoryId,
-  bookmarkId: BookmarkId,
-) => invoke<void>('remove_navigation_bookmark', { categoryId, bookmarkId });
-
-/* ───── Bookmarks ───── */
-
-export function invokeQueryBookmarks(request: BookmarkPageRequest): Promise<BookmarkPage> {
-  return invoke<BookmarkPage>('query_bookmarks', { request });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function unwrap(result: Promise<{ status: 'ok'; data: any } | { status: 'error'; error: unknown }>): Promise<any> {
+  const r = await result;
+  if (r.status === 'error') throw r.error;
+  return r.data;
 }
 
-export function invokeGetTags(request: TagQueryRequest): Promise<Tag[]> {
-  return invoke<Tag[]>('get_tags', { request });
-}
-
-export function invokeCreateBookmark(input: CreateBookmark): Promise<Bookmark> {
-  return invoke<Bookmark>('create_bookmark', { input });
-}
-
-export function invokeUpdateBookmark(id: BookmarkId, input: UpdateBookmark): Promise<Bookmark> {
-  return invoke<Bookmark>('update_bookmark', { id, input });
-}
-
-export function invokeDeleteBookmarks(ids: BookmarkId[]): Promise<number> {
-  return invoke<number>('delete_bookmarks', { ids });
-}
-
-export function invokeGetBookmarkByUrl(url: string): Promise<Bookmark | null> {
-  return invoke<Bookmark | null>('get_bookmark_by_url', { url });
-}
-
-export function invokeRecordBookmarkAccess(id: BookmarkId): Promise<Bookmark> {
-  return invoke<Bookmark>('record_bookmark_access', { id });
-}
-
-export function invokeSetBookmarkStarred(id: BookmarkId, starred: boolean): Promise<Bookmark> {
-  return invoke<Bookmark>('set_bookmark_starred', { id, starred });
-}
-
-export function invokePrepareBookmarkPreview(
-  request: PrepareBookmarkPreviewRequest,
-  forceRefresh = false,
-): Promise<BookmarkPreview> {
-  return invoke<BookmarkPreview>('prepare_bookmark_preview', { request, forceRefresh });
-}
-
-/* ───── RSS ───── */
-
-export const invokePreviewRssFeed = (url: string) =>
-  invoke<FeedPreview>('preview_rss_feed', { url });
-export const invokeCreateRssFeed = (input: {
-  source_url: string;
-  feed_url: string;
-  custom_title: string | null;
-}) => invoke<RssFeed>('create_rss_feed', { input });
-export const invokeListRssFeeds = () => invoke<RssFeed[]>('list_rss_feeds');
-export const invokeListRssEntries = (scope: RssEntryScope, cursor: string | null) =>
-  invoke<RssEntryPage>('list_rss_entries', { request: { scope, cursor } });
-export const invokeRefreshRssFeed = (id: RssFeedId) =>
-  invoke<FeedRefreshResult>('refresh_rss_feed', { id });
-export const invokeRefreshAllRssFeeds = (staleOnly: boolean) =>
-  invoke<RefreshResult>('refresh_all_rss_feeds', { staleOnly });
-export const invokeMarkRssEntryRead = (id: RssEntryId, isRead: boolean) =>
-  invoke<RssEntry>('mark_rss_entry_read', { id, isRead });
-export const invokeRenameRssFeed = (id: RssFeedId, customTitle: string | null) =>
-  invoke<RssFeed>('rename_rss_feed', { id, customTitle });
-export const invokeDeleteRssFeed = (id: RssFeedId) => invoke<void>('delete_rss_feed', { id });
-export const invokeDownloadRssImage = (url: string, referer: string | null, destination: string) =>
-  invoke<void>('download_rss_image', { url, referer, destination });
-
-export function invokeExportBookmarkDataset(path: string): Promise<string> {
-  return invoke<string>('export_bookmark_dataset', { path });
-}
-
-export function invokeGetBookmarkInitializationStatus(): Promise<BookmarkInitializationStatus> {
-  return invoke<BookmarkInitializationStatus>('get_bookmark_initialization_status');
-}
-
-export function invokeInitializeBookmarks(path: string): Promise<BookmarkInitializationResult> {
-  return invoke<BookmarkInitializationResult>('initialize_bookmarks', { path });
-}
-
-/* ───── Todos ───── */
-
-export function invokeQueryTodos(request: TodoQuery): Promise<TodoList> {
-  return invoke<TodoList>('query_todos', { request });
-}
-
-export function invokeGetTodoTags(): Promise<TodoTag[]> {
-  return invoke<TodoTag[]>('get_todo_tags');
-}
-
-export function invokeCreateTodo(input: CreateTodo): Promise<Todo> {
-  return invoke<Todo>('create_todo', { input });
-}
-
-export function invokeUpdateTodo(id: TodoId, input: UpdateTodo): Promise<Todo> {
-  return invoke<Todo>('update_todo', { id, input });
-}
-
-export function invokeSetTodoStatus(id: TodoId, status: TodoStatus): Promise<Todo> {
-  return invoke<Todo>('set_todo_status', { id, status });
-}
-
-export function invokeDeleteTodo(id: TodoId): Promise<void> {
-  return invoke('delete_todo', { id });
-}
-
-export function invokeRenameTodoTag(id: TodoTagId, name: string): Promise<TodoTag> {
-  return invoke<TodoTag>('rename_todo_tag', { id, name });
-}
-
-export function invokeDeleteTodoTag(id: TodoTagId): Promise<void> {
-  return invoke('delete_todo_tag', { id });
-}
-
-export function invokeArchiveDeleteTodoTag(id: TodoTagId): Promise<void> {
-  return invoke('archive_delete_todo_tag', { id });
-}
-
-export function invokeExportTodos(path: string, tagId: TodoTagId): Promise<string> {
-  return invoke<string>('export_todos', { path, tagId });
-}
-
-/* ───── Server ───── */
-
-export function invokeGetServerStatus(): Promise<{ running: boolean; url: string }> {
-  return invoke<{ running: boolean; url: string }>('get_server_status');
-}
-
-/* ───── Settings ───── */
+/* ───── Types (re-exported for consumers) ───── */
 
 export interface AppSettings {
   schema_version: number;
@@ -255,38 +75,6 @@ export interface SettingsSnapshot {
   providers: ProviderStatus[];
 }
 
-export function invokeGetSettings(): Promise<SettingsSnapshot> {
-  return invoke<SettingsSnapshot>('get_settings');
-}
-
-export function invokeUpdateSettings(
-  expectedRevision: number,
-  settings: AppSettings,
-): Promise<SettingsSnapshot> {
-  return invoke<SettingsSnapshot>('update_settings', { expectedRevision, settings });
-}
-
-export function invokeActivateProvider(
-  expectedRevision: number,
-  capability: ProviderStatus['descriptor']['capability'],
-  providerId: string,
-): Promise<SettingsSnapshot> {
-  return invoke<SettingsSnapshot>('activate_provider', {
-    expectedRevision,
-    capability,
-    providerId,
-  });
-}
-
-export function invokeDeactivateProvider(
-  expectedRevision: number,
-  capability: ProviderStatus['descriptor']['capability'],
-): Promise<SettingsSnapshot> {
-  return invoke<SettingsSnapshot>('deactivate_provider', { expectedRevision, capability });
-}
-
-/* ───── System ───── */
-
 export interface SystemInfo {
   app_data_dir: string;
   sqlite_db_path: string;
@@ -295,44 +83,239 @@ export interface SystemInfo {
   app_version: string;
 }
 
+/* ───── Calendar ───── */
+
+export function invokeGetCalendarDays(request: CalendarRangeRequest): Promise<CalendarDay[]> {
+  return unwrap(commands.getCalendarDays(request as any));
+}
+export const invokeListCalendarEvents = (startDate: string, endDate: string): Promise<CalendarEvent[]> =>
+  unwrap(commands.listCalendarEvents(startDate, endDate));
+export const invokeCreateCalendarEvent = (input: CreateCalendarEvent): Promise<CalendarEvent> =>
+  unwrap(commands.createCalendarEvent(input as any));
+export const invokeUpdateCalendarEvent = (id: string, input: UpdateCalendarEvent): Promise<CalendarEvent> =>
+  unwrap(commands.updateCalendarEvent(id, input as any));
+export const invokeDeleteCalendarEvent = (id: string): Promise<void> =>
+  unwrap(commands.deleteCalendarEvent(id));
+
+/* ───── Navigation ───── */
+
+export const invokeListNavigationSections = (): Promise<NavigationSection[]> =>
+  unwrap(commands.listNavigationSections());
+export const invokeCreateNavigationCategory = (name: string): Promise<NavigationCategory> =>
+  unwrap(commands.createNavigationCategory({ name } as any));
+export const invokeUpdateNavigationCategory = (id: NavigationCategoryId, name: string): Promise<NavigationCategory> =>
+  unwrap(commands.updateNavigationCategory(id, { name } as any));
+export const invokeDeleteNavigationCategory = (id: NavigationCategoryId): Promise<void> =>
+  unwrap(commands.deleteNavigationCategory(id));
+export const invokeReorderNavigationCategories = (categoryIds: NavigationCategoryId[]): Promise<void> =>
+  unwrap(commands.reorderNavigationCategories({ category_ids: categoryIds } as any));
+export const invokeAddNavigationBookmarks = (
+  categoryId: NavigationCategoryId,
+  bookmarkIds: BookmarkId[],
+): Promise<NavigationPlacementCard[]> =>
+  unwrap(commands.addNavigationBookmarks(categoryId, { bookmark_ids: bookmarkIds } as any));
+export const invokeRemoveNavigationBookmark = (
+  categoryId: NavigationCategoryId,
+  bookmarkId: BookmarkId,
+): Promise<void> =>
+  unwrap(commands.removeNavigationBookmark(categoryId, bookmarkId));
+
+/* ───── Bookmarks ───── */
+
+export function invokeQueryBookmarks(request: BookmarkPageRequest): Promise<BookmarkPage> {
+  return unwrap(commands.queryBookmarks(request as any));
+}
+
+export function invokeGetTags(request: TagQueryRequest): Promise<Tag[]> {
+  return unwrap(commands.getTags(request as any));
+}
+
+export function invokeCreateBookmark(input: CreateBookmark): Promise<Bookmark> {
+  return unwrap(commands.createBookmark(input as any));
+}
+
+export function invokeUpdateBookmark(id: BookmarkId, input: UpdateBookmark): Promise<Bookmark> {
+  return unwrap(commands.updateBookmark(id, input as any));
+}
+
+export function invokeDeleteBookmarks(ids: BookmarkId[]): Promise<number> {
+  return unwrap(commands.deleteBookmarks(ids));
+}
+
+export function invokeGetBookmarkByUrl(url: string): Promise<Bookmark | null> {
+  return unwrap(commands.getBookmarkByUrl(url));
+}
+
+export function invokeRecordBookmarkAccess(id: BookmarkId): Promise<Bookmark> {
+  return unwrap(commands.recordBookmarkAccess(id));
+}
+
+export function invokeSetBookmarkStarred(id: BookmarkId, starred: boolean): Promise<Bookmark> {
+  return unwrap(commands.setBookmarkStarred(id, starred));
+}
+
+export function invokePrepareBookmarkPreview(
+  request: PrepareBookmarkPreviewRequest,
+  forceRefresh = false,
+): Promise<BookmarkPreview> {
+  return unwrap(commands.prepareBookmarkPreview(request as any, forceRefresh));
+}
+
+/* ───── RSS ───── */
+
+export const invokePreviewRssFeed = (url: string): Promise<FeedPreview> =>
+  unwrap(commands.previewRssFeed(url));
+export const invokeCreateRssFeed = (input: {
+  source_url: string;
+  feed_url: string;
+  custom_title: string | null;
+}): Promise<RssFeed> =>
+  unwrap(commands.createRssFeed(input as any));
+export const invokeListRssFeeds = (): Promise<RssFeed[]> =>
+  unwrap(commands.listRssFeeds());
+export const invokeListRssEntries = (scope: RssEntryScope, cursor: string | null): Promise<RssEntryPage> =>
+  unwrap(commands.listRssEntries({ scope, cursor } as any));
+export const invokeRefreshRssFeed = (id: RssFeedId): Promise<FeedRefreshResult> =>
+  unwrap(commands.refreshRssFeed(id));
+export const invokeRefreshAllRssFeeds = (staleOnly: boolean): Promise<RefreshResult> =>
+  unwrap(commands.refreshAllRssFeeds(staleOnly));
+export const invokeMarkRssEntryRead = (id: RssEntryId, isRead: boolean): Promise<RssEntry> =>
+  unwrap(commands.markRssEntryRead(id, isRead));
+export const invokeRenameRssFeed = (id: RssFeedId, customTitle: string | null): Promise<RssFeed> =>
+  unwrap(commands.renameRssFeed(id, customTitle));
+export const invokeDeleteRssFeed = (id: RssFeedId): Promise<void> =>
+  unwrap(commands.deleteRssFeed(id));
+export const invokeDownloadRssImage = (url: string, referer: string | null, destination: string): Promise<void> =>
+  unwrap(commands.downloadRssImage(url, referer, destination));
+
+export function invokeExportBookmarkDataset(path: string): Promise<string> {
+  return unwrap(commands.exportBookmarkDataset(path));
+}
+
+export function invokeGetBookmarkInitializationStatus(): Promise<BookmarkInitializationStatus> {
+  return unwrap(commands.getBookmarkInitializationStatus());
+}
+
+export function invokeInitializeBookmarks(path: string): Promise<BookmarkInitializationResult> {
+  return unwrap(commands.initializeBookmarks(path));
+}
+
+/* ───── Todos ───── */
+
+export function invokeQueryTodos(request: TodoQuery): Promise<TodoList> {
+  return unwrap(commands.queryTodos(request as any));
+}
+
+export function invokeGetTodoTags(): Promise<TodoTag[]> {
+  return unwrap(commands.getTodoTags());
+}
+
+export function invokeCreateTodo(input: CreateTodo): Promise<Todo> {
+  return unwrap(commands.createTodo(input as any));
+}
+
+export function invokeUpdateTodo(id: TodoId, input: UpdateTodo): Promise<Todo> {
+  return unwrap(commands.updateTodo(id, input as any));
+}
+
+export function invokeSetTodoStatus(id: TodoId, status: TodoStatus): Promise<Todo> {
+  return unwrap(commands.setTodoStatus(id, status as any));
+}
+
+export function invokeDeleteTodo(id: TodoId): Promise<void> {
+  return unwrap(commands.deleteTodo(id));
+}
+
+export function invokeRenameTodoTag(id: TodoTagId, name: string): Promise<TodoTag> {
+  return unwrap(commands.renameTodoTag(id, name));
+}
+
+export function invokeDeleteTodoTag(id: TodoTagId): Promise<void> {
+  return unwrap(commands.deleteTodoTag(id));
+}
+
+export function invokeArchiveDeleteTodoTag(id: TodoTagId): Promise<void> {
+  return unwrap(commands.archiveDeleteTodoTag(id));
+}
+
+export function invokeExportTodos(path: string, tagId: TodoTagId): Promise<string> {
+  return unwrap(commands.exportTodos(path, tagId));
+}
+
+/* ───── Server ───── */
+
+export function invokeGetServerStatus(): Promise<{ running: boolean; url: string }> {
+  return unwrap(commands.getServerStatus());
+}
+
+/* ───── Settings ───── */
+
+export function invokeGetSettings(): Promise<SettingsSnapshot> {
+  return unwrap(commands.getSettings());
+}
+
+export function invokeUpdateSettings(
+  expectedRevision: number,
+  settings: AppSettings,
+): Promise<SettingsSnapshot> {
+  return unwrap(commands.updateSettings(expectedRevision, settings as any));
+}
+
+export function invokeActivateProvider(
+  expectedRevision: number,
+  capability: ProviderStatus['descriptor']['capability'],
+  providerId: string,
+): Promise<SettingsSnapshot> {
+  return unwrap(commands.activateProvider(expectedRevision, capability as any, providerId));
+}
+
+export function invokeDeactivateProvider(
+  expectedRevision: number,
+  capability: ProviderStatus['descriptor']['capability'],
+): Promise<SettingsSnapshot> {
+  return unwrap(commands.deactivateProvider(expectedRevision, capability as any));
+}
+
+/* ───── System ───── */
+
 export function invokeGetSystemInfo(): Promise<SystemInfo> {
-  return invoke<SystemInfo>('get_system_info');
+  return unwrap(commands.getSystemInfo());
 }
 
 /* ───── Notes ───── */
 
-export function invokeScanNotes(): Promise<import('../types').NotesWorkspaceListing> {
-  return invoke('scan_notes');
+export function invokeScanNotes(): Promise<NotesWorkspaceListing> {
+  return unwrap(commands.scanNotes());
 }
 
 export function invokeOpenNoteDocument(
   revision: number,
   relativePath: string,
-): Promise<import('../types').OpenedNoteDocument> {
-  return invoke('open_note_document', { revision, relativePath });
+): Promise<OpenedNoteDocument> {
+  return unwrap(commands.openNoteDocument(revision, relativePath));
 }
 
 export function invokeOpenExternalNoteFile(revision: number, relativePath: string): Promise<void> {
-  return invoke('open_external_note_file', { revision, relativePath });
+  return unwrap(commands.openExternalNoteFile(revision, relativePath));
 }
 
 export function invokeSaveNoteDocument(
   receipt: string,
   content: string,
-): Promise<import('../types').SavedNoteDocument> {
-  return invoke('save_note_document', { receipt, content });
+): Promise<SavedNoteDocument> {
+  return unwrap(commands.saveNoteDocument(receipt, content));
 }
 
 export function invokeRenameNoteDocument(
   receipt: string,
   name: string,
   pendingContent?: string,
-): Promise<import('../types').RenamedNoteDocument> {
-  return invoke('rename_note_document', { receipt, name, pendingContent });
+): Promise<RenamedNoteDocument> {
+  return unwrap(commands.renameNoteDocument(receipt, name, pendingContent ?? null));
 }
 
 export function invokeDeleteNoteDocument(receipt: string): Promise<void> {
-  return invoke('delete_note_document', { receipt });
+  return unwrap(commands.deleteNoteDocument(receipt));
 }
 
 export function invokeCreateNoteFile(
@@ -340,16 +323,16 @@ export function invokeCreateNoteFile(
   directory: string,
   name: string,
 ): Promise<string> {
-  return invoke<string>('create_note_file', { revision, directory, name });
+  return unwrap(commands.createNoteFile(revision, directory, name));
 }
 
 export function invokeDeleteNoteFolder(receipt: string): Promise<void> {
-  return invoke('delete_note_folder', { receipt });
+  return unwrap(commands.deleteNoteFolder(receipt));
 }
 
 export function invokePreflightNoteFolderDeletion(
   revision: number,
   relativePath: string,
-): Promise<import('../types').FolderDeletionSummary> {
-  return invoke('preflight_note_folder_deletion', { revision, relativePath });
+): Promise<FolderDeletionSummary> {
+  return unwrap(commands.preflightNoteFolderDeletion(revision, relativePath));
 }

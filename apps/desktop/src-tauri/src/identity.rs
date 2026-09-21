@@ -24,7 +24,8 @@ fn parse_uuid_v7(value: &str) -> Result<Uuid, EntityIdParseError> {
 
 macro_rules! entity_id {
     ($name:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, specta::Type)]
+        #[specta(transparent)]
         pub struct $name(Uuid);
 
         impl $name {

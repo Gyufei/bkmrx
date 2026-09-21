@@ -17,7 +17,7 @@ use super::{persistence, RssHubSettings, Settings};
 
 pub type SharedSettingsStore = Arc<SettingsStore>;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct SettingsSnapshot {
     pub revision: u64,
     pub settings: Settings,
