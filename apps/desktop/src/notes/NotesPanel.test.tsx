@@ -5,6 +5,51 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, expect, it, vi } from 'vitest';
 
 import NotesPanel from './NotesPanel';
+import type { WorkspaceFile, WorkspaceFileKind } from '../types';
+
+function workspaceFile(
+  name: string,
+  relativePath: string,
+  kind: WorkspaceFileKind,
+): WorkspaceFile {
+  if (kind === 'markdown') {
+    return {
+      name,
+      relative_path: relativePath,
+      kind,
+      capabilities: {
+        primary_interaction: 'edit',
+        can_rename: true,
+        can_delete: true,
+        can_open_with_system: false,
+      },
+    };
+  }
+  if (kind === 'html') {
+    return {
+      name,
+      relative_path: relativePath,
+      kind,
+      capabilities: {
+        primary_interaction: 'view',
+        can_rename: true,
+        can_delete: true,
+        can_open_with_system: true,
+      },
+    };
+  }
+  return {
+    name,
+    relative_path: relativePath,
+    kind,
+    capabilities: {
+      primary_interaction: 'system_open',
+      can_rename: false,
+      can_delete: false,
+      can_open_with_system: true,
+    },
+  };
+}
 
 const renameNoteFileApi = vi.hoisted(() => vi.fn());
 const deleteNoteFileApi = vi.hoisted(() => vi.fn());
@@ -48,13 +93,24 @@ scanNotesDirectoryApi.mockResolvedValue({
     name: 'notes',
     relative_path: '',
     files: [
-      { name: '第一篇笔记.md', relative_path: 'first.md', kind: 'markdown' },
-      { name: '第二篇笔记.md', relative_path: 'second.md', kind: 'markdown' },
-      { name: '长扩展名.markdown', relative_path: 'long.markdown', kind: 'markdown' },
-      { name: 'reference.HTML', relative_path: 'reference.HTML', kind: 'external' },
-      { name: 'data.json', relative_path: 'data.json', kind: 'external' },
-      { name: 'script.mjs', relative_path: 'script.mjs', kind: 'external' },
-      { name: 'component.jsx', relative_path: 'component.jsx', kind: 'external' },
+      workspaceFile('第一篇笔记.md', 'first.md', 'markdown'),
+      workspaceFile('第二篇笔记.md', 'second.md', 'markdown'),
+      workspaceFile('长扩展名.markdown', 'long.markdown', 'markdown'),
+      workspaceFile('reference.HTML', 'reference.HTML', 'html'),
+      workspaceFile('data.json', 'data.json', 'external'),
+      workspaceFile('script.mjs', 'script.mjs', 'external'),
+      workspaceFile('component.jsx', 'component.jsx', 'external'),
+      {
+        name: 'blocked.command',
+        relative_path: 'blocked.command',
+        kind: 'external',
+        capabilities: {
+          primary_interaction: 'unavailable',
+          can_rename: false,
+          can_delete: false,
+          can_open_with_system: false,
+        },
+      },
     ],
     directories: [
       {
@@ -66,12 +122,12 @@ scanNotesDirectoryApi.mockResolvedValue({
       {
         name: '资料',
         relative_path: '资料',
-        files: [{ name: '资料笔记.md', relative_path: '资料/nested.md', kind: 'markdown' }],
+        files: [workspaceFile('资料笔记.md', '资料/nested.md', 'markdown')],
         directories: [
           {
             name: '二级',
             relative_path: '资料/二级',
-            files: [{ name: 'deep.json', relative_path: '资料/二级/deep.json', kind: 'external' }],
+            files: [workspaceFile('deep.json', '资料/二级/deep.json', 'external')],
             directories: [],
           },
         ],
@@ -109,12 +165,22 @@ vi.mock('./NoteEditor', async () => {
   };
 });
 
+vi.mock('./HtmlDocumentViewer', () => ({
+  default: ({ filePath }: { filePath: string }) => (
+    <div data-testid="html-document-viewer" data-file-path={filePath}>
+      HTML 内容
+    </div>
+  ),
+}));
+
 afterEach(() => {
   cleanup();
   localStorage.clear();
   activeDocumentSession.flush.mockClear();
   activeDocumentSession.rename.mockReset();
   activeDocumentSession.delete.mockReset();
+  renameNoteFileApi.mockReset();
+  deleteNoteFileApi.mockReset();
   openExternalNoteFileApi.mockReset();
   scanNotesDirectoryApi.mockClear();
   preflightNoteFolderDeletionApi.mockClear();
@@ -168,7 +234,7 @@ it('shows the real root and only the selected directory direct files', async () 
   );
 
   expect(await screen.findByRole('button', { name: 'notes' })).toBeTruthy();
-  expect(screen.getByPlaceholderText('共 7 个文件')).toBeTruthy();
+  expect(screen.getByPlaceholderText('共 8 个文件')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'reference.HTML' })).toBeTruthy();
   expect(screen.getByRole('button', { name: '空目录' })).toBeTruthy();
 
@@ -177,6 +243,22 @@ it('shows the real root and only the selected directory direct files', async () 
   expect(await screen.findByPlaceholderText('共 1 个文件')).toBeTruthy();
   expect(screen.getByRole('button', { name: '资料笔记.md' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'deep.json' })).toBeNull();
+});
+
+it('opens an HTML document in the same content pane', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: 'reference.HTML' }));
+
+  expect(await screen.findByTestId('html-document-viewer')).toHaveProperty(
+    'dataset.filePath',
+    'reference.HTML',
+  );
+  expect(openExternalNoteFileApi).not.toHaveBeenCalled();
 });
 
 it('keeps the active Markdown document when an external file is clicked', async () => {
@@ -189,11 +271,11 @@ it('keeps the active Markdown document when an external file is clicked', async 
   fireEvent.click(await screen.findByRole('button', { name: '第一篇笔记.md' }));
   await screen.findByTestId('note-editor');
 
-  fireEvent.click(screen.getByRole('button', { name: 'reference.HTML' }));
+  fireEvent.click(screen.getByRole('button', { name: 'data.json' }));
 
   expect(screen.getByTestId('note-editor').getAttribute('data-file-path')).toBe('first.md');
   expect(activeDocumentSession.flush).not.toHaveBeenCalled();
-  await waitFor(() => expect(openExternalNoteFileApi).toHaveBeenCalledWith(1, 'reference.HTML'));
+  await waitFor(() => expect(openExternalNoteFileApi).toHaveBeenCalledWith(1, 'data.json'));
 });
 
 it('reports an external open failure without exposing a path or changing the editor', async () => {
@@ -204,16 +286,16 @@ it('reports an external open failure without exposing a path or changing the edi
     </QueryClientProvider>,
   );
   fireEvent.click(await screen.findByRole('button', { name: '第一篇笔记.md' }));
-  fireEvent.click(screen.getByRole('button', { name: 'reference.HTML' }));
+  fireEvent.click(screen.getByRole('button', { name: 'data.json' }));
 
-  expect(await screen.findByText('无法打开“reference.HTML”：系统没有可用应用')).toBeTruthy();
+  expect(await screen.findByText('无法打开“data.json”：系统没有可用应用')).toBeTruthy();
   expect(screen.queryByRole('button', { name: '重试' })).toBeNull();
   expect(screen.getByTestId('note-editor').getAttribute('data-file-path')).toBe('first.md');
   expect(activeDocumentSession.flush).not.toHaveBeenCalled();
 
-  fireEvent.click(screen.getByRole('button', { name: 'data.json' }));
+  fireEvent.click(screen.getByRole('button', { name: 'script.mjs' }));
   await waitFor(() =>
-    expect(screen.queryByText('无法打开“reference.HTML”：系统没有可用应用')).toBeNull(),
+    expect(screen.queryByText('无法打开“data.json”：系统没有可用应用')).toBeNull(),
   );
 });
 
@@ -224,7 +306,7 @@ it('hides the workspace retry action while an external open error is displayed',
       <NotesPanel />
     </QueryClientProvider>,
   );
-  await screen.findByRole('button', { name: 'reference.HTML' });
+  await screen.findByRole('button', { name: 'data.json' });
 
   scanNotesDirectoryApi.mockRejectedValueOnce(new Error('目录暂时不可读'));
   await queryClient.invalidateQueries({ queryKey: ['notes', '/notes', 1] });
@@ -232,25 +314,82 @@ it('hides the workspace retry action while an external open error is displayed',
   expect(screen.getByRole('button', { name: '重试' })).toBeTruthy();
 
   openExternalNoteFileApi.mockRejectedValueOnce(new Error('系统没有可用应用'));
-  fireEvent.click(screen.getByRole('button', { name: 'reference.HTML' }));
+  fireEvent.click(screen.getByRole('button', { name: 'data.json' }));
 
-  expect(await screen.findByText('无法打开“reference.HTML”：系统没有可用应用')).toBeTruthy();
+  expect(await screen.findByText('无法打开“data.json”：系统没有可用应用')).toBeTruthy();
   expect(screen.queryByRole('button', { name: '重试' })).toBeNull();
 });
 
-it('does not expose Markdown rename or delete actions for external files', async () => {
+it('does not expose document rename or delete actions for external files', async () => {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <NotesPanel />
     </QueryClientProvider>,
   );
-  const externalFile = await screen.findByRole('button', { name: 'reference.HTML' });
+  const externalFile = await screen.findByRole('button', { name: 'data.json' });
 
   fireEvent.contextMenu(externalFile);
 
   expect(await screen.findByRole('menuitem', { name: '复制文件路径' })).toBeTruthy();
   expect(screen.queryByRole('menuitem', { name: '重命名' })).toBeNull();
   expect(screen.queryByRole('menuitem', { name: '删除笔记' })).toBeNull();
+});
+
+it('uses workspace file capabilities for unavailable external files', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  const blocked = await screen.findByRole('button', { name: 'blocked.command' });
+
+  fireEvent.click(blocked);
+  expect(openExternalNoteFileApi).not.toHaveBeenCalled();
+
+  fireEvent.contextMenu(blocked);
+  expect(screen.queryByRole('menuitem', { name: '系统打开' })).toBeNull();
+  expect(screen.queryByRole('menuitem', { name: '重命名' })).toBeNull();
+  expect(screen.queryByRole('menuitem', { name: '删除笔记' })).toBeNull();
+  expect(screen.getByRole('menuitem', { name: '复制文件路径' })).toBeTruthy();
+});
+
+it('exposes document management and system-open actions for HTML documents', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  const html = await screen.findByRole('button', { name: 'reference.HTML' });
+
+  fireEvent.contextMenu(html);
+
+  expect(await screen.findByRole('menuitem', { name: '重命名' })).toBeTruthy();
+  expect(screen.getByRole('menuitem', { name: '系统打开' })).toBeTruthy();
+  expect(screen.getByRole('menuitem', { name: '删除笔记' })).toBeTruthy();
+});
+
+it('preserves the HTML extension when renaming an HTML document', async () => {
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <NotesPanel />
+    </QueryClientProvider>,
+  );
+  const html = await screen.findByRole('button', { name: 'reference.HTML' });
+
+  fireEvent.contextMenu(html);
+  fireEvent.click(await screen.findByText('重命名'));
+  fireEvent.change(screen.getByLabelText('文件名'), { target: { value: 'visual' } });
+  fireEvent.click(screen.getByRole('button', { name: '确定' }));
+
+  await waitFor(() =>
+    expect(renameNoteFileApi).toHaveBeenCalledWith({
+      revision: 1,
+      relativePath: 'reference.HTML',
+      name: 'visual.HTML',
+    }),
+  );
 });
 
 it('falls back from a missing selected directory to its nearest existing parent', async () => {
@@ -278,7 +417,7 @@ it('searches complete direct filenames while keeping extensions hidden', async (
   expect(externalFile.textContent).not.toContain('.HTML');
   expect(externalFile.querySelector('[data-file-kind="html"]')).not.toBeNull();
 
-  fireEvent.change(screen.getByPlaceholderText('共 7 个文件'), { target: { value: 'html' } });
+  fireEvent.change(screen.getByPlaceholderText('共 8 个文件'), { target: { value: 'html' } });
 
   expect(screen.getByRole('button', { name: 'reference.HTML' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: '第一篇笔记.md' })).toBeNull();

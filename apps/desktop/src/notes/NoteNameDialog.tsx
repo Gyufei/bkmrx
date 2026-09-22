@@ -67,7 +67,7 @@ export default function NoteNameDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{note ? '重命名笔记' : '新建笔记'}</DialogTitle>
+          <DialogTitle>{note ? '重命名文档' : '新建笔记'}</DialogTitle>
         </DialogHeader>
         <FieldGroup className="py-2">
           <Field data-invalid={Boolean(displayedError) || undefined}>
@@ -89,7 +89,7 @@ export default function NoteNameDialog({
                 event.preventDefault();
                 void handleSubmit();
               }}
-              placeholder="输入文件名（无需 .md）"
+              placeholder={`输入文件名（无需 ${note?.kind === 'html' ? '.html' : '.md'}）`}
               aria-invalid={Boolean(displayedError)}
               autoFocus
             />

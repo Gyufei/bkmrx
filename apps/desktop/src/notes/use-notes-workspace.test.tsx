@@ -56,7 +56,19 @@ const root: WorkspaceDirectory = {
   name: 'notes',
   relative_path: '',
   directories: [],
-  files: [{ name: 'first.md', relative_path: 'first.md', kind: 'markdown' }],
+  files: [
+    {
+      name: 'first.md',
+      relative_path: 'first.md',
+      kind: 'markdown',
+      capabilities: {
+        primary_interaction: 'edit',
+        can_rename: true,
+        can_delete: true,
+        can_open_with_system: false,
+      },
+    },
+  ],
 };
 
 function createWrapper(queryClient: QueryClient) {
@@ -68,7 +80,20 @@ function createWrapper(queryClient: QueryClient) {
 it('reloads the complete workspace once for a matching structural event', async () => {
   const updatedRoot = {
     ...root,
-    files: [...root.files, { name: 'page.html', relative_path: 'page.html', kind: 'external' }],
+    files: [
+      ...root.files,
+      {
+        name: 'page.json',
+        relative_path: 'page.json',
+        kind: 'external',
+        capabilities: {
+          primary_interaction: 'system_open',
+          can_rename: false,
+          can_delete: false,
+          can_open_with_system: true,
+        },
+      },
+    ],
   } satisfies WorkspaceDirectory;
   scanNotesDirectoryApi
     .mockResolvedValueOnce({ revision: 1, root })

@@ -55,17 +55,15 @@ function renderPreview(onOpenChange = vi.fn()) {
   return { ...result, onOpenChange, container };
 }
 
-it('prepares the preview then renders a sandboxed iframe', async () => {
+it('prepares the preview then renders it in the embedded document runtime', async () => {
   renderPreview();
 
   expect(screen.getByRole('status').textContent).toContain('正在准备预览');
-  const frame = await screen.findByTitle(`预览：${bookmark.title}`);
+  await screen.findByTitle(`预览：${bookmark.title}`);
   expect(mocks.prepare).toHaveBeenCalledWith(
     { bookmark_id: bookmark.id, url: bookmark.url },
     false,
   );
-  expect(frame.getAttribute('src')).toBe(bookmark.url);
-  expect(frame.getAttribute('sandbox')).toBe('allow-scripts allow-forms allow-same-origin');
 });
 
 it('renders GitHub repository information without an iframe', async () => {

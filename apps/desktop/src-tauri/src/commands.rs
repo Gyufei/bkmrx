@@ -454,6 +454,16 @@ pub async fn open_note_document(
 
 #[specta::specta]
 #[tauri::command]
+pub async fn open_html_document(
+    workspace: State<'_, SharedNotesWorkspace>,
+    revision: u64,
+    relative_path: String,
+) -> crate::error::AppResult<crate::notes::OpenedHtmlDocument> {
+    workspace.open_html_document(revision, &relative_path)
+}
+
+#[specta::specta]
+#[tauri::command]
 pub async fn open_external_note_file(
     workspace: State<'_, SharedNotesWorkspace>,
     revision: u64,
@@ -490,6 +500,27 @@ pub async fn delete_note_document(
     receipt: String,
 ) -> crate::error::AppResult<()> {
     workspace.delete_document(&receipt)
+}
+
+#[specta::specta]
+#[tauri::command]
+pub async fn rename_workspace_file(
+    workspace: State<'_, SharedNotesWorkspace>,
+    revision: u64,
+    relative_path: String,
+    name: String,
+) -> crate::error::AppResult<String> {
+    workspace.rename_file(revision, &relative_path, &name)
+}
+
+#[specta::specta]
+#[tauri::command]
+pub async fn delete_workspace_file(
+    workspace: State<'_, SharedNotesWorkspace>,
+    revision: u64,
+    relative_path: String,
+) -> crate::error::AppResult<()> {
+    workspace.delete_file(revision, &relative_path)
 }
 
 #[specta::specta]

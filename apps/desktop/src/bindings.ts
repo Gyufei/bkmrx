@@ -61,10 +61,13 @@ export const commands = {
 	initializeBookmarks: (path: string) => typedError<BookmarkInitializationResult, AppError>(__TAURI_INVOKE("initialize_bookmarks", { path })),
 	scanNotes: () => typedError<NotesWorkspaceListing, AppError>(__TAURI_INVOKE("scan_notes")),
 	openNoteDocument: (revision: number, relativePath: string) => typedError<OpenedDocument, AppError>(__TAURI_INVOKE("open_note_document", { revision, relativePath })),
+	openHtmlDocument: (revision: number, relativePath: string) => typedError<OpenedHtmlDocument, AppError>(__TAURI_INVOKE("open_html_document", { revision, relativePath })),
 	openExternalNoteFile: (revision: number, relativePath: string) => typedError<null, AppError>(__TAURI_INVOKE("open_external_note_file", { revision, relativePath })),
 	saveNoteDocument: (receipt: string, content: string) => typedError<SavedDocument, AppError>(__TAURI_INVOKE("save_note_document", { receipt, content })),
 	renameNoteDocument: (receipt: string, name: string, pendingContent: string | null) => typedError<RenamedDocument, AppError>(__TAURI_INVOKE("rename_note_document", { receipt, name, pendingContent })),
 	deleteNoteDocument: (receipt: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_note_document", { receipt })),
+	renameWorkspaceFile: (revision: number, relativePath: string, name: string) => typedError<string, AppError>(__TAURI_INVOKE("rename_workspace_file", { revision, relativePath, name })),
+	deleteWorkspaceFile: (revision: number, relativePath: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_workspace_file", { revision, relativePath })),
 	createNoteFile: (revision: number, directory: string, name: string) => typedError<string, AppError>(__TAURI_INVOKE("create_note_file", { revision, directory, name })),
 	preflightNoteFolderDeletion: (revision: number, relativePath: string) => typedError<FolderDeletionSummary, AppError>(__TAURI_INVOKE("preflight_note_folder_deletion", { revision, relativePath })),
 	deleteNoteFolder: (receipt: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_note_folder", { receipt })),
@@ -319,6 +322,10 @@ export type OpenedDocument = {
 	receipt: string,
 };
 
+export type OpenedHtmlDocument = {
+	content: string,
+};
+
 export type PathSettings = {
 	bookmark_export_dir?: string | null,
 	todo_export_dir?: string | null,
@@ -544,9 +551,19 @@ export type WorkspaceFile = {
 	name: string,
 	relative_path: string,
 	kind: WorkspaceFileKind,
+	capabilities: WorkspaceFileCapabilities,
 };
 
-export type WorkspaceFileKind = "markdown" | "external";
+export type WorkspaceFileCapabilities = {
+	primary_interaction: WorkspaceFilePrimaryInteraction,
+	can_rename: boolean,
+	can_delete: boolean,
+	can_open_with_system: boolean,
+};
+
+export type WorkspaceFileKind = "markdown" | "html" | "external";
+
+export type WorkspaceFilePrimaryInteraction = "edit" | "view" | "system_open" | "unavailable";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

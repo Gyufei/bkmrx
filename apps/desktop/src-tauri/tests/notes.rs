@@ -9,7 +9,10 @@ use std::os::unix::{fs::symlink, fs::PermissionsExt};
 use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
 use bkmrx_lib::{
-    notes::{NotesWorkspace, WorkspaceFileKind},
+    notes::{
+        NotesWorkspace, WorkspaceFileKind, WorkspaceFileOperation, WorkspaceFilePolicy,
+        WorkspaceFilePrimaryInteraction,
+    },
     providers::ProviderContext,
     settings::SettingsStore,
     translation::{TranslationProviderManager, TranslationRegistry, TranslationRuntime},
@@ -28,6 +31,28 @@ fn workspace(root: &TempDir) -> NotesWorkspace {
     settings.common.paths.notes_dir = Some(root.path().to_string_lossy().into_owned());
     store.replace(1, settings).unwrap();
     NotesWorkspace::new(store, Arc::new(|_| {}))
+}
+
+#[test]
+fn workspace_file_policy_defines_the_kind_by_operation_matrix() {
+    use WorkspaceFileOperation::{Delete, Edit, Rename, SystemOpen, View};
+
+    let cases = [
+        ("note.md", [true, false, false, true, true]),
+        ("visual.HTML", [false, true, true, true, true]),
+        ("data.json", [false, false, true, false, false]),
+        ("installer.command", [false, false, false, false, false]),
+    ];
+    let operations = [Edit, View, SystemOpen, Rename, Delete];
+
+    for (path, expected) in cases {
+        let policy = WorkspaceFilePolicy::for_path(std::path::Path::new(path));
+        assert_eq!(
+            operations.map(|operation| policy.allows(operation)),
+            expected,
+            "unexpected capabilities for {path}"
+        );
+    }
 }
 
 fn workspace_with_recording_opener(
@@ -138,6 +163,27 @@ fn rename_document_saves_pending_content_and_returns_a_new_identity() {
 }
 
 #[test]
+fn document_session_rename_preserves_the_document_kind() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("note.md"), "old").unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+    let opened = workspace.open_document(revision, "note.md").unwrap();
+
+    assert_eq!(
+        workspace
+            .rename_document(&opened.receipt, "note.html", Some("draft"))
+            .unwrap_err()
+            .code(),
+        "workspace_file_operation_not_allowed"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("note.md")).unwrap(),
+        "old"
+    );
+}
+
+#[test]
 fn rename_document_conflict_preserves_external_content_and_original_name() {
     let root = TempDir::new().unwrap();
     std::fs::write(root.path().join("note.md"), "old").unwrap();
@@ -209,15 +255,130 @@ fn list_exposes_a_sorted_workspace_tree() {
         vec![
             ("a.md", &WorkspaceFileKind::Markdown),
             ("draft.MARKDOWN", &WorkspaceFileKind::Markdown),
-            ("Z.HTML", &WorkspaceFileKind::External),
+            ("Z.HTML", &WorkspaceFileKind::Html),
         ]
     );
+    let markdown = &listing.root.files[0].capabilities;
+    assert_eq!(
+        markdown.primary_interaction,
+        WorkspaceFilePrimaryInteraction::Edit
+    );
+    assert!(markdown.can_rename);
+    assert!(markdown.can_delete);
+    assert!(!markdown.can_open_with_system);
+    let html = &listing.root.files[2].capabilities;
+    assert_eq!(
+        html.primary_interaction,
+        WorkspaceFilePrimaryInteraction::View
+    );
+    assert!(html.can_open_with_system);
     assert!(listing.root.directories[0].directories.is_empty());
     assert!(listing.root.directories[0].files.is_empty());
     assert_eq!(listing.root.directories[2].files[0].name, "nested.JSON");
     assert_eq!(
         listing.root.directories[2].files[0].relative_path,
         "Beta/nested.JSON"
+    );
+}
+
+#[test]
+fn workspace_opens_only_visible_html_documents() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(
+        root.path().join("visual.HTM"),
+        "<!doctype html><h1>Visual</h1>",
+    )
+    .unwrap();
+    std::fs::write(root.path().join("data.json"), "{}").unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+
+    assert_eq!(
+        workspace
+            .open_html_document(revision, "visual.HTM")
+            .unwrap()
+            .content,
+        "<!doctype html><h1>Visual</h1>"
+    );
+    assert_eq!(
+        workspace
+            .open_html_document(revision, "data.json")
+            .unwrap_err()
+            .code(),
+        "workspace_file_operation_not_allowed"
+    );
+}
+
+#[test]
+fn document_opening_is_authorized_by_workspace_file_capabilities() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("note.md"), "# Note").unwrap();
+    std::fs::write(root.path().join("visual.html"), "<h1>Visual</h1>").unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+
+    assert_eq!(
+        workspace
+            .open_document(revision, "visual.html")
+            .unwrap_err()
+            .code(),
+        "workspace_file_operation_not_allowed"
+    );
+    assert_eq!(
+        workspace
+            .open_html_document(revision, "note.md")
+            .unwrap_err()
+            .code(),
+        "workspace_file_operation_not_allowed"
+    );
+}
+
+#[test]
+fn document_receipts_are_only_issued_for_markdown_documents() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("visual.html"), "<p>old</p>").unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+
+    assert_eq!(
+        workspace
+            .open_document(revision, "visual.html")
+            .unwrap_err()
+            .code(),
+        "workspace_file_operation_not_allowed"
+    );
+}
+
+#[test]
+fn workspace_manages_non_active_documents_without_a_document_receipt() {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("visual.html"), "<p>visual</p>").unwrap();
+    std::fs::write(root.path().join("note.md"), "# Note").unwrap();
+    std::fs::write(root.path().join("data.json"), "{}").unwrap();
+    let workspace = workspace(&root);
+    let revision = workspace.list().unwrap().revision;
+
+    assert_eq!(
+        workspace
+            .rename_file(revision, "visual.html", "renamed.html")
+            .unwrap(),
+        "renamed.html"
+    );
+    assert_eq!(
+        workspace
+            .rename_file(revision, "renamed.html", "changed.md")
+            .unwrap_err()
+            .code(),
+        "workspace_file_operation_not_allowed"
+    );
+    workspace.delete_file(revision, "note.md").unwrap();
+    assert!(!root.path().join("note.md").exists());
+    assert_eq!(
+        workspace
+            .delete_file(revision, "data.json")
+            .unwrap_err()
+            .code(),
+        "workspace_file_operation_not_allowed"
     );
 }
 
@@ -297,9 +458,15 @@ fn open_external_file_rejects_markdown_directories_and_launchers() {
     let workspace = workspace_with_recording_opener(&root, Arc::clone(&opened));
     let revision = workspace.list().unwrap().revision;
 
+    assert_eq!(
+        workspace
+            .open_external_file(revision, "folder")
+            .unwrap_err()
+            .code(),
+        "external_file_not_allowed"
+    );
     for path in [
         "note.md",
-        "folder",
         "run.app",
         "run.CoMmAnD",
         "run.exe",
@@ -314,7 +481,7 @@ fn open_external_file_rejects_markdown_directories_and_launchers() {
                 .open_external_file(revision, path)
                 .unwrap_err()
                 .code(),
-            "external_file_not_allowed"
+            "workspace_file_operation_not_allowed"
         );
     }
     assert!(opened.lock().unwrap().is_empty());

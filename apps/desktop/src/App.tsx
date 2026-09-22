@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import Layout from './Layout';
 import QueryProvider from '@/lib/query-provider';
 import { Toaster } from '@/components/ui/toast';
+import EmbeddedDocumentContract from '@/embedded-documents/EmbeddedDocumentContract';
 
 export default function App() {
   useEffect(() => {
@@ -14,6 +15,10 @@ export default function App() {
     media.addEventListener('change', updateTheme);
     return () => media.removeEventListener('change', updateTheme);
   }, []);
+
+  if (import.meta.env.VITE_EMBEDDED_RUNTIME_CONTRACT === '1') {
+    return <EmbeddedDocumentContract />;
+  }
 
   return (
     <QueryProvider>

@@ -1,5 +1,8 @@
+mod app_navigation;
+
 use std::sync::Arc;
 
+use app_navigation::is_allowed_app_navigation;
 use bkmrx_lib::{
     bookmarks::{Bookmark, BookmarkEvents, BookmarkStore},
     calendar::{
@@ -11,6 +14,8 @@ use bkmrx_lib::{
     rss::{RssRepository, RssService},
     todos::TodoStore,
 };
+#[cfg(debug_assertions)]
+use tauri::Listener;
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
@@ -32,82 +37,71 @@ impl BookmarkEvents for TauriBookmarkEvents {
     }
 }
 
-fn is_allowed_app_navigation(url: &tauri::Url) -> bool {
-    if url.scheme() == "tauri" && url.host_str() == Some("localhost") {
-        return true;
-    }
-    if matches!(url.scheme(), "http" | "https") && url.host_str() == Some("tauri.localhost") {
-        return true;
-    }
-
-    tauri::is_dev()
-        && url.scheme() == "http"
-        && url.host_str() == Some("localhost")
-        && url.port() == Some(1420)
-}
-
 fn main() {
     let builder = tauri_specta::Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
-        bkmrx_lib::commands::get_calendar_days,
-        bkmrx_lib::commands::list_calendar_events,
-        bkmrx_lib::commands::create_calendar_event,
-        bkmrx_lib::commands::update_calendar_event,
-        bkmrx_lib::commands::delete_calendar_event,
-        bkmrx_lib::commands::list_navigation_sections,
-        bkmrx_lib::commands::create_navigation_category,
-        bkmrx_lib::commands::update_navigation_category,
-        bkmrx_lib::commands::delete_navigation_category,
-        bkmrx_lib::commands::reorder_navigation_categories,
-        bkmrx_lib::commands::add_navigation_bookmarks,
-        bkmrx_lib::commands::remove_navigation_bookmark,
-        bkmrx_lib::commands::query_bookmarks,
-        bkmrx_lib::commands::create_bookmark,
-        bkmrx_lib::commands::update_bookmark,
-        bkmrx_lib::commands::delete_bookmarks,
-        bkmrx_lib::commands::get_bookmark_by_url,
-        bkmrx_lib::commands::get_tags,
-        bkmrx_lib::commands::record_bookmark_access,
-        bkmrx_lib::commands::set_bookmark_starred,
-        bkmrx_lib::commands::prepare_bookmark_preview,
-        bkmrx_lib::commands::preview_rss_feed,
-        bkmrx_lib::commands::create_rss_feed,
-        bkmrx_lib::commands::list_rss_feeds,
-        bkmrx_lib::commands::list_rss_entries,
-        bkmrx_lib::commands::refresh_rss_feed,
-        bkmrx_lib::commands::refresh_all_rss_feeds,
-        bkmrx_lib::commands::mark_rss_entry_read,
-        bkmrx_lib::commands::rename_rss_feed,
-        bkmrx_lib::commands::delete_rss_feed,
-        bkmrx_lib::commands::download_rss_image,
-        bkmrx_lib::commands::query_todos,
-        bkmrx_lib::commands::get_todo_tags,
-        bkmrx_lib::commands::create_todo,
-        bkmrx_lib::commands::update_todo,
-        bkmrx_lib::commands::set_todo_status,
-        bkmrx_lib::commands::delete_todo,
-        bkmrx_lib::commands::rename_todo_tag,
-        bkmrx_lib::commands::delete_todo_tag,
-        bkmrx_lib::commands::archive_delete_todo_tag,
-        bkmrx_lib::commands::export_todos,
-        bkmrx_lib::commands::export_bookmark_dataset,
-        bkmrx_lib::commands::get_bookmark_initialization_status,
-        bkmrx_lib::commands::initialize_bookmarks,
-        bkmrx_lib::commands::scan_notes,
-        bkmrx_lib::commands::open_note_document,
-        bkmrx_lib::commands::open_external_note_file,
-        bkmrx_lib::commands::save_note_document,
-        bkmrx_lib::commands::rename_note_document,
-        bkmrx_lib::commands::delete_note_document,
-        bkmrx_lib::commands::create_note_file,
-        bkmrx_lib::commands::preflight_note_folder_deletion,
-        bkmrx_lib::commands::delete_note_folder,
-        bkmrx_lib::commands::get_settings,
-        bkmrx_lib::commands::update_settings,
-        bkmrx_lib::commands::activate_provider,
-        bkmrx_lib::commands::deactivate_provider,
-        bkmrx_lib::commands::get_server_status,
-        bkmrx_lib::commands::get_system_info,
+            bkmrx_lib::commands::get_calendar_days,
+            bkmrx_lib::commands::list_calendar_events,
+            bkmrx_lib::commands::create_calendar_event,
+            bkmrx_lib::commands::update_calendar_event,
+            bkmrx_lib::commands::delete_calendar_event,
+            bkmrx_lib::commands::list_navigation_sections,
+            bkmrx_lib::commands::create_navigation_category,
+            bkmrx_lib::commands::update_navigation_category,
+            bkmrx_lib::commands::delete_navigation_category,
+            bkmrx_lib::commands::reorder_navigation_categories,
+            bkmrx_lib::commands::add_navigation_bookmarks,
+            bkmrx_lib::commands::remove_navigation_bookmark,
+            bkmrx_lib::commands::query_bookmarks,
+            bkmrx_lib::commands::create_bookmark,
+            bkmrx_lib::commands::update_bookmark,
+            bkmrx_lib::commands::delete_bookmarks,
+            bkmrx_lib::commands::get_bookmark_by_url,
+            bkmrx_lib::commands::get_tags,
+            bkmrx_lib::commands::record_bookmark_access,
+            bkmrx_lib::commands::set_bookmark_starred,
+            bkmrx_lib::commands::prepare_bookmark_preview,
+            bkmrx_lib::commands::preview_rss_feed,
+            bkmrx_lib::commands::create_rss_feed,
+            bkmrx_lib::commands::list_rss_feeds,
+            bkmrx_lib::commands::list_rss_entries,
+            bkmrx_lib::commands::refresh_rss_feed,
+            bkmrx_lib::commands::refresh_all_rss_feeds,
+            bkmrx_lib::commands::mark_rss_entry_read,
+            bkmrx_lib::commands::rename_rss_feed,
+            bkmrx_lib::commands::delete_rss_feed,
+            bkmrx_lib::commands::download_rss_image,
+            bkmrx_lib::commands::query_todos,
+            bkmrx_lib::commands::get_todo_tags,
+            bkmrx_lib::commands::create_todo,
+            bkmrx_lib::commands::update_todo,
+            bkmrx_lib::commands::set_todo_status,
+            bkmrx_lib::commands::delete_todo,
+            bkmrx_lib::commands::rename_todo_tag,
+            bkmrx_lib::commands::delete_todo_tag,
+            bkmrx_lib::commands::archive_delete_todo_tag,
+            bkmrx_lib::commands::export_todos,
+            bkmrx_lib::commands::export_bookmark_dataset,
+            bkmrx_lib::commands::get_bookmark_initialization_status,
+            bkmrx_lib::commands::initialize_bookmarks,
+            bkmrx_lib::commands::scan_notes,
+            bkmrx_lib::commands::open_note_document,
+            bkmrx_lib::commands::open_html_document,
+            bkmrx_lib::commands::open_external_note_file,
+            bkmrx_lib::commands::save_note_document,
+            bkmrx_lib::commands::rename_note_document,
+            bkmrx_lib::commands::delete_note_document,
+            bkmrx_lib::commands::rename_workspace_file,
+            bkmrx_lib::commands::delete_workspace_file,
+            bkmrx_lib::commands::create_note_file,
+            bkmrx_lib::commands::preflight_note_folder_deletion,
+            bkmrx_lib::commands::delete_note_folder,
+            bkmrx_lib::commands::get_settings,
+            bkmrx_lib::commands::update_settings,
+            bkmrx_lib::commands::activate_provider,
+            bkmrx_lib::commands::deactivate_provider,
+            bkmrx_lib::commands::get_server_status,
+            bkmrx_lib::commands::get_system_info,
         ])
         .dangerously_cast_bigints_to_number();
 
@@ -143,6 +137,27 @@ fn main() {
                 std::env::consts::ARCH
             );
             let handle = app.handle().clone();
+            #[cfg(debug_assertions)]
+            if std::env::var_os("BKMRX_EMBEDDED_RUNTIME_CONTRACT").is_some() {
+                let result_handle = handle.clone();
+                app.listen("embedded-runtime-contract-result", move |event| {
+                    let payload = event.payload();
+                    println!("embedded_runtime_contract_result={payload}");
+                    let success = serde_json::from_str::<serde_json::Value>(payload)
+                        .ok()
+                        .and_then(|value| value.get("success").and_then(|value| value.as_bool()))
+                        .unwrap_or(false);
+                    result_handle.exit(if success { 0 } else { 1 });
+                });
+                let timeout_handle = handle.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(15));
+                    eprintln!("embedded_runtime_contract_timeout");
+                    timeout_handle.exit(1);
+                });
+                log::info!("embedded_runtime_contract_started");
+                return Ok(());
+            }
             let app_data_dir = app.path().app_data_dir()?;
             let calendar_cache_dir = app_data_dir.join("calendars/holiday-cn");
             let database = Arc::new(Database::open(app_data_dir.join("bookmarks.db"))?);
@@ -306,28 +321,40 @@ fn install_panic_hook() {
 
 #[cfg(test)]
 mod tests {
-    use super::is_allowed_app_navigation;
+    use super::app_navigation::{classify_app_navigation, AppNavigation};
 
     #[test]
     fn allows_application_urls() {
-        assert!(is_allowed_app_navigation(
-            &"tauri://localhost".parse().unwrap()
-        ));
-        assert!(is_allowed_app_navigation(
-            &"http://tauri.localhost".parse().unwrap()
-        ));
-        assert!(is_allowed_app_navigation(
-            &"https://tauri.localhost/path".parse().unwrap()
-        ));
+        for url in [
+            "tauri://localhost",
+            "http://tauri.localhost",
+            "https://tauri.localhost/path",
+            "http://localhost:1420",
+        ] {
+            assert_eq!(
+                classify_app_navigation(&url.parse().unwrap()),
+                AppNavigation::AppShell
+            );
+        }
     }
 
     #[test]
     fn rejects_external_navigation() {
-        assert!(!is_allowed_app_navigation(
-            &"https://example.com/article".parse().unwrap()
-        ));
-        assert!(!is_allowed_app_navigation(
-            &"file:///tmp/article.html".parse().unwrap()
-        ));
+        for url in ["https://example.com/article", "file:///tmp/article.html"] {
+            assert_eq!(
+                classify_app_navigation(&url.parse().unwrap()),
+                AppNavigation::Denied
+            );
+        }
+    }
+
+    #[test]
+    fn allows_inline_iframe_documents() {
+        for url in ["about:srcdoc", "about:blank"] {
+            assert_eq!(
+                classify_app_navigation(&url.parse().unwrap()),
+                AppNavigation::EmbeddedDocumentBootstrap
+            );
+        }
     }
 }

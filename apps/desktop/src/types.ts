@@ -204,12 +204,21 @@ export interface BookmarkInitializationResult {
   navigation_category_count: number;
 }
 
-export type WorkspaceFileKind = 'markdown' | 'external';
+export type WorkspaceFileKind = 'markdown' | 'html' | 'external';
+export type WorkspaceFilePrimaryInteraction = 'edit' | 'view' | 'system_open' | 'unavailable';
+
+export interface WorkspaceFileCapabilities {
+  primary_interaction: WorkspaceFilePrimaryInteraction;
+  can_rename: boolean;
+  can_delete: boolean;
+  can_open_with_system: boolean;
+}
 
 export interface WorkspaceFile {
   name: string;
   relative_path: string;
   kind: WorkspaceFileKind;
+  capabilities: WorkspaceFileCapabilities;
 }
 
 export interface WorkspaceDirectory {
@@ -238,6 +247,10 @@ export interface FolderDeletionSummary {
 export interface OpenedNoteDocument {
   content: string;
   receipt: string;
+}
+
+export interface OpenedHtmlDocument {
+  content: string;
 }
 
 export interface SavedNoteDocument {

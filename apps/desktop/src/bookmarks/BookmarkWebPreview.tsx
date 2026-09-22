@@ -5,6 +5,7 @@ import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { toast } from '@/components/ui/toast';
+import EmbeddedDocumentFrame from '@/embedded-documents/EmbeddedDocumentFrame';
 import { invokePrepareBookmarkPreview } from '@/lib/invoke';
 import type { Bookmark, BookmarkPreview } from '@/types';
 import GithubRepositoryPreview from './GithubRepositoryPreview';
@@ -153,13 +154,16 @@ export default function BookmarkWebPreview({
             <span>正在加载网页…</span>
           </div>
         )}
-        <iframe
+        <EmbeddedDocumentFrame
           key={`${bookmark.id}-${requestVersion}`}
           title={`预览：${title}`}
-          src={preview.final_url}
-          sandbox="allow-scripts allow-forms allow-same-origin"
+          source={{ kind: 'remote', url: preview.final_url }}
           className="size-full border-0 bg-background"
           onLoad={() => setFrameLoading(false)}
+          onRuntimeError={() => {
+            setFrameLoading(false);
+            setUnexpectedError(true);
+          }}
         />
       </div>
     );

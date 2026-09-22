@@ -7,6 +7,7 @@ import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui
 import { FileText, Settings } from 'lucide-react';
 import type { FolderDeletionSummary, WorkspaceDirectory, WorkspaceFile } from '../types';
 import NoteEditor from './NoteEditor';
+import HtmlDocumentViewer from './HtmlDocumentViewer';
 import NoteNameDialog from './NoteNameDialog';
 import NotesList from './NotesList';
 import NotesSidebar from './NotesSidebar';
@@ -67,6 +68,7 @@ function nearestExistingDirectory(root: WorkspaceDirectory, path: string) {
 export default function NotesPanel() {
   const [selectedFolder, setSelectedFolder] = useState('');
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [selectedFileKind, setSelectedFileKind] = useState<'markdown' | 'html' | null>(null);
   const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
   const [deletingNote, setDeletingNote] = useState<WorkspaceFile | null>(null);
   const [deletingFolder, setDeletingFolder] = useState<DeletingFolder | null>(null);
@@ -159,11 +161,12 @@ export default function NotesPanel() {
     if (nameDialog?.mode === 'rename') {
       const note = nameDialog.note;
       const currentName = note.relative_path.split('/').pop();
-      const currentExtension = currentName?.toLowerCase().endsWith('.markdown')
-        ? '.markdown'
-        : '.md';
-      const withoutMarkdownExtension = name.replace(/\.(?:md|markdown)$/i, '');
-      const fileName = `${withoutMarkdownExtension}${currentExtension}`;
+      const extensionIndex = currentName?.lastIndexOf('.') ?? -1;
+      const currentExtension = extensionIndex > 0 ? currentName!.slice(extensionIndex) : '';
+      const submittedExtensionIndex = name.lastIndexOf('.');
+      const withoutDocumentExtension =
+        submittedExtensionIndex > 0 ? name.slice(0, submittedExtensionIndex) : name;
+      const fileName = `${withoutDocumentExtension}${currentExtension}`;
       if (fileName === currentName) {
         setNameDialog(null);
         return;
@@ -196,6 +199,7 @@ export default function NotesPanel() {
 
     const filePath = await createNote.mutateAsync({ directory: selectedFolder, name });
     setSelectedFilePath(filePath);
+    setSelectedFileKind('markdown');
     setNameDialog(null);
   };
 
@@ -231,6 +235,7 @@ export default function NotesPanel() {
                 setSelectedFolder(path);
                 writeSelectedFolder(notesDir, path);
                 setSelectedFilePath(null);
+                setSelectedFileKind(null);
               });
             }}
             onDeleteFolder={(folder) => {
@@ -250,9 +255,12 @@ export default function NotesPanel() {
           files={selectedDirectory?.files ?? []}
           loading={loading}
           selectedFilePath={selectedFilePath}
-          onSelectMarkdown={(note) => {
+          onSelectDocument={(note) => {
             void leaveActiveDocument(() => {
               setSelectedFilePath(note.relative_path);
+              setSelectedFileKind(
+                note.capabilities.primary_interaction === 'view' ? 'html' : 'markdown',
+              );
             });
           }}
           onOpenExternal={(file) => {
@@ -277,7 +285,7 @@ export default function NotesPanel() {
         />
 
         <div className="flex flex-1 flex-col overflow-hidden bg-background">
-          {selectedFilePath ? (
+          {selectedFilePath && selectedFileKind === 'markdown' ? (
             <NoteEditor
               key={`${workspaceRevision}:${selectedFilePath}`}
               revision={workspaceRevision!}
@@ -285,6 +293,12 @@ export default function NotesPanel() {
               onSessionChange={(session) => {
                 documentSessionRef.current = session;
               }}
+            />
+          ) : selectedFilePath && selectedFileKind === 'html' ? (
+            <HtmlDocumentViewer
+              key={`${workspaceRevision}:${selectedFilePath}`}
+              revision={workspaceRevision!}
+              filePath={selectedFilePath}
             />
           ) : (
             <Empty className="flex-1">
@@ -336,6 +350,7 @@ export default function NotesPanel() {
             setSelectedFilePath((current) =>
               current === deletingNote.relative_path ? null : current,
             );
+            if (selectedFilePath === deletingNote.relative_path) setSelectedFileKind(null);
             setDeletingNote(null);
             if (activeSession) void refreshNotes().catch(() => undefined);
           })().catch(() => undefined)
@@ -379,6 +394,7 @@ export default function NotesPanel() {
               setSelectedFilePath((current) =>
                 current?.startsWith(`${deletedPath}/`) ? null : current,
               );
+              if (selectedFilePath?.startsWith(`${deletedPath}/`)) setSelectedFileKind(null);
               setDeletingFolder(null);
             },
           });

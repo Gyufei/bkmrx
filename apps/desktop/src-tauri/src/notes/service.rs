@@ -9,7 +9,8 @@ use sha2::{Digest, Sha256};
 
 use super::{
     repository, watcher::NoteWatcher, FolderDeletionSummary, NoteEvent, NotesWorkspaceListing,
-    OpenedDocument, RenamedDocument, SavedDocument,
+    OpenedDocument, OpenedHtmlDocument, RenamedDocument, SavedDocument, WorkspaceFileOperation,
+    WorkspaceFilePolicy,
 };
 use crate::{
     error::{AppError, AppResult},
@@ -51,7 +52,8 @@ impl NotesWorkspace {
     }
 
     pub fn open_document(&self, revision: u64, relative_path: &str) -> AppResult<OpenedDocument> {
-        let path = self.authorize_existing(revision, relative_path)?;
+        let path =
+            self.authorize_file_operation(revision, relative_path, WorkspaceFileOperation::Edit)?;
         let content = repository::read(&path.to_string_lossy()).map_err(note_io_error)?;
         Ok(OpenedDocument {
             receipt: encode_receipt(&ReceiptPayload {
@@ -64,14 +66,23 @@ impl NotesWorkspace {
         })
     }
 
+    pub fn open_html_document(
+        &self,
+        revision: u64,
+        relative_path: &str,
+    ) -> AppResult<OpenedHtmlDocument> {
+        let path =
+            self.authorize_file_operation(revision, relative_path, WorkspaceFileOperation::View)?;
+        let content = repository::read(&path.to_string_lossy()).map_err(note_io_error)?;
+        Ok(OpenedHtmlDocument { content })
+    }
+
     pub fn open_external_file(&self, revision: u64, relative_path: &str) -> AppResult<()> {
-        validate_relative_path(relative_path)?;
-        let (_, root) = self.root_at(revision)?;
-        let candidate = authorize_visible_workspace_file(&root, relative_path)?;
-        let path = candidate.canonicalize().map_err(note_io_error)?;
-        if !path.starts_with(&root) || is_markdown(&path) || is_blocked_launcher(&path) {
-            return Err(external_file_not_allowed());
-        }
+        let path = self.authorize_file_operation(
+            revision,
+            relative_path,
+            WorkspaceFileOperation::SystemOpen,
+        )?;
         (self.external_file_opener)(&path).map_err(|_| {
             AppError::note_error(
                 "external_file_open_failed",
@@ -83,6 +94,9 @@ impl NotesWorkspace {
     pub fn save_document(&self, receipt: &str, content: &str) -> AppResult<SavedDocument> {
         let receipt = decode_receipt(receipt)?;
         let (path, current) = self.authorize_receipt(&receipt)?;
+        if !WorkspaceFilePolicy::for_path(&path).allows(WorkspaceFileOperation::Edit) {
+            return Err(workspace_file_operation_not_allowed());
+        }
         if !repository::write_if_unchanged(&path.to_string_lossy(), current.as_bytes(), content)
             .map_err(note_io_error)?
         {
@@ -105,7 +119,16 @@ impl NotesWorkspace {
         validate_note_name(name)?;
         let mut receipt = decode_receipt(receipt)?;
         let (old_path, current) = self.authorize_receipt(&receipt)?;
+        let policy = WorkspaceFilePolicy::for_path(&old_path);
+        if !policy.allows(WorkspaceFileOperation::Rename)
+            || pending_content.is_some() && !policy.allows(WorkspaceFileOperation::Edit)
+        {
+            return Err(workspace_file_operation_not_allowed());
+        }
         let new_path = old_path.parent().ok_or_else(path_outside_root)?.join(name);
+        if WorkspaceFilePolicy::for_path(&new_path).kind() != policy.kind() {
+            return Err(workspace_file_operation_not_allowed());
+        }
         repository::ensure_rename_target_available(&new_path.to_string_lossy())
             .map_err(note_io_error)?;
         let content = pending_content.unwrap_or(&current);
@@ -133,6 +156,33 @@ impl NotesWorkspace {
     pub fn delete_document(&self, receipt: &str) -> AppResult<()> {
         let receipt = decode_receipt(receipt)?;
         let (path, _) = self.authorize_receipt(&receipt)?;
+        if !WorkspaceFilePolicy::for_path(&path).allows(WorkspaceFileOperation::Delete) {
+            return Err(workspace_file_operation_not_allowed());
+        }
+        repository::delete(&path.to_string_lossy()).map_err(note_io_error)
+    }
+
+    pub fn rename_file(&self, revision: u64, relative_path: &str, name: &str) -> AppResult<String> {
+        validate_note_name(name)?;
+        let old_path =
+            self.authorize_file_operation(revision, relative_path, WorkspaceFileOperation::Rename)?;
+        let new_path = old_path.parent().ok_or_else(path_outside_root)?.join(name);
+        if WorkspaceFilePolicy::for_path(&new_path).kind()
+            != WorkspaceFilePolicy::for_path(&old_path).kind()
+        {
+            return Err(workspace_file_operation_not_allowed());
+        }
+        repository::ensure_rename_target_available(&new_path.to_string_lossy())
+            .map_err(note_io_error)?;
+        repository::rename(&old_path.to_string_lossy(), &new_path.to_string_lossy())
+            .map_err(note_io_error)?;
+        let (_, root) = self.root_at(revision)?;
+        relative_identity(&root, &new_path)
+    }
+
+    pub fn delete_file(&self, revision: u64, relative_path: &str) -> AppResult<()> {
+        let path =
+            self.authorize_file_operation(revision, relative_path, WorkspaceFileOperation::Delete)?;
         repository::delete(&path.to_string_lossy()).map_err(note_io_error)
     }
 
@@ -238,6 +288,25 @@ impl NotesWorkspace {
             .map_err(note_io_error)?;
         if !path.starts_with(&root) {
             return Err(path_outside_root());
+        }
+        Ok(path)
+    }
+
+    fn authorize_file_operation(
+        &self,
+        revision: u64,
+        relative_path: &str,
+        operation: WorkspaceFileOperation,
+    ) -> AppResult<PathBuf> {
+        validate_relative_path(relative_path)?;
+        let (_, root) = self.root_at(revision)?;
+        let candidate = authorize_visible_workspace_file(&root, relative_path)?;
+        let path = candidate.canonicalize().map_err(note_io_error)?;
+        if !path.starts_with(&root) {
+            return Err(path_outside_root());
+        }
+        if !WorkspaceFilePolicy::for_path(&path).allows(operation) {
+            return Err(workspace_file_operation_not_allowed());
         }
         Ok(path)
     }
@@ -368,6 +437,13 @@ fn document_conflict() -> AppError {
     )
 }
 
+fn workspace_file_operation_not_allowed() -> AppError {
+    AppError::note_error(
+        "workspace_file_operation_not_allowed",
+        "This operation is not available for the workspace file",
+    )
+}
+
 pub type SharedNotesWorkspace = Arc<NotesWorkspace>;
 
 fn relative_identity(root: &Path, path: &Path) -> AppResult<String> {
@@ -394,14 +470,6 @@ fn note_io_error(error: std::io::Error) -> AppError {
     AppError::note_error("note_io_error", error.to_string())
 }
 
-fn is_markdown(path: &Path) -> bool {
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            extension.eq_ignore_ascii_case("md") || extension.eq_ignore_ascii_case("markdown")
-        })
-}
-
 fn authorize_visible_workspace_file(root: &Path, relative_path: &str) -> AppResult<PathBuf> {
     let mut candidate = root.to_path_buf();
     let mut metadata = None;
@@ -423,18 +491,6 @@ fn authorize_visible_workspace_file(root: &Path, relative_path: &str) -> AppResu
         return Err(external_file_not_allowed());
     }
     Ok(candidate)
-}
-
-fn is_blocked_launcher(path: &Path) -> bool {
-    const BLOCKED_EXTENSIONS: [&str; 8] =
-        ["app", "command", "exe", "com", "bat", "cmd", "msi", "ps1"];
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            BLOCKED_EXTENSIONS
-                .iter()
-                .any(|blocked| extension.eq_ignore_ascii_case(blocked))
-        })
 }
 
 fn external_file_not_allowed() -> AppError {

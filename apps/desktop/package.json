@@ -1,12 +1,13 @@
 {
   "name": "bkmrx",
   "private": true,
-  "version": "1.25.0",
+  "version": "1.26.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "vitest run",
+    "test:embedded-runtime:macos": "bash scripts/test-embedded-runtime-macos.sh",
     "preview": "vite preview",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "tauri": "tauri"

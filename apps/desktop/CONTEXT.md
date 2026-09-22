@@ -36,12 +36,20 @@ _Avoid_: scanned directory, notes root
 A folder or regular file contained by the Notes Workspace and identified by its path relative to that workspace.
 _Avoid_: note identity, scanned item
 
+**Workspace File Capabilities**:
+The operations the desktop application permits for a regular-file Workspace Entry, derived from its document kind without changing that kind. Capabilities are distinct from the file's identity: for example, an HTML Document may support both visual viewing and system opening while remaining one HTML Document. Folder operations are not Workspace File Capabilities.
+_Avoid_: file permissions, UI actions
+
 **Markdown Document**:
 A Markdown Workspace Entry that the desktop application opens and edits through a Document Session.
 _Avoid_: text file, external file
 
+**HTML Document**:
+A trusted, self-contained HTML Workspace Entry that the desktop application opens as a read-only visual document.
+_Avoid_: webpage, external file
+
 **External File**:
-A non-Markdown Workspace Entry that the desktop application lists but delegates to the operating system for opening.
+A non-document Workspace Entry that the desktop application lists but delegates to the operating system for opening.
 _Avoid_: attachment, note
 
 **Document Session**:

@@ -33,17 +33,18 @@ interface NotesListProps {
   files: WorkspaceFile[];
   loading: boolean;
   selectedFilePath: string | null;
-  onSelectMarkdown: (file: WorkspaceFile) => void;
+  onSelectDocument: (file: WorkspaceFile) => void;
   onOpenExternal: (file: WorkspaceFile) => void;
   onCreateNote: () => void;
   onRenameNote: (file: WorkspaceFile) => void;
   onDeleteNote: (file: WorkspaceFile) => void;
 }
 
-function FileTypeIcon({ name }: { name: string }) {
+function FileTypeIcon({ file }: { file: WorkspaceFile }) {
+  if (file.kind === 'markdown') return <FileText data-file-kind="markdown" />;
+  if (file.kind === 'html') return <FileCode2 data-file-kind="html" />;
+  const { name } = file;
   const extension = name.split('.').pop()?.toLowerCase();
-  if (extension === 'md' || extension === 'markdown') return <FileText data-file-kind="markdown" />;
-  if (extension === 'html' || extension === 'htm') return <FileCode2 data-file-kind="html" />;
   if (extension === 'json') return <FileJson2 data-file-kind="json" />;
   if (extension === 'js' || extension === 'mjs' || extension === 'cjs') {
     return <Braces data-file-kind="javascript" />;
@@ -55,7 +56,7 @@ export default function NotesList({
   files,
   loading,
   selectedFilePath,
-  onSelectMarkdown,
+  onSelectDocument,
   onOpenExternal,
   onCreateNote,
   onRenameNote,
@@ -71,8 +72,14 @@ export default function NotesList({
       aria-label={file.name}
       title={file.name}
       onClick={() => {
-        if (file.kind === 'markdown') onSelectMarkdown(file);
-        else if (file.kind === 'external') onOpenExternal(file);
+        if (
+          file.capabilities.primary_interaction === 'edit' ||
+          file.capabilities.primary_interaction === 'view'
+        ) {
+          onSelectDocument(file);
+        } else if (file.capabilities.primary_interaction === 'system_open') {
+          onOpenExternal(file);
+        }
       }}
       className={cn(
         'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors',
@@ -80,7 +87,7 @@ export default function NotesList({
       )}
     >
       <span aria-hidden="true" className="size-4 shrink-0 text-muted-foreground [&>svg]:size-4">
-        <FileTypeIcon name={file.name} />
+        <FileTypeIcon file={file} />
       </span>
       <span className="block truncate text-sm font-medium text-foreground">
         {workspaceFileDisplayName(file.name)}
@@ -116,44 +123,35 @@ export default function NotesList({
         ) : (
           <div className="flex flex-col gap-1 px-2 pb-2">
             {filteredFiles.map((file) => {
-              if (file.kind === 'external') {
-                return (
-                  <ContextMenu key={file.relative_path}>
-                    <ContextMenuTrigger>{fileButton(file)}</ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem onClick={() => onOpenExternal(file)}>
-                        <ExternalLink className="h-4 w-4" />
-                        <span>系统打开</span>
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        onClick={() => void copyToClipboard(file.relative_path, '路径已复制')}
-                      >
-                        <Copy className="h-4 w-4" />
-                        <span>复制文件路径</span>
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
-                );
-              }
               return (
                 <ContextMenu key={file.relative_path}>
                   <ContextMenuTrigger>{fileButton(file)}</ContextMenuTrigger>
                   <ContextMenuContent>
-                    <ContextMenuItem onClick={() => onRenameNote(file)}>
-                      <Pencil className="h-4 w-4" />
-                      <span>重命名</span>
-                    </ContextMenuItem>
+                    {file.capabilities.can_rename && (
+                      <ContextMenuItem onClick={() => onRenameNote(file)}>
+                        <Pencil className="h-4 w-4" />
+                        <span>重命名</span>
+                      </ContextMenuItem>
+                    )}
+                    {file.capabilities.can_open_with_system && (
+                      <ContextMenuItem onClick={() => onOpenExternal(file)}>
+                        <ExternalLink className="h-4 w-4" />
+                        <span>系统打开</span>
+                      </ContextMenuItem>
+                    )}
                     <ContextMenuItem
                       onClick={() => void copyToClipboard(file.relative_path, '路径已复制')}
                     >
                       <Copy className="h-4 w-4" />
                       <span>复制文件路径</span>
                     </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem onClick={() => onDeleteNote(file)}>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="text-destructive">删除笔记</span>
-                    </ContextMenuItem>
+                    {file.capabilities.can_delete && <ContextMenuSeparator />}
+                    {file.capabilities.can_delete && (
+                      <ContextMenuItem onClick={() => onDeleteNote(file)}>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="text-destructive">删除笔记</span>
+                      </ContextMenuItem>
+                    )}
                   </ContextMenuContent>
                 </ContextMenu>
               );
@@ -162,7 +160,12 @@ export default function NotesList({
         )}
       </div>
       <Separator />
-      <Button variant="ghost" size="sm" className="shrink-0 w-full rounded-none h-12" onClick={onCreateNote}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="shrink-0 w-full rounded-none h-12"
+        onClick={onCreateNote}
+      >
         <Plus data-icon="inline-start" />
         新建笔记
       </Button>

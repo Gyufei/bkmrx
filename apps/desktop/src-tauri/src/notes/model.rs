@@ -1,10 +1,28 @@
 use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum WorkspaceFileKind {
     Markdown,
+    Html,
     External,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceFilePrimaryInteraction {
+    Edit,
+    View,
+    SystemOpen,
+    Unavailable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+pub struct WorkspaceFileCapabilities {
+    pub primary_interaction: WorkspaceFilePrimaryInteraction,
+    pub can_rename: bool,
+    pub can_delete: bool,
+    pub can_open_with_system: bool,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -12,6 +30,7 @@ pub struct WorkspaceFile {
     pub name: String,
     pub relative_path: String,
     pub kind: WorkspaceFileKind,
+    pub capabilities: WorkspaceFileCapabilities,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -47,6 +66,11 @@ pub type DocumentReceipt = String;
 pub struct OpenedDocument {
     pub content: String,
     pub receipt: DocumentReceipt,
+}
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct OpenedHtmlDocument {
+    pub content: String,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]

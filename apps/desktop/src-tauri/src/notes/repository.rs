@@ -7,7 +7,7 @@ use atomic_write_file::AtomicWriteFile;
 use sha2::{Digest, Sha256};
 use walkdir::{DirEntry, WalkDir};
 
-use super::{WorkspaceDirectory, WorkspaceFile, WorkspaceFileKind};
+use super::{WorkspaceDirectory, WorkspaceFile, WorkspaceFilePolicy};
 
 pub fn scan_workspace(root: &Path) -> io::Result<WorkspaceDirectory> {
     if !root.exists() {
@@ -35,11 +35,12 @@ fn scan_directory(root: &Path, current: &Path) -> io::Result<WorkspaceDirectory>
             directories.push(scan_directory(root, entry.path())?);
         } else if file_type.is_file() {
             let relative_path = relative_identity(root, entry.path())?;
-            let kind = classify_file(entry.path());
+            let policy = WorkspaceFilePolicy::for_path(entry.path());
             files.push(WorkspaceFile {
                 name,
                 relative_path,
-                kind,
+                kind: policy.kind(),
+                capabilities: policy.capabilities(),
             });
         }
     }
@@ -67,18 +68,6 @@ fn scan_directory(root: &Path, current: &Path) -> io::Result<WorkspaceDirectory>
         directories,
         files,
     })
-}
-
-fn classify_file(path: &Path) -> WorkspaceFileKind {
-    match path.extension().and_then(|extension| extension.to_str()) {
-        Some(extension)
-            if extension.eq_ignore_ascii_case("md")
-                || extension.eq_ignore_ascii_case("markdown") =>
-        {
-            WorkspaceFileKind::Markdown
-        }
-        _ => WorkspaceFileKind::External,
-    }
 }
 
 fn entry_name(entry: &DirEntry) -> io::Result<String> {

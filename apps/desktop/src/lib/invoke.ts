@@ -16,7 +16,7 @@ import type {
   FeedPreview, FeedRefreshResult, RefreshResult,
   Todo, TodoList, TodoQuery, TodoStatus, TodoTag,
   CreateTodo, UpdateTodo,
-  NotesWorkspaceListing, OpenedNoteDocument, SavedNoteDocument,
+  NotesWorkspaceListing, OpenedNoteDocument, OpenedHtmlDocument, SavedNoteDocument,
   RenamedNoteDocument, FolderDeletionSummary,
 } from '../types';
 
@@ -295,6 +295,13 @@ export function invokeOpenNoteDocument(
   return unwrap(commands.openNoteDocument(revision, relativePath));
 }
 
+export function invokeOpenHtmlDocument(
+  revision: number,
+  relativePath: string,
+): Promise<OpenedHtmlDocument> {
+  return unwrap(commands.openHtmlDocument(revision, relativePath));
+}
+
 export function invokeOpenExternalNoteFile(revision: number, relativePath: string): Promise<void> {
   return unwrap(commands.openExternalNoteFile(revision, relativePath));
 }
@@ -316,6 +323,21 @@ export function invokeRenameNoteDocument(
 
 export function invokeDeleteNoteDocument(receipt: string): Promise<void> {
   return unwrap(commands.deleteNoteDocument(receipt));
+}
+
+export function invokeRenameWorkspaceFile(
+  revision: number,
+  relativePath: string,
+  name: string,
+): Promise<string> {
+  return unwrap(commands.renameWorkspaceFile(revision, relativePath, name));
+}
+
+export function invokeDeleteWorkspaceFile(
+  revision: number,
+  relativePath: string,
+): Promise<void> {
+  return unwrap(commands.deleteWorkspaceFile(revision, relativePath));
 }
 
 export function invokeCreateNoteFile(

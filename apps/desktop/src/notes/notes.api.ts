@@ -1,10 +1,13 @@
 import {
   invokeScanNotes,
   invokeOpenNoteDocument,
+  invokeOpenHtmlDocument,
   invokeOpenExternalNoteFile,
   invokeSaveNoteDocument,
   invokeRenameNoteDocument,
   invokeDeleteNoteDocument,
+  invokeRenameWorkspaceFile,
+  invokeDeleteWorkspaceFile,
   invokeCreateNoteFile,
   invokeDeleteNoteFolder,
   invokePreflightNoteFolderDeletion,
@@ -12,6 +15,7 @@ import {
 import type {
   NotesWorkspaceListing,
   OpenedNoteDocument,
+  OpenedHtmlDocument,
   RenamedNoteDocument,
   SavedNoteDocument,
   FolderDeletionSummary,
@@ -30,6 +34,13 @@ export async function openNoteDocumentApi(
   relativePath: string,
 ): Promise<OpenedNoteDocument> {
   return await invokeOpenNoteDocument(revision, relativePath);
+}
+
+export async function openHtmlDocumentApi(
+  revision: number,
+  relativePath: string,
+): Promise<OpenedHtmlDocument> {
+  return await invokeOpenHtmlDocument(revision, relativePath);
 }
 
 export async function openExternalNoteFileApi(
@@ -71,8 +82,7 @@ export async function createNoteApi({
 }
 
 export async function deleteNoteFileApi(revision: number, relativePath: string): Promise<void> {
-  const opened = await openNoteDocumentApi(revision, relativePath);
-  await deleteNoteDocumentApi(opened.receipt);
+  await invokeDeleteWorkspaceFile(revision, relativePath);
 }
 
 export async function deleteNoteFolderApi(receipt: string): Promise<void> {
@@ -95,6 +105,5 @@ export async function renameNoteFileApi({
   relativePath: string;
   name: string;
 }): Promise<string> {
-  const opened = await openNoteDocumentApi(revision, relativePath);
-  return (await renameNoteDocumentApi(opened.receipt, name)).relative_path;
+  return await invokeRenameWorkspaceFile(revision, relativePath, name);
 }
