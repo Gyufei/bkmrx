@@ -191,6 +191,27 @@ it('stars a bookmark from an independent accessible card button', () => {
   expect(onToggleStarred).toHaveBeenCalledWith(bookmark, true);
 });
 
+it('keeps the star button overlaid inside its bookmark row', () => {
+  const bookmark: Bookmark = {
+    id: bookmarkId(1),
+    url: 'https://example.com',
+    title: 'Example',
+    description: '',
+    tags: [],
+    access_count: 0,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    accessed_at: null,
+    starred_at: null,
+  };
+  renderList({ bookmark, starredView: false, onToggleStarred: vi.fn() });
+
+  const starButton = screen.getByRole('button', { name: '添加星标' });
+  expect(starButton).toHaveClass('absolute', 'right-2', 'top-2');
+  expect(starButton).not.toHaveClass('relative');
+  expect(starButton.parentElement).toHaveClass('relative');
+});
+
 it('immediately unstars in the default starred view and offers undo', () => {
   const onToggleStarred = vi.fn();
   toastAddMock.mockReturnValue('toast-1');

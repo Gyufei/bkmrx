@@ -105,15 +105,17 @@ export default function StarButton({
         e.stopPropagation();
         onToggle();
       }}
-      className={`t-star-btn relative inline-flex items-center justify-center p-1.5 rounded-md transition-colors disabled:cursor-wait disabled:opacity-50 ${baseClass} ${className}`}
+      className={`t-star-btn inline-flex items-center justify-center p-1.5 rounded-md transition-colors disabled:cursor-wait disabled:opacity-50 ${baseClass} ${className}`}
       title={starred ? titleStarred : titleUnstarred}
       aria-label={starred ? titleStarred : titleUnstarred}
     >
-      <span className="t-star-icon">
-        <Star className="t-star h-4 w-4" />
-      </span>
-      <span className="t-star-particles" aria-hidden="true">
-        {Array.from({ length: 8 }, (_, i) => <i key={i} />)}
+      <span className="relative inline-flex items-center justify-center">
+        <span className="t-star-icon">
+          <Star className="t-star h-4 w-4" />
+        </span>
+        <span className="t-star-particles" aria-hidden="true">
+          {Array.from({ length: 8 }, (_, i) => <i key={i} />)}
+        </span>
       </span>
     </button>
   );
