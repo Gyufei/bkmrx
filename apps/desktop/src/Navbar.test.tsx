@@ -39,9 +39,9 @@ describe('NavBar server status', () => {
         onBookmarkSubpageChange={onSubpageChange}
       />,
     );
-    fireEvent.click(screen.getByRole('tab', { name: 'Bookmarks' }));
+    fireEvent.click(screen.getByRole('tab', { name: '书签' }));
     expect(onSubpageChange.mock.calls[0][0]).toBe('bookmarks');
-    expect(screen.getByRole('tab', { name: 'Navigation' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: '导航' })).toBeTruthy();
 
     view.rerender(
       <NavBar
@@ -50,7 +50,7 @@ describe('NavBar server status', () => {
         onBookmarkSubpageChange={onSubpageChange}
       />,
     );
-    expect(screen.queryByRole('tab', { name: 'Navigation' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: '导航' })).toBeNull();
   });
 
   it('shows Todo secondary tabs only in the Todo workspace', () => {
@@ -63,9 +63,9 @@ describe('NavBar server status', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Calendar' }));
-    expect(onTodoSubpageChange).toHaveBeenCalledWith('calendar', expect.anything());
-    expect(screen.getByRole('tab', { name: 'Todos' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: '日历' }));
+    expect(onTodoSubpageChange).toHaveBeenCalledWith('calendar');
+    expect(screen.getByRole('tab', { name: '待办' })).toBeTruthy();
 
     view.rerender(
       <NavBar
@@ -74,6 +74,6 @@ describe('NavBar server status', () => {
         onTodoSubpageChange={onTodoSubpageChange}
       />,
     );
-    expect(screen.queryByRole('tab', { name: 'Calendar' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: '日历' })).toBeNull();
   });
 });

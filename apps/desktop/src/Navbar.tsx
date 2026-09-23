@@ -13,8 +13,8 @@ import {
   StarPlus,
 } from 'lucide-react';
 
-import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
 import { GooeyNav } from './components/GooeyNav';
+import { ExpandingTabs } from './components/ExpandingTabs';
 
 export enum PATHS {
   BOOKMARKS = 'bookmarks',
@@ -32,6 +32,16 @@ const TABS = [
   { id: PATHS.NOTES, label: '笔记', icon: <Notebook /> },
   { id: PATHS.TODOS, label: 'Todo', icon: <ListTodo /> },
   { id: PATHS.RSS, label: 'RSS', icon: <Rss /> },
+] as const;
+
+const BOOKMARK_TABS = [
+  { value: 'navigation', label: '导航', icon: MapPinSearch },
+  { value: 'bookmarks', label: '书签', icon: StarPlus },
+] as const;
+
+const TODO_TABS = [
+  { value: 'todos', label: '待办', icon: SquareCheckBig },
+  { value: 'calendar', label: '日历', icon: CalendarDays },
 ] as const;
 
 export default function NavBar({
@@ -95,29 +105,21 @@ export default function NavBar({
         />
 
         {currentPath === PATHS.BOOKMARKS && (
-          <Tabs value={bookmarkSubpage} onValueChange={onBookmarkSubpageChange}>
-            <TabsList className="h-7 p-0.5">
-              <TabsTrigger className="size-6 p-0" value="navigation" aria-label="Navigation">
-                <MapPinSearch className="size-3.5" />
-              </TabsTrigger>
-              <TabsTrigger className="size-6 p-0" value="bookmarks" aria-label="Bookmarks">
-                <StarPlus className="size-3.5" />
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <ExpandingTabs
+            items={BOOKMARK_TABS}
+            value={bookmarkSubpage}
+            onValueChange={onBookmarkSubpageChange}
+            ariaLabel="书签二级页面"
+          />
         )}
 
         {currentPath === PATHS.TODOS && (
-          <Tabs value={todoSubpage} onValueChange={onTodoSubpageChange}>
-            <TabsList className="h-7 p-0.5">
-              <TabsTrigger className="size-6 p-0" value="todos" aria-label="Todos">
-                <SquareCheckBig className="size-3.5" />
-              </TabsTrigger>
-              <TabsTrigger className="size-6 p-0" value="calendar" aria-label="Calendar">
-                <CalendarDays className="size-3.5" />
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <ExpandingTabs
+            items={TODO_TABS}
+            value={todoSubpage}
+            onValueChange={onTodoSubpageChange}
+            ariaLabel="Todo 二级页面"
+          />
         )}
 
         {currentPath === PATHS.BOOKMARKS && (
