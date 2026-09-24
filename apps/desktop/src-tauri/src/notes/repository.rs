@@ -289,6 +289,6 @@ pub fn create(dir: &str, name: &str) -> io::Result<String> {
         fs::create_dir_all(parent)?;
     }
     let title = name.trim_end_matches(".md");
-    fs::write(&path, format!("# {title}\n\n"))?;
+    fs::write(&path, format!("## {title}\n\n"))?;
     Ok(path.to_string_lossy().into_owned())
 }
