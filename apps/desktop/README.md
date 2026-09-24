@@ -1,49 +1,52 @@
 # bkmrx Desktop
 
-bkmrx Desktop 是仅在 macOS 本机运行的 Tauri 书签与 Markdown 笔记应用。书签由 Rust 后端通过 `rusqlite` 直接维护，React WebView、本机 HTTP API 和 Chrome 扩展共用同一个 `BookmarkService`。
+bkmrx Desktop 是 bkmrx 的本地运行时与数据中心：它提供 React 桌面界面、Rust 领域服务、SQLite 持久化、Tauri IPC，以及供浏览器扩展使用的本机 HTTP API。
 
-[返回项目首页](../../README.md) · [Chrome 扩展](../chrome-extension/README.md) · [系统架构](../../docs/ARCHITECTURE.md) · [HTTP API](../../docs/reference/2026-07-24-http-api.md)
+[返回项目首页](../../README.md) · [浏览器扩展](../chrome-extension/README.md) · [版本变更记录](../../CHANGELOG.md)
 
-## 核心能力
+## 工作区
 
-- 使用 SQLite 作为书签数据的唯一事实来源。
-- 使用规范化的 `bookmarks`、`tags` 和 `bookmark_tags` 关系模型。
-- 中文全文搜索使用 FTS5 Trigram，1–2 个 Unicode 字符使用参数化 `LIKE` 回退。
-- 默认列表、标签筛选、全文搜索和组合搜索统一使用不透明游标分页。
-- React 前端通过 TanStack Query `useInfiniteQuery` 每页加载 50 条。
-- 提供 Markdown 笔记的创建、编辑、重命名与删除。
-- 支持 JSON v1 原子导出、严格预检、SHA-256 确认和事务合并导入。
-- 在 `127.0.0.1:8733` 提供本机 HTTP API，供 Chrome 扩展调用。
-- 通过可替换的翻译 Provider 为扩展提供描述翻译，第三方密钥仅保留在 Rust 进程环境中。
-
-项目不包含语义搜索、向量索引、ONNX、`sqlite-vec` 或 WebView SQL 权限。
-
-## 本地数据
-
-| 内容 | 路径 |
+| 工作区 | 能力 |
 |---|---|
-| SQLite | `~/Library/Application Support/com.bkmrx/bookmarks.db` |
-| 设置 | `~/Library/Application Support/com.bkmrx/settings.json` |
-| 迁移备份根目录 | `/Users/gyf/MyLib/bkmr-sync/migration-backups/` |
+| 书签 | 书签、标签、星标、全文搜索、网页预览和常用导航分类 |
+| 笔记 | 以用户选择的 Notes Workspace 管理 Markdown、HTML 与其他本地文件 |
+| Todo | 待办、标签、状态、归档、开始日、截止日和 Markdown 导出 |
+| 日历 | 日历事件、Todo 投影、农历、节气、节假日与调休 |
+| RSS | 订阅管理、文章阅读、图片下载与将文章保存为书签 |
+| 设置 | Notes Workspace、书签数据初始化、RSSHub 和翻译 Provider 配置 |
 
-不同 Mac 之间不直接同步 SQLite；请使用设置页的 JSON 导出与导入传输数据。
+## 架构
+
+```text
+React 19 + TypeScript
+        │
+        ├── Tauri IPC ────────── Rust 领域模块 ─── SQLite
+        │                         ├── bookmarks / navigation
+        │                         ├── todos / calendar / rss
+        │                         └── settings / notes / preview
+        │
+Chrome 扩展 ── Axum HTTP API ─── BookmarkStore
+```
+
+- `src/`：React 页面、领域 UI、TanStack Query 数据协调，以及由 `tauri-specta` 生成的 IPC 类型绑定。
+- `src-tauri/src/`：Rust 领域模块、数据库迁移、安全出站 HTTP、文件系统策略、本机 API 和 Provider 运行时。
+- 书签、导航、待办、RSS 与日历事件保存在应用数据目录中的 SQLite；Notes Workspace 中的文件始终存放在用户选择的目录。
+- 本机 API 默认仅绑定 `127.0.0.1:8733`，当前供浏览器扩展调用书签、标签和描述翻译接口。
 
 ## 开发
 
-要求 Apple Silicon Mac、Node.js 18+、pnpm 和 Rust toolchain。
+要求：macOS、Node.js 18+、pnpm、Rust toolchain 和 Tauri 2 所需的 macOS 构建环境。
 
-从仓库根目录执行：
+从仓库根目录安装依赖后：
 
 ```bash
-pnpm install
-pnpm dev
-pnpm test
-pnpm build
 pnpm tauri dev
-pnpm tauri build --bundles app
+pnpm --filter bkmrx test
+pnpm --filter bkmrx build
+pnpm --filter bkmrx tauri build --bundles app
 ```
 
-Rust 检查：
+运行 Rust 测试与静态检查：
 
 ```bash
 cd apps/desktop/src-tauri
@@ -51,50 +54,19 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
-描述翻译使用小牛翻译 v2。请在桌面端“设置 → 服务 → 小牛翻译”中配置 App ID 和 API Key；凭据保存在应用数据目录的 `settings.json` 中，保存后立即生效。
+开发模式会从 Rust 命令签名生成 `src/bindings.ts`；该文件是前后端 IPC 类型的单一契约，应随 Rust 命令变更一并更新。
 
-未配置时桌面端仍可正常使用，只有翻译端点返回 `translation_unavailable`。`TranslationProvider` 是第三方服务边界，后续更换供应商或增加日志/指标包装不需要修改 HTTP handler。
+## 本地服务与外部 Provider
 
-## 架构
+应用启动后会尝试启动 `http://127.0.0.1:8733`。可通过 `http://127.0.0.1:8733/api/health` 检查状态，`/api/docs` 提供当前 REST API 的交互说明。
 
-```text
-React / Tauri IPC ─┐
-                   ├─ BookmarkService ─ Repository ─ SQLite
-Chrome / Axum API ─┘                  └─ BookmarkSearch ─ FTS5 Trigram
-```
+翻译与 RSSHub 均为可选服务：未配置时，书签、笔记、Todo、日历和 RSS 的本地能力仍可使用。翻译凭据保存在桌面应用的 Application Settings 中，只由 Rust 进程使用，不会进入 WebView 或浏览器扩展构建产物。
 
-Rust 书签代码位于 `src-tauri/src/bookmarks/`：
+## 数据管理
 
-- `repository.rs`：CRUD、标签关系和 FTS 同事务维护。
-- `search.rs`：Trigram、短查询 `LIKE` 和游标分页。
-- `service.rs`：Tauri 与 HTTP 共用的业务入口。
-- `transfer.rs`：JSON v1 导入导出。
-
-`BookmarkSearch` 是可替换边界。未来可以增加其他搜索实现，但 SQLite 仍是唯一事实来源，上层分页与 DTO 保持不变。
-
-更多设计背景见[系统架构](../../docs/ARCHITECTURE.md)。
-
-## HTTP API
-
-应用启动后可访问 `http://127.0.0.1:8733/api/docs`。
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/health` | 健康检查 |
-| GET | `/api/bookmarks` | 查询与游标分页 |
-| POST | `/api/bookmarks` | 创建书签 |
-| GET | `/api/bookmarks/by-url?url=` | 按 URL 查询 |
-| GET | `/api/bookmarks/:id` | 按 ID 查询 |
-| PATCH | `/api/bookmarks/:id` | 局部更新 |
-| DELETE | `/api/bookmarks/:id` | 删除书签 |
-| GET | `/api/tags` | 查询标签与计数 |
-| POST | `/api/translations` | 翻译网页描述 |
-
-完整参数、响应与错误格式见 [HTTP API 文档](../../docs/reference/2026-07-24-http-api.md)。
-
-## 相关项目
-
-Chrome 扩展通过桌面端 HTTP API 保存当前网页，安装与调试方式见 [Chrome 扩展 README](../chrome-extension/README.md)。
+- 书签数据集包含书签、标签、导航分类及其关联；不包含 Todo、RSS、Notes Workspace 或 Application Settings。
+- 导入仅可初始化空书签域，不执行合并导入。
+- 如需在设备间迁移书签，请使用设置页的数据导出与初始化功能；Notes Workspace 文件请自行通过文件系统同步或备份。
 
 ## 许可证
 
