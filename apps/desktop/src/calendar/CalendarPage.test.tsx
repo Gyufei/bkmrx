@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,12 +14,12 @@ const mocks = vi.hoisted(() => ({
   deleteEvent: vi.fn(),
 }));
 
-vi.mock('@/calendar/calendar.api', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/calendar/calendar.api')>()),
-  getCalendarDaysApi: mocks.getCalendarDays,
-  createCalendarEventApi: mocks.createEvent,
-  updateCalendarEventApi: mocks.updateEvent,
-  deleteCalendarEventApi: mocks.deleteEvent,
+vi.mock('@/lib/invoke', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/invoke')>()),
+  invokeGetCalendarDays: mocks.getCalendarDays,
+  invokeCreateCalendarEvent: mocks.createEvent,
+  invokeUpdateCalendarEvent: mocks.updateEvent,
+  invokeDeleteCalendarEvent: mocks.deleteEvent,
 }));
 
 function renderPage() {
@@ -65,6 +65,28 @@ describe('CalendarPage', () => {
       start_date: '2026-08-31',
       end_date: '2026-10-11',
     });
+  });
+
+  it('updates today after the app regains focus across a local date boundary', async () => {
+    renderPage();
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: '2026年9月17日' })).toBeVisible(),
+    );
+
+    const day17 = screen.getByRole('button', { name: '2026年9月17日' });
+    const day18 = screen.getByRole('button', { name: '2026年9月18日' });
+    expect(day17).toHaveAttribute('aria-current', 'date');
+    expect(day18).not.toHaveAttribute('aria-current');
+
+    vi.setSystemTime(new Date(2026, 8, 18, 12));
+    act(() => window.dispatchEvent(new Event('focus')));
+
+    expect(day17).not.toHaveAttribute('aria-current');
+    expect(day18).toHaveAttribute('aria-current', 'date');
+    expect(day17).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      document.querySelector('[data-slot="calendar"] [data-day="2026-09-18"]'),
+    ).toHaveAttribute('data-today', 'true');
   });
 
   it('shows destructive and empty states for unavailable calendar data', async () => {

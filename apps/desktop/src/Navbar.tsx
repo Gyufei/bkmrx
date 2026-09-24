@@ -91,7 +91,7 @@ export default function NavBar({
     <div
       data-tauri-drag-region
       className={
-        'shrink-0 flex items-center justify-between py-2.5 border-b border-border ' +
+        'shrink-0 flex items-center justify-between bg-card py-2.5 border-b border-border ' +
         (isMac ? 'pl-20' : 'px-4') +
         ' pr-4'
       }

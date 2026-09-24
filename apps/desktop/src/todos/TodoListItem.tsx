@@ -102,7 +102,7 @@ export default function TodoListItem({
   return (
     <>
       <ContextMenu>
-        <ContextMenuTrigger className="flex w-full items-start gap-3 rounded-2xl px-3 py-3 hover:bg-muted/60">
+        <ContextMenuTrigger className="flex w-full items-start gap-3 rounded-lg px-3 py-3 hover:bg-muted/60">
           <span className="mt-0.5 shrink-0" onClick={(event) => event.stopPropagation()}>
             <StatusToggle todo={todo} disabled={statusPending} onToggle={toggleStatus} />
           </span>

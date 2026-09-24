@@ -136,7 +136,7 @@ export default function RssPage() {
         onChoose={reader.choose}
         onLoadMore={() => void reader.entries.fetchNextPage()}
       />
-      <article className="relative min-w-0 flex-1 overflow-hidden">
+      <article className="relative min-w-0 flex-1 overflow-hidden bg-background">
         {reader.selected ? (
           <RssEntryReader
             entry={reader.selected}

@@ -6,22 +6,23 @@ import { describe, expect, it, vi } from 'vitest';
 
 import CalendarEventDialog from './CalendarEventDialog';
 import { CalendarEventType } from './calendar.types';
+import type { CalendarEventEditor } from './use-calendar-day-workspace';
 
-function renderDialog(overrides: Partial<React.ComponentProps<typeof CalendarEventDialog>> = {}) {
-  const props: React.ComponentProps<typeof CalendarEventDialog> = {
+function renderDialog(overrides: Partial<CalendarEventEditor> = {}) {
+  const editor: CalendarEventEditor = {
     open: true,
-    onOpenChange: vi.fn(),
+    setOpen: vi.fn(),
     title: '',
-    onTitleChange: vi.fn(),
+    setTitle: vi.fn(),
     eventType: CalendarEventType.Other,
-    onEventTypeChange: vi.fn(),
+    setEventType: vi.fn(),
     editingEvent: null,
     saving: false,
-    onSave: vi.fn(),
-    onRemove: vi.fn(),
+    save: vi.fn(),
+    remove: vi.fn(),
     ...overrides,
   };
-  return { props, ...render(<CalendarEventDialog {...props} />) };
+  return { editor, ...render(<CalendarEventDialog editor={editor} />) };
 }
 
 describe('CalendarEventDialog', () => {
@@ -48,22 +49,22 @@ describe('CalendarEventDialog', () => {
   });
 
   it('calls onTitleChange when typing', () => {
-    const onTitleChange = vi.fn();
-    renderDialog({ onTitleChange });
+    const setTitle = vi.fn();
+    renderDialog({ setTitle });
 
     fireEvent.change(screen.getByRole('textbox', { name: '事项名称' }), {
       target: { value: 'New Title' },
     });
-    expect(onTitleChange).toHaveBeenCalledWith('New Title');
+    expect(setTitle).toHaveBeenCalledWith('New Title');
   });
 
   it('calls onEventTypeChange when selecting a type', () => {
-    const onEventTypeChange = vi.fn();
-    renderDialog({ onEventTypeChange });
+    const setEventType = vi.fn();
+    renderDialog({ setEventType });
 
     fireEvent.click(screen.getByRole('combobox', { name: '事件类型' }));
     fireEvent.click(screen.getByRole('option', { name: '工作' }));
-    expect(onEventTypeChange).toHaveBeenCalledWith(CalendarEventType.Work);
+    expect(setEventType).toHaveBeenCalledWith(CalendarEventType.Work);
   });
 
   it('disables submit when title is empty', () => {
@@ -82,15 +83,15 @@ describe('CalendarEventDialog', () => {
   });
 
   it('calls onSave on form submit', () => {
-    const onSave = vi.fn();
-    renderDialog({ title: 'Test', onSave });
+    const save = vi.fn();
+    renderDialog({ title: 'Test', save });
 
     fireEvent.submit(screen.getByRole('textbox', { name: '事项名称' }).closest('form')!);
-    expect(onSave).toHaveBeenCalled();
+    expect(save).toHaveBeenCalled();
   });
 
   it('calls onRemove when delete is clicked', () => {
-    const onRemove = vi.fn();
+    const remove = vi.fn();
     renderDialog({
       editingEvent: {
         id: 'e1',
@@ -98,19 +99,19 @@ describe('CalendarEventDialog', () => {
         event_type: CalendarEventType.Work,
         source: 'local',
       },
-      onRemove,
+      remove,
     });
 
     fireEvent.click(screen.getByRole('button', { name: '删除' }));
-    expect(onRemove).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalled();
   });
 
   it('calls onOpenChange when cancel is clicked', () => {
-    const onOpenChange = vi.fn();
-    renderDialog({ onOpenChange });
+    const setOpen = vi.fn();
+    renderDialog({ setOpen });
 
     fireEvent.click(screen.getByRole('button', { name: '取消' }));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(setOpen).toHaveBeenCalledWith(false);
   });
 
   it('shows current event type label in combobox trigger', () => {

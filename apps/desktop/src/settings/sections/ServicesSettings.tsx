@@ -51,7 +51,7 @@ export default function ServicesSettings({ snapshot, onDirtyChange }: ServicesSe
   return (
     <section aria-labelledby="services-settings-title" className="flex flex-col gap-6">
       <div>
-        <h1 id="services-settings-title" className="text-xl font-semibold">
+        <h1 id="services-settings-title" className="text-2xl font-bold tracking-[-0.02em]">
           服务
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">管理第三方服务及其访问凭据。</p>

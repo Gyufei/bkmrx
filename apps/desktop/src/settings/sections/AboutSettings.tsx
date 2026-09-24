@@ -21,7 +21,7 @@ export default function AboutSettings({ active }: AboutSettingsProps) {
   return (
     <section aria-labelledby="about-settings-title" className="flex flex-col gap-6">
       <div>
-        <h1 id="about-settings-title" className="text-xl font-semibold">
+        <h1 id="about-settings-title" className="text-2xl font-bold tracking-[-0.02em]">
           关于
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">查看当前应用版本。</p>

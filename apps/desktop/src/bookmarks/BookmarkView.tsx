@@ -57,7 +57,7 @@ export default function BookmarkView() {
         />
       </CollapsibleSidebar>
       <PageShell>
-        <header className="shrink-0 border-b border-border px-4 py-3">
+        <header className="shrink-0 border-b border-border bg-card/70 px-4 py-3">
           <div className="flex items-center gap-2">
             <SearchBar
               key={searchResetKey}

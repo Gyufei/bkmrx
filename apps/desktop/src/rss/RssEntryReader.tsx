@@ -94,7 +94,7 @@ function ReaderActionBar({
     <TooltipProvider delay={300}>
       <aside
         aria-label="阅读工具"
-        className="absolute right-5 top-1/2 flex -translate-y-1/2 flex-col gap-1 rounded-4xl border bg-background/90 p-1.5 shadow-lg backdrop-blur-md"
+        className="absolute right-5 top-1/2 flex -translate-y-1/2 flex-col gap-1 rounded-lg border bg-background/95 p-1.5 shadow-md"
       >
         {actions.map(({ label, icon: Icon, active, disabled, invalid, onClick }) => (
           <Tooltip key={label}>

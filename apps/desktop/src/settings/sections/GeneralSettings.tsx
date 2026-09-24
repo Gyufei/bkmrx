@@ -43,7 +43,7 @@ export default function GeneralSettings({ snapshot, onDirtyChange }: GeneralSett
   return (
     <section aria-labelledby="general-settings-title" className="flex flex-col gap-6">
       <div>
-        <h1 id="general-settings-title" className="text-xl font-semibold">
+        <h1 id="general-settings-title" className="text-2xl font-bold tracking-[-0.02em]">
           通用
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">管理本机路径与通用数据操作。</p>

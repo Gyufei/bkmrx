@@ -1,43 +1,21 @@
-import { useMemo } from 'react';
-import { addDays, eachDayOfInterval, format, startOfMonth, startOfWeek } from 'date-fns';
+import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 import CalendarEventDialog from '@/calendar/CalendarEventDialog';
-import { useCalendarDays } from '@/calendar/use-calendar-days';
-import { useCalendarEventEditor } from '@/calendar/use-calendar-event-editor';
+import { useCalendarDayWorkspace } from '@/calendar/use-calendar-day-workspace';
 import CollapsibleSidebar from '@/components/CollapsibleSidebar';
 import PageShell from '@/components/PageShell';
 import { PageError, PageLoading } from '@/components/PageStatus';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-import { formatLocalDate } from '@/lib/date';
 import CalendarDayCell from './CalendarDayCell';
 
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
-function getMonthDays(month: Date) {
-  const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
-  return eachDayOfInterval({ start, end: addDays(start, 41) });
-}
-
 export default function CalendarPage() {
-  const editor = useCalendarEventEditor();
-  const monthDays = useMemo(() => getMonthDays(editor.month), [editor.month]);
-  const calendarRequest = useMemo(
-    () => ({
-      start_date: formatLocalDate(monthDays[0]),
-      end_date: formatLocalDate(monthDays[monthDays.length - 1]),
-    }),
-    [monthDays],
-  );
-  const calendarDays = useCalendarDays(calendarRequest);
-  const calendarDaysByDate = useMemo(
-    () => new Map((calendarDays.data ?? []).map((day) => [day.date, day])),
-    [calendarDays.data],
-  );
-  const today = useMemo(() => new Date(), []);
+  const workspace = useCalendarDayWorkspace();
 
   const sidebarTitle = (
     <div className="flex min-w-0 flex-1 items-center justify-center gap-1">
@@ -45,18 +23,18 @@ export default function CalendarPage() {
         variant="ghost"
         size="icon-xs"
         aria-label="上个月"
-        onClick={() => editor.changeMonth(-1)}
+        onClick={() => workspace.navigation.changeMonth(-1)}
       >
         <ChevronLeft />
       </Button>
       <span className="min-w-24 truncate text-center">
-        {format(editor.month, 'yyyy年 M月', { locale: zhCN })}
+        {format(workspace.navigation.month, 'yyyy年 M月', { locale: zhCN })}
       </span>
       <Button
         variant="ghost"
         size="icon-xs"
         aria-label="下个月"
-        onClick={() => editor.changeMonth(1)}
+        onClick={() => workspace.navigation.changeMonth(1)}
       >
         <ChevronRight />
       </Button>
@@ -72,10 +50,11 @@ export default function CalendarPage() {
       >
         <Calendar
           mode="single"
-          month={editor.month}
-          selected={editor.selectedDate}
-          onMonthChange={editor.setMonth}
-          onSelect={(date) => date && editor.selectDate(date)}
+          today={workspace.today}
+          month={workspace.navigation.month}
+          selected={workspace.navigation.selectedDate}
+          onMonthChange={workspace.navigation.setMonth}
+          onSelect={(date) => date && workspace.navigation.selectDate(date)}
           locale={zhCN}
           weekStartsOn={1}
           showOutsideDays={false}
@@ -87,7 +66,7 @@ export default function CalendarPage() {
             day_button: '!mx-auto !size-6 !min-w-0 rounded-5',
           }}
         />
-        <Button className="mt-4 w-full" onClick={() => editor.openCreate()}>
+        <Button className="mt-4 w-full" onClick={() => workspace.openCreate()}>
           <Plus data-icon="inline-start" />
           添加事项
         </Button>
@@ -104,46 +83,35 @@ export default function CalendarPage() {
             </div>
           ))}
         </div>
-        {calendarDays.isLoading ? (
+        {workspace.days.status === 'loading' ? (
           <PageLoading text="正在加载日历…" className="flex-1" />
-        ) : calendarDays.isError ? (
+        ) : workspace.days.status === 'error' ? (
           <PageError title="日历加载失败" className="flex-1" />
-        ) : calendarDays.data?.length === 0 ? (
+        ) : workspace.days.status === 'empty' ? (
           <Empty className="flex-1 p-5">
             <EmptyTitle>暂无日历数据</EmptyTitle>
             <EmptyDescription>当前月份没有可展示的日期信息。</EmptyDescription>
           </Empty>
         ) : (
           <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 overflow-hidden">
-            {monthDays.map((date) => (
+            {workspace.days.visibleDates.map((date) => (
               <CalendarDayCell
                 key={date.toISOString()}
                 date={date}
-                month={editor.month}
-                today={today}
-                selectedDate={editor.selectedDate}
-                calendarDay={calendarDaysByDate.get(formatLocalDate(date))}
-                onSelect={editor.selectDate}
-                onCreate={editor.openCreate}
-                onEdit={editor.openEdit}
+                month={workspace.navigation.month}
+                today={workspace.today}
+                selectedDate={workspace.navigation.selectedDate}
+                calendarDay={workspace.days.find(date)}
+                onSelect={workspace.navigation.selectDate}
+                onCreate={workspace.openCreate}
+                onEdit={workspace.openEdit}
               />
             ))}
           </div>
         )}
       </PageShell>
 
-      <CalendarEventDialog
-        open={editor.dialogOpen}
-        onOpenChange={editor.setDialogOpen}
-        title={editor.eventTitle}
-        onTitleChange={editor.setEventTitle}
-        eventType={editor.eventType}
-        onEventTypeChange={editor.setEventType}
-        editingEvent={editor.editingEvent}
-        saving={editor.saving}
-        onSave={editor.save}
-        onRemove={editor.remove}
-      />
+      <CalendarEventDialog editor={workspace.eventEditor} />
     </div>
   );
 }

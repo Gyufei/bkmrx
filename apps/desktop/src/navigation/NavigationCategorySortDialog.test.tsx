@@ -66,7 +66,7 @@ describe('NavigationCategorySortDialog', () => {
     );
 
     expect(screen.getByRole('button', { name: '保存排序' })).toBeDisabled();
-    expect(screen.getByRole('listitem', { name: '工具' })).toHaveClass('bg-muted');
-    expect(screen.getByRole('listitem', { name: '工具' })).not.toHaveClass('rounded-lg');
+    expect(screen.getByRole('listitem', { name: '工具' })).toHaveClass('bg-card', 'rounded-md');
+    expect(screen.getByText('拖动任意分类开始排序')).toBeInTheDocument();
   });
 });

@@ -37,7 +37,7 @@ export default function NavigationPage() {
         <Button
           variant="outline"
           size="icon-sm"
-          className="absolute right-4 bottom-14 z-10"
+          className="absolute right-4 bottom-14 z-10 bg-background"
           aria-label="排序分类"
           title="排序分类"
           disabled={controller.sections.length < 2}
@@ -49,7 +49,7 @@ export default function NavigationPage() {
       <Button
         variant="outline"
         size="icon-sm"
-        className="absolute bottom-4 right-4 z-10"
+        className="absolute right-4 bottom-4 z-10 bg-background"
         aria-label={manageable ? '查看' : '编辑'}
         title={manageable ? '查看' : '编辑'}
         onClick={() => (manageable ? leaveEditMode() : setMode('edit'))}
@@ -153,8 +153,8 @@ function NavigationSections({
       </Empty>
     );
   return (
-    <div className="flex-1 overflow-y-auto p-5 pr-14">
-      <div className="flex flex-wrap content-start items-start gap-4">
+    <div className="flex-1 overflow-y-auto p-5 pr-14 pb-14">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] content-start items-start gap-4">
         {sections.map((section) => (
           <NavigationSectionView
             key={section.category.id}
@@ -186,9 +186,10 @@ function AddCategoryCard({ onClick }: { onClick(): void }) {
       type="button"
       aria-label="新建分类"
       onClick={onClick}
-      className="flex h-20.5 w-12 items-center justify-center rounded-lg border text-muted-foreground transition-transform hover:-translate-px hover:border-ring hover:text-foreground"
+      className="flex min-h-28 items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card/30 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
     >
-      <Plus aria-hidden="true" />
+      <Plus className="size-4" aria-hidden="true" />
+      <span>新建分类</span>
     </button>
   );
 }

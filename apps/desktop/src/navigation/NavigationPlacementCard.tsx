@@ -28,15 +28,17 @@ export default function NavigationPlacementCard({ card, removing, onOpen, onRemo
   return (
     <div
       className={cn(
-        'group relative flex h-7 w-[200px] items-center rounded-md border border-transparent bg-muted/40 transition-transform',
-        'hover:-translate-px hover:border-ring',
+        'group relative flex h-8 min-w-0 items-center rounded-md border border-transparent transition-colors',
+        'hover:border-border hover:bg-accent/70 focus-within:border-ring/60 focus-within:bg-accent/70',
+        onRemove && 'pr-7',
       )}
     >
       <button
-        className="flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left"
+        className="flex h-full min-w-0 flex-1 items-center gap-2 px-2 text-left outline-none"
         onClick={onOpen}
+        title={`${card.title}\n${card.url}`}
       >
-        <span className="flex size-4 shrink-0 items-center justify-center">
+        <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-background">
           {favicon && !failed ? (
             <img
               src={favicon}
@@ -49,13 +51,13 @@ export default function NavigationPlacementCard({ card, removing, onOpen, onRemo
             <Globe2 aria-hidden="true" className="size-3.5 text-muted-foreground" />
           )}
         </span>
-        <span className="truncate text-xs">{card.title}</span>
+        <span className="truncate text-xs font-medium">{card.title}</span>
       </button>
       {onRemove ? (
         <Button
           variant="ghost"
           size="icon-xs"
-          className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          className="absolute top-1 right-1 text-muted-foreground hover:text-destructive"
           aria-label={`从分类移除 ${card.title}`}
           disabled={removing}
           onClick={onRemove}

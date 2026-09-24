@@ -33,6 +33,7 @@ export default function CalendarDayCell({
       role="button"
       tabIndex={0}
       aria-label={format(date, 'yyyy年M月d日')}
+      aria-current={isSameDay(date, today) ? 'date' : undefined}
       aria-pressed={selected}
       onClick={() => onSelect(date)}
       onDoubleClick={() => onCreate(date)}

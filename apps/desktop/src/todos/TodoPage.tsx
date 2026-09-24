@@ -47,8 +47,13 @@ export default function TodoPage() {
         onArchiveDeleteTag={controller.archiveDelete.prepareArchive}
       />
       <PageShell>
-        <header className="flex items-center justify-between px-8 py-5">
-          <h1 className="text-2xl font-semibold">{controller.selectedTag?.name ?? '所有任务'}</h1>
+        <header className="flex items-end justify-between px-8 pt-6 pb-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-[-0.025em]">
+              {controller.selectedTag?.name ?? '所有任务'}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">集中处理、筛选和归档你的任务。</p>
+          </div>
           <Button
             onClick={() => {
               setEditing(null);
@@ -59,7 +64,7 @@ export default function TodoPage() {
             新建任务
           </Button>
         </header>
-        <div className="px-8 pb-4">
+        <div className="border-b border-border bg-card/50 px-8 py-3">
           <Input
             value={quickTitle}
             disabled={controller.createMutation.isPending}
@@ -86,13 +91,13 @@ export default function TodoPage() {
               }
             }}
             placeholder="快速添加任务，按 Enter 提交…"
-            className="h-12 bg-muted/60"
+            className="h-9 border-border/70 bg-background/80 shadow-none"
           />
         </div>
         <Tabs
           value={controller.status}
           onValueChange={(value) => controller.setStatus(value as StatusFilter)}
-          className="px-8 pb-3"
+          className="px-8 pt-3 pb-3"
         >
           <TabsList variant="line">
             {STATUS_TABS.map((tab) => (

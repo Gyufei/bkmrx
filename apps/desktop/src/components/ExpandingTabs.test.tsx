@@ -47,7 +47,7 @@ describe('ExpandingTabs', () => {
     expect(screen.getByRole('tab', { name: '日历' })).toHaveFocus();
   });
 
-  it('keeps collapsed labels mounted so hovering does not shift the icon before expansion', () => {
+  it('keeps every label visible so the secondary navigation does not shift on hover', () => {
     render(
       <ExpandingTabs
         items={ITEMS}
@@ -57,12 +57,7 @@ describe('ExpandingTabs', () => {
       />,
     );
 
-    const collapsedTab = screen.getByRole('tab', { name: '待办' });
-    const label = collapsedTab.querySelector('[data-slot="expanding-tab-label"]');
-    expect(label).toHaveAttribute('aria-hidden', 'true');
-
-    fireEvent.mouseEnter(collapsedTab);
-    expect(collapsedTab.querySelector('[data-slot="expanding-tab-label"]')).toBe(label);
-    expect(label).toHaveAttribute('aria-hidden', 'false');
+    expect(screen.getByRole('tab', { name: '待办' })).toHaveTextContent('待办');
+    expect(screen.getByRole('tab', { name: '日历' })).toHaveTextContent('日历');
   });
 });

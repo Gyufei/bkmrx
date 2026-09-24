@@ -40,7 +40,7 @@ function SettingsPage() {
       className="min-h-0 flex-1 gap-0 overflow-hidden"
     >
       <SettingsTabs dirtyTabs={dirtyTabs} />
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-background">
         {settings.isLoading ? (
           <div
             role="status"

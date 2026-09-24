@@ -46,9 +46,9 @@ export default function RssEntryList({
   const showError = error && items.length === 0;
 
   return (
-    <section className="flex w-90 shrink-0 flex-col border-r">
-      <header className="flex h-11 items-center justify-between border-b px-3">
-        <span className="text-sm font-semibold">文章</span>
+    <section className="flex w-90 shrink-0 flex-col border-r border-border bg-card">
+      <header className="flex h-11 items-center justify-between border-b border-border px-3">
+        <span className="text-base font-semibold tracking-[-0.01em]">文章</span>
         <span className="text-xs text-muted-foreground">{items.length}</span>
       </header>
       <div className="min-h-0 flex-1 overflow-auto">

@@ -22,7 +22,7 @@ export default function CollapsibleSidebar({
     <aside
       data-collapsed={collapsed}
       className={cn(
-        'relative flex shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar',
+        'relative flex shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar',
         'transition-[width,background-color] duration-200 ease-out',
         collapsed ? 'w-12 hover:bg-muted/70' : className,
       )}
@@ -38,7 +38,7 @@ export default function CollapsibleSidebar({
         </button>
       ) : null}
       <div className={cn('min-h-0 flex-1 flex-col', collapsed ? 'hidden' : 'flex')}>
-        <header className="flex h-10 shrink-0 items-center justify-between gap-2 px-3">
+        <header className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-sidebar-border/70 px-3">
           <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
           <button
             type="button"

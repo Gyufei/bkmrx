@@ -1,5 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
+import { useRef, type KeyboardEvent } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -18,8 +17,6 @@ export type ExpandingTabsProps<T extends string> = {
   className?: string;
 };
 
-const SPRING = { type: 'spring', stiffness: 220, damping: 24 } as const;
-
 export function ExpandingTabs<T extends string>({
   items,
   value,
@@ -27,9 +24,7 @@ export function ExpandingTabs<T extends string>({
   ariaLabel,
   className,
 }: ExpandingTabsProps<T>) {
-  const [hovered, setHovered] = useState<T | null>(null);
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
-  const reduceMotion = useReducedMotion() ?? false;
 
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex: number | undefined;
@@ -50,18 +45,16 @@ export function ExpandingTabs<T extends string>({
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex h-8 items-center gap-0.5 rounded-full border border-border bg-muted p-0.5 shadow-xs',
+        'inline-flex h-8 items-stretch gap-4 border-l border-border pl-4',
         className,
       )}
-      onMouseLeave={() => setHovered(null)}
     >
       {items.map((item, index) => {
         const active = item.value === value;
-        const expanded = hovered ? hovered === item.value : active;
         const Icon = item.icon;
 
         return (
-          <motion.button
+          <button
             ref={(node) => {
               buttons.current[index] = node;
             }}
@@ -71,34 +64,23 @@ export function ExpandingTabs<T extends string>({
             aria-selected={active}
             aria-label={item.label}
             tabIndex={active ? 0 : -1}
-            initial={false}
-            animate={{ width: expanded ? 64 : 28, paddingLeft: expanded ? 11 : 7 }}
-            transition={reduceMotion ? { duration: 0 } : SPRING}
-            whileTap={reduceMotion ? undefined : { scale: 0.94 }}
             onClick={() => onValueChange(item.value)}
-            onMouseEnter={() => setHovered(item.value)}
-            onFocus={() => setHovered(item.value)}
-            onBlur={() => setHovered(null)}
             onKeyDown={(event) => handleKeyDown(event, index)}
             className={cn(
-              'flex h-7 cursor-pointer items-center justify-start overflow-hidden rounded-full pr-0 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 [&_svg]:size-3.5 [&_svg]:shrink-0',
+              'relative flex h-8 cursor-pointer items-center gap-1.5 border-b-2 px-0.5 text-xs font-medium whitespace-nowrap outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background [&_svg]:size-3.5 [&_svg]:shrink-0',
               active
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
             <Icon aria-hidden />
-            <motion.span
+            <span
               data-slot="expanding-tab-label"
-              aria-hidden={!expanded}
-              initial={false}
-              animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
-              transition={{ duration: reduceMotion ? 0 : 0.16, delay: expanded ? 0.06 : 0 }}
-              className="pointer-events-none ml-1 overflow-hidden"
+              className="pointer-events-none"
             >
               {item.label}
-            </motion.span>
-          </motion.button>
+            </span>
+          </button>
         );
       })}
     </div>

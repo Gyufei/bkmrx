@@ -1,6 +1,25 @@
 :root {
-  --color-primary: #2563eb;
-  --color-primary-rgb: 37, 99, 235;
+  /* Intentionally copied from the desktop theme. Keep this popup standalone. */
+  --color-background: oklch(0.9880 0.0035 95.0986);
+  --color-foreground: oklch(0.3438 0.0269 95.7226);
+  --color-card: oklch(0.9700 0.0070 97.3521);
+  --color-popover: oklch(1 0 0);
+  --color-primary: oklch(0.6171 0.1375 39.0427);
+  --color-primary-foreground: oklch(1 0 0);
+  --color-secondary: oklch(0.9245 0.0138 92.9892);
+  --color-muted: oklch(0.9341 0.0153 90.2390);
+  --color-muted-foreground: oklch(0.5341 0.0078 97.4503);
+  --color-accent: oklch(0.9245 0.0138 92.9892);
+  --color-accent-foreground: oklch(0.2671 0.0196 98.9390);
+  --color-border: oklch(0.8550 0.0090 97.3627);
+  --color-input: oklch(0.7621 0.0156 98.3528);
+  --color-ring: oklch(0.6171 0.1375 39.0427);
+  --color-destructive: oklch(0.57 0.22 27.2);
+  --color-destructive-foreground: oklch(1 0 0);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 }
 
 * {
@@ -12,10 +31,14 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
                "Segoe UI", Roboto, sans-serif;
-  background: #fafaf9;
-  color: #1c1917;
+  background: var(--color-background);
+  color: var(--color-foreground);
   width: 420px;
   min-height: 320px;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--color-primary) 24%, transparent);
 }
 
 #app {
@@ -37,7 +60,7 @@ body {
 .spinner {
   width: 24px;
   height: 24px;
-  border: 2.5px solid #e7e5e4;
+  border: 2.5px solid var(--color-border);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
@@ -48,7 +71,7 @@ body {
 }
 
 .loading-text {
-  color: #a8a29e;
+  color: var(--color-muted-foreground);
   font-size: 13px;
 }
 
@@ -65,7 +88,7 @@ body {
 }
 
 .disco-icon {
-  color: #d6d3d1;
+  color: var(--color-border);
   margin-bottom: 4px;
   opacity: 0.7;
 }
@@ -73,27 +96,27 @@ body {
 .disco-title {
   font-size: 15px;
   font-weight: 600;
-  color: #57534e;
+  color: var(--color-foreground);
 }
 
 .disco-desc {
   font-size: 13px;
-  color: #a8a29e;
+  color: var(--color-muted-foreground);
 }
 
 .retry-button {
   padding: 8px 18px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--color-primary);
-  color: #ffffff;
+  color: var(--color-primary-foreground);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 }
 
 .retry-button:focus-visible {
-  outline: 2px solid rgba(var(--color-primary-rgb), 0.35);
+  outline: 2px solid color-mix(in oklch, var(--color-ring) 45%, transparent);
   outline-offset: 2px;
 }
 
@@ -107,7 +130,7 @@ body {
 .app-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1c1917;
+  color: var(--color-foreground);
 }
 
 /* --- Existing bookmark banner --- */
@@ -117,7 +140,7 @@ body {
   margin-bottom: 16px;
   background: #fefce8;
   border: 1px solid #fde68a;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   font-size: 12px;
   line-height: 1.5;
   color: #713f12;
@@ -156,13 +179,13 @@ body {
   gap: 6px;
   font-size: 13px;
   font-weight: 500;
-  color: #44403c;
+  color: var(--color-foreground);
   margin-bottom: 6px;
 }
 
 .field-icon {
   flex-shrink: 0;
-  color: #a8a29e;
+  color: var(--color-muted-foreground);
 }
 
 .field input[type="text"],
@@ -172,10 +195,10 @@ body {
   padding: 10px 12px;
   font-size: 14px;
   font-family: inherit;
-  border: 1px solid #e7e5e4;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #1c1917;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-popover);
+  color: var(--color-foreground);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -184,7 +207,7 @@ body {
 .field input[type="url"]:focus,
 .field textarea:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.15);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-ring) 22%, transparent);
 }
 
 .field textarea {
@@ -212,7 +235,7 @@ body {
 }
 
 .translation-spinner {
-  border: 2px solid #e7e5e4;
+  border: 2px solid var(--color-border);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
@@ -223,8 +246,8 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #dc2626;
-  color: #fff;
+  background: var(--color-destructive);
+  color: var(--color-destructive-foreground);
   font-size: 11px;
   font-weight: 700;
   cursor: help;
@@ -239,7 +262,7 @@ body {
 
 .field input::placeholder,
 .field textarea::placeholder {
-  color: #a8a29e;
+  color: var(--color-muted-foreground);
 }
 
 /* --- Submit button --- */
@@ -255,25 +278,25 @@ body {
   font-weight: 500;
   font-family: inherit;
   background: var(--color-primary);
-  color: #ffffff;
+  color: var(--color-primary-foreground);
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: background 0.15s, opacity 0.15s, box-shadow 0.15s;
   -webkit-appearance: none;
 }
 
 #submit-btn:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: color-mix(in oklch, var(--color-primary), black 8%);
 }
 
 #submit-btn:active:not(:disabled) {
-  background: #1e40af;
+  background: color-mix(in oklch, var(--color-primary), black 14%);
 }
 
 #submit-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px rgba(var(--color-primary-rgb), 0.35);
+  box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px color-mix(in oklch, var(--color-ring) 45%, transparent);
 }
 
 #submit-btn:disabled {
@@ -282,26 +305,26 @@ body {
 }
 
 #submit-btn.update-mode {
-  background: #d97706;
+  background: var(--color-primary);
 }
 
 #submit-btn.update-mode:hover:not(:disabled) {
-  background: #b45309;
+  background: color-mix(in oklch, var(--color-primary), black 8%);
 }
 
 #submit-btn.update-mode:active:not(:disabled) {
-  background: #92400e;
+  background: color-mix(in oklch, var(--color-primary), black 14%);
 }
 
 #submit-btn.update-mode:focus-visible {
-  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px rgba(217, 119, 6, 0.35);
+  box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px color-mix(in oklch, var(--color-ring) 45%, transparent);
 }
 
 /* --- Status messages (below button) --- */
 .status-message {
   margin-top: 12px;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 13px;
   line-height: 1.4;
   text-align: center;
@@ -328,13 +351,13 @@ body {
   width: 100%;
   min-height: 38px;
   padding: 2px 4px;
-  border: 1px solid #e7e5e4;
-  border-radius: 12px;
-  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-popover);
   transition: border-color 0.15s, box-shadow 0.15s;
-  --tag-bg: #e8f0fe;
-  --tag-hover: #d6e4fd;
-  --tag-text-color: #1d4ed8;
+  --tag-bg: color-mix(in oklch, var(--color-primary) 14%, var(--color-background));
+  --tag-hover: color-mix(in oklch, var(--color-primary) 20%, var(--color-background));
+  --tag-text-color: color-mix(in oklch, var(--color-primary), black 18%);
   --tag-remove-bg: #fef2f2;
   --tag-remove-btn-color: #cbd5e1;
   --tag-remove-btn-bg: none;
@@ -343,32 +366,32 @@ body {
   --tags-hover-border-color: transparent;
   --tags-focus-border-color: transparent;
   --tag-pad: 3px 10px;
-  --tag-text-hover: #1e40af;
+  --tag-text-hover: color-mix(in oklch, var(--color-primary), black 24%);
   --tag-ins-shadow: none;
-  --placeholder-color: #a8a29e;
-  --placeholder-color-focus: #a8a29e;
+  --placeholder-color: var(--color-muted-foreground);
+  --placeholder-color-focus: var(--color-muted-foreground);
   --readonly-striped: none;
   --tagify-dd-color-primary: var(--color-primary);
-  --tagify-dd-bg-color: #ffffff;
-  --tagify-dd-item-bg: #f5f5f4;
-  --tagify-dd-item-hover-bg: #eff6ff;
+  --tagify-dd-bg-color: var(--color-popover);
+  --tagify-dd-item-bg: var(--color-muted);
+  --tagify-dd-item-hover-bg: var(--color-accent);
 }
 
 .field .tagify:hover {
-  border-color: #d6d3d1;
+  border-color: var(--color-input);
 }
 
 .field .tagify.tagify--focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.15);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-ring) 22%, transparent);
 }
 
 .tags-look {
-  border: 1px solid #d6d3d1;
-  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.10), 0 1px 3px rgba(0, 0, 0, 0.06);
   margin-top: 4px;
-  background: #ffffff;
+  background: var(--color-popover);
 }
 
 .tags-look .tagify__dropdown__wrapper {
@@ -384,22 +407,22 @@ body {
   display: inline-block;
   padding: 4px 10px;
   font-size: 12px;
-  color: #44403c;
+  color: var(--color-foreground);
   cursor: pointer;
-  background: #f5f5f4;
-  border-radius: 6px;
+  background: var(--color-muted);
+  border-radius: var(--radius-md);
   transition: background 0.08s, color 0.08s;
   white-space: nowrap;
 }
 
 .tags-look .tagify__dropdown__item:hover {
-  background: #e8f0fe;
-  color: #1d4ed8;
+  background: var(--color-accent);
+  color: var(--color-accent-foreground);
 }
 
 .tags-look .tagify__dropdown__item--active {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: color-mix(in oklch, var(--color-primary) 18%, var(--color-background));
+  color: color-mix(in oklch, var(--color-primary), black 18%);
   font-weight: 600;
 }
 
@@ -409,12 +432,12 @@ body {
 
 .field .tagify .tagify__tag {
   margin: 3px 3px 3px 0;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   transition: opacity 0.12s;
 }
 
 .field .tagify .tagify__tag>div {
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 2px 10px;
   font-size: 12px;
   line-height: 1.5;
@@ -426,7 +449,7 @@ body {
   margin: 0 2px 0 4px;
   width: 18px;
   height: 18px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: background 0.12s, color 0.12s;
 }
 
@@ -439,7 +462,7 @@ body {
   margin: 4px 2px;
   font-size: 14px;
   font-family: inherit;
-  color: #1c1917;
+  color: var(--color-foreground);
   min-width: 60px;
 }
 

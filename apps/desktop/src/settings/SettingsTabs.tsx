@@ -17,13 +17,13 @@ const tabs = [
 
 export default function SettingsTabs({ dirtyTabs }: SettingsTabsProps) {
   return (
-    <div className="w-full flex h-fit pt-2 items-center justify-center bg-background/95 px-4 backdrop-blur">
+    <div className="flex h-fit w-full items-center justify-center border-b border-border bg-card px-4 pt-2">
       <TabsList variant="line" aria-label="设置分类" className="h-auto! min-w-max gap-1 p-0!">
         {tabs.map(({ value, label, icon: Icon }) => (
           <TabsTrigger
             key={value}
             value={value}
-            className="h-auto! min-w-20 flex-col gap-0.5 rounded-xl px-4 py-1.5 after:inset-x-4! after:bottom-0! after:h-0.5 after:bg-primary data-active:bg-muted data-active:after:opacity-100"
+            className="h-auto! min-w-20 flex-col gap-0.5 rounded-md px-4 py-1.5 after:inset-x-4! after:bottom-0! after:h-0.5 after:bg-primary data-active:bg-muted data-active:after:opacity-100"
           >
             <Icon className="size-5" aria-hidden="true" />
             <span className="relative">
